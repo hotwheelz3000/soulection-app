@@ -20,10 +20,12 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
     ) -> Bool {
         // The .playback category (plus UIBackgroundModes=audio in the Info.plist)
         // keeps the stream playing when the screen locks or the app is backgrounded.
+        // Only the category is set here: the session isn't activated at launch, so
+        // opening the app doesn't stop a podcast or music already playing. WebKit
+        // activates it when a show actually starts.
         let session = AVAudioSession.sharedInstance()
         do {
             try session.setCategory(.playback, mode: .default, policy: .longFormAudio)
-            try session.setActive(true)
         } catch {
             print("Failed to configure audio session: \(error)")
         }
