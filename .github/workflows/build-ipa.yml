@@ -71,8 +71,17 @@ jobs:
 
       # Builds for arm64-apple-ios (the default triple). Without --sign the
       # app is left unsigned; --ipa zips it into Payload/ as xtool/<App>.ipa.
+      # Compiler errors are also reported as annotations, so they show up on the
+      # run's summary page without opening the full log.
       - name: Build unsigned IPA
-        run: xtool dev build --ipa
+        run: |
+          set -o pipefail
+          if ! xtool dev build --ipa 2>&1 | tee build.log; then
+            grep -E "error:" build.log | sort -u | head -20 | while IFS= read -r line; do
+              echo "::error::$line"
+            done
+            exit 1
+          fi
 
       - name: Package IPA manually if needed
         env:
