@@ -137,8 +137,12 @@ jobs:
           APP_NAME: ${{ steps.app.outputs.name }}
         run: |
           label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
+          # A second copy named with the build time, so downloading a new build on an
+          # iPhone never collides with an older one ("SoulectionRadio.ipa 2").
+          stamp=$(TZ=America/Los_Angeles date '+%Y-%m-%d-%H%M')
+          cp "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa"
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest "xtool/$APP_NAME.ipa" \
+          gh release create latest "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa" \
             --title "Latest build ($label)" \
-            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME.ipa below and install it with Sideloadly or AltStore; see the README for the steps." \
+            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME-$stamp.ipa below (or $APP_NAME.ipa) and install it with Sideloadly or AltStore; see the README for the steps." \
             --latest
