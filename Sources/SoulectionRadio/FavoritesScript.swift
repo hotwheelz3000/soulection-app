@@ -110,6 +110,7 @@ enum FavoritesScript {
             '.sr-sleep .sr-sheet{min-height:0}',
             '.sr-sleep-title{font-size:13px;line-height:18px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';margin:0}',
             '.sr-sleep-status{font-size:12px;line-height:16px;color:' + MUTED + ';margin-top:3px}',
+            '.sr-sleep-count{display:block;font-size:40px;line-height:46px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:4px}',
             '.sr-sleep-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0;margin:0;background:none;border:0;border-bottom:1px solid ' + BORDER + ';-webkit-appearance:none;appearance:none;font-family:' + FONT + ';font-size:17px;line-height:22px;color:' + TEXT + ';text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-sleep-row:last-child{border-bottom:0}',
             '.sr-sleep-row:active{background:' + HOVER + '}',
@@ -119,8 +120,8 @@ enum FavoritesScript {
             '.sr-step:active{background:' + HOVER + '}',
             '.sr-sleep-off{color:' + TEXT + ';font-weight:600}',
             // Full-size player.
-            '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);-webkit-user-select:none;user-select:none}',
-            '.sr-np.sr-open{transform:none}',
+            '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translate3d(0,100%,0);will-change:transform;-webkit-user-select:none;user-select:none}',
+            '.sr-np-morph{position:fixed;z-index:46;object-fit:cover;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45);will-change:left,top,width,height}',
             '.sr-np[hidden]{display:none}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
@@ -298,8 +299,14 @@ enum FavoritesScript {
             var playing = st.paused === false || (st.paused == null && moving);
             listen.last = now;
             listen.lastT = st.t;
-            // Saved the moment it starts playing, like Spotify's Recently played.
+            // Saved the moment it starts playing, like Spotify's Recently played, but only
+            // once playback is really inside this song's timestamps (not the intro before the
+            // first song), and not while a playlist or Mixtape is still jumping to its song
+            // (playback can pass over the neighbouring songs on the way).
             if (listen.done || !playing) return;
+            var inRange = st.t != null && st.t >= t.start - 0.5 && (t.end == null || st.t < t.end);
+            if (!inRange) return;
+            if (playlist && (arriving || !playlist.current || playlist.current.id !== t.id)) return;
             listen.done = true;
             var entry = {};
             for (var k in t) entry[k] = t[k];
@@ -385,19 +392,16 @@ enum FavoritesScript {
             setTimeout(function () {
               var n = showNote(
                 '<div class="sr-note-title">Restore your Likes and History?</div>' +
-                '<div>If you had auto-backup on, pick the folder you used (like iCloud Drive › Soulection). It restores everything and keeps backing up there.</div>' +
+                '<div>If you had auto-backup on, pick your backup file (Soulection Radio Backup.json, e.g. in iCloud Drive). Everything comes back and auto-backup keeps going.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) return;
               var actions = n.querySelector('.sr-actions');
-              var pickBtn = el('button', 'sr-btn', CLOUD + '<span>Pick folder</span>');
-              var fileBtn = el('button', 'sr-btn', IMPORT + '<span>A file</span>');
+              var pickBtn = el('button', 'sr-btn', IMPORT + '<span>Pick backup file</span>');
               var noBtn = el('button', 'sr-btn', '<span>Not now</span>');
-              pickBtn.type = fileBtn.type = noBtn.type = 'button';
-              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupFolder' }); });
-              fileBtn.addEventListener('click', function () { hideNote(); native({ op: 'import' }); });
+              pickBtn.type = noBtn.type = 'button';
+              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreBackup' }); });
               noBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreDismissed' }); });
               actions.appendChild(pickBtn);
-              actions.appendChild(fileBtn);
               actions.appendChild(noBtn);
             }, 1500);
           }
@@ -528,8 +532,48 @@ enum FavoritesScript {
             };
           }
 
+          // The site's × (close) button on the mini player: found by its label or text, or as
+          // a small button sitting on the card's top-right corner.
+          function hideMiniClose(player) {
+            var scope = player.parentElement || player;
+            var pr = player.getBoundingClientRect();
+            var play = sitePlayButton();
+            var btns = scope.querySelectorAll('button');
+            for (var i = 0; i < btns.length; i++) {
+              var b = btns[i];
+              if (b === play || b.closest('.sr-fav-root') || /\bsr-/.test(b.className || '')) continue;
+              if (b.getAttribute('data-sr-hidden')) continue;
+              var label = (b.getAttribute('aria-label') || '') + ' ' + (b.textContent || '');
+              var r = b.getBoundingClientRect();
+              var cornerish = r.width > 0 && r.width <= 48 && r.height <= 48 &&
+                Math.abs(r.right - pr.right) < 36 && Math.abs(r.top - pr.top) < 36;
+              if (/close|dismiss|×|✕/i.test(label) || (cornerish && b !== play && !b.closest('[role="slider"]'))) {
+                b.setAttribute('data-sr-hidden', '1');
+                b.style.setProperty('display', 'none', 'important');
+              }
+            }
+          }
+          // On iPad the site shows the mini player as a small card in the corner; make it
+          // span the bottom edge like on iPhone.
+          function fullWidthMini(player) {
+            if (window.innerWidth < 640) {
+              if (player.getAttribute('data-sr-full')) {
+                ['left', 'right', 'bottom', 'width', 'max-width', 'border-radius', 'margin', 'transform'].forEach(function (p) { player.style.removeProperty(p); });
+                player.removeAttribute('data-sr-full');
+              }
+              return;
+            }
+            if (player.getAttribute('data-sr-full')) return;
+            player.setAttribute('data-sr-full', '1');
+            var set = function (p, v) { player.style.setProperty(p, v, 'important'); };
+            set('left', '0'); set('right', '0'); set('bottom', '0'); set('width', 'auto');
+            set('max-width', 'none'); set('border-radius', '0'); set('margin', '0'); set('transform', 'none');
+          }
+
           function renderMiniPlayer(player) {
             if (!player) return;
+            hideMiniClose(player);
+            fullWidthMini(player);
             if (!player.querySelector(':scope > .sr-grab')) {
               var g = el('button', 'sr-grab');
               g.type = 'button';
@@ -956,8 +1000,19 @@ enum FavoritesScript {
             showToast('Sleep timer: paused.');
           }
           // "End of song" / "End of show" follow playback.
+          var SLEEP_FADE = 15; // seconds of fade before "End of song" / "End of show"
           function followSleep(st) {
             if (!sleep || sleep.type === 'time' || !st) return;
+            // Start fading a little before the end.
+            if (!sleep.fading && st.t != null && st.paused === false) {
+              var end = sleep.type === 'song' ? sleep.end : st.duration;
+              var left = end != null ? end - st.t : null;
+              if (left != null && left > 0.5 && left <= SLEEP_FADE) {
+                sleep.fading = true;
+                saveSleep();
+                native({ op: 'sleepFade', seconds: left });
+              }
+            }
             if (sleep.type === 'song') {
               var t = currentTrack();
               var past = sleep.end != null && st.t != null && st.t >= sleep.end - 0.6;
@@ -1011,9 +1066,10 @@ enum FavoritesScript {
           }
           function renderSleepStatus() {
             if (!sleepPanel) return;
-            var s = !sleep ? 'Off' : sleep.type === 'time' ? sleepText() + ' left'
-              : sleep.type === 'song' ? 'Stops at the end of this song' : 'Stops at the end of this show';
-            if (sleepPanel.status.textContent !== s) sleepPanel.status.textContent = s;
+            var html = !sleep ? 'Off'
+              : sleep.type === 'time' ? '<span class="sr-sleep-count">' + esc(sleepText()) + '</span>left · fades out at the end'
+              : sleep.type === 'song' ? 'Fades out at the end of this song' : 'Fades out at the end of this show';
+            if (sleepPanel.status.innerHTML !== html) sleepPanel.status.innerHTML = html;
           }
           function renderSleep() {
             var list = sleepPanel.list;
@@ -1263,22 +1319,38 @@ enum FavoritesScript {
 
           // Swipe up on the mini player to open the full player, like Spotify.
           function attachOpenGesture() {
-            var y0 = null, x0 = 0;
+            var y0 = null, x0 = 0, mode = null, track = null;
             document.addEventListener('touchstart', function (e) {
-              y0 = null;
+              y0 = null; mode = null;
               if (e.touches.length !== 1 || isOpen() || isPlayerOpen()) return;
               var t = e.target;
               var player = miniPlayer();
-              var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"]'));
+              var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"], [role="slider"]'));
               if (!onPlayer) return;
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
+              track = velocityTracker();
+              track.add(y0);
             }, { passive: true, capture: true });
-            document.addEventListener('touchend', function (e) {
+            // The player follows the finger as it slides up, like Spotify.
+            document.addEventListener('touchmove', function (e) {
               if (y0 == null) return;
-              var p = e.changedTouches[0];
-              var dy = p.clientY - y0, dx = p.clientX - x0;
+              var y = e.touches[0].clientY, dy = y - y0, dx = e.touches[0].clientX - x0;
+              if (!mode) {
+                if (Math.abs(dy) < 8 && Math.abs(dx) < 8) return;
+                mode = dy < 0 && Math.abs(dy) > Math.abs(dx) ? 'open' : 'other';
+                if (mode === 'open' && !beginPlayerDrag()) mode = 'other';
+              }
+              if (mode !== 'open') return;
+              e.preventDefault();
+              track.add(y);
+              setProgress(Math.max(0, Math.min(1, -dy / window.innerHeight)));
+            }, { passive: false, capture: true });
+            document.addEventListener('touchend', function () {
+              if (y0 == null) return;
               y0 = null;
-              if (dy < -30 && Math.abs(dy) > Math.abs(dx) * 1.5) openPlayer();
+              if (mode !== 'open') return;
+              mode = null;
+              settlePlayer(-track.velocity() / window.innerHeight);
             }, { passive: true, capture: true });
             // Tapping the mini player (anywhere but its buttons and slider) opens it too,
             // and play/pause goes straight to the audio so it reacts right away.
@@ -1288,7 +1360,9 @@ enum FavoritesScript {
               if (!player || !t || !t.closest || !player.contains(t)) return;
               var btn = t.closest('button, a, input, [role="slider"], [data-orientation="horizontal"]');
               if (btn) {
-                if (btn === sitePlayButton()) fastPlayPause();
+                // Play/pause goes straight to the audio only; the site's button follows
+                // along from the player's play/pause events.
+                if (btn === sitePlayButton() && fastPlayPause()) { e.preventDefault(); e.stopPropagation(); }
                 return;
               }
               e.preventDefault();
@@ -1312,20 +1386,22 @@ enum FavoritesScript {
             var st = npState();
             return !st || st.paused !== false;
           }
-          // Sends play/pause straight to the audio. The site's own button handler still
-          // runs too, so the site's player stays in sync.
+          // Sends play/pause straight to the audio in the player. Returns false when the
+          // player hasn't reported its state yet, so the site's own button handles it.
           function fastPlayPause() {
             var st = npState();
-            if (!st || st.paused == null) return;
             var n = np();
-            if (!n) return;
-            if (st.paused) { n.play && n.play(); optimistic = { paused: false, until: Date.now() + 1500 }; }
-            else { n.pause(); optimistic = { paused: true, until: Date.now() + 1500 }; }
+            if (!st || st.paused == null || !n || !n.play) return false;
+            var wantPause = !isPaused();
+            if (wantPause) n.pause(); else n.play();
+            optimistic = { paused: wantPause, until: Date.now() + 1500 };
             renderPlayer();
+            return true;
           }
           function togglePlay() {
+            if (fastPlayPause()) return;
             var btn = sitePlayButton();
-            if (btn) btn.click(); // goes through fastPlayPause via the click listener
+            if (btn) btn.click();
           }
 
           // ---------------------------------------------------------------------------
@@ -1405,28 +1481,128 @@ enum FavoritesScript {
             attachPlayerDrag();
           }
 
-          function openPlayer() {
-            if (!miniPlayer()) return;
+          // Opening and closing are driven by a progress value p (0 = closed, 1 = open)
+          // with spring physics, and the cover art grows out of the mini player's thumbnail.
+          var fpP = 0, fpV = 0, fpAnim = null, morph = null;
+          function velocityTracker() {
+            var pts = [];
+            return {
+              add: function (y) { var t = performance.now(); pts.push({ y: y, t: t }); while (pts.length > 2 && t - pts[0].t > 100) pts.shift(); },
+              velocity: function () { // px per second, positive = downwards
+                if (pts.length < 2) return 0;
+                var a = pts[0], b = pts[pts.length - 1];
+                return b.t > a.t ? (b.y - a.y) / ((b.t - a.t) / 1000) : 0;
+              }
+            };
+          }
+          function thumbRect() {
+            var player = miniPlayer();
+            var img = player && player.querySelector('img');
+            var r = img && img.getBoundingClientRect();
+            return r && r.width ? r : null;
+          }
+          function finalCoverRect() {
+            var prev = fp.root.style.transform;
+            fp.root.style.transform = 'none';
+            var r = fp.cover.getBoundingClientRect();
+            fp.root.style.transform = prev;
+            return r.width ? r : null;
+          }
+          function startMorph() {
+            endMorph();
+            var from = thumbRect(), to = finalCoverRect();
+            if (!from || !to || !fp.cover.getAttribute('src')) return;
+            var img = el('img', 'sr-np-morph');
+            img.alt = '';
+            img.src = fp.cover.currentSrc || fp.cover.src;
+            document.body.appendChild(img);
+            fp.cover.style.visibility = 'hidden';
+            morph = { img: img, from: from, to: to };
+          }
+          function endMorph() {
+            if (!morph) return;
+            morph.img.remove();
+            morph = null;
+            if (fp) fp.cover.style.visibility = '';
+          }
+          function setProgress(p) {
+            fpP = p;
+            fp.root.style.transform = 'translate3d(0,' + ((1 - p) * window.innerHeight).toFixed(1) + 'px,0)';
+            if (!morph) return;
+            var e = Math.max(0, Math.min(1, p)), f = morph.from, t = morph.to;
+            var st = morph.img.style;
+            st.left = (f.left + (t.left - f.left) * e) + 'px';
+            st.top = (f.top + (t.top - f.top) * e) + 'px';
+            st.width = (f.width + (t.width - f.width) * e) + 'px';
+            st.height = (f.height + (t.height - f.height) * e) + 'px';
+            st.borderRadius = (2 + 4 * e) + 'px';
+          }
+          function animateTo(target, velocity, done) {
+            cancelAnimationFrame(fpAnim);
+            fpV = velocity || 0;
+            var last = performance.now();
+            var k = 340, c = 2 * Math.sqrt(k) * 0.9; // a quick spring with a hint of bounce
+            function step(now) {
+              var dt = Math.min(0.032, (now - last) / 1000);
+              last = now;
+              fpV += (-k * (fpP - target) - c * fpV) * dt;
+              var p = fpP + fpV * dt;
+              if (Math.abs(p - target) < 0.002 && Math.abs(fpV) < 0.03) {
+                setProgress(target);
+                fpAnim = null;
+                if (done) done();
+                return;
+              }
+              setProgress(Math.max(-0.03, Math.min(1.03, p)));
+              fpAnim = requestAnimationFrame(step);
+            }
+            fpAnim = requestAnimationFrame(step);
+          }
+          // Shows the player (at the current progress) so a drag or animation can move it.
+          function beginPlayerDrag() {
+            if (!miniPlayer()) return false;
             buildPlayer();
-            if (!fp || isPlayerOpen()) return;
-            closeSheet();
-            fp.root.hidden = false;
-            fp.root.style.transform = '';
-            document.documentElement.classList.add('sr-lock');
-            renderPlayer();
-            void fp.root.offsetHeight; // slide up from the bottom
-            fp.root.classList.add('sr-open');
-            clearInterval(fpTimer);
-            fpTimer = setInterval(renderPlayer, 250);
+            if (!fp) return false;
+            cancelAnimationFrame(fpAnim);
+            if (!isPlayerOpen()) {
+              closeSheet();
+              fp.root.hidden = false;
+              fp.root.classList.add('sr-open');
+              document.documentElement.classList.add('sr-lock');
+              renderPlayer();
+              setProgress(0);
+              clearInterval(fpTimer);
+              fpTimer = setInterval(renderPlayer, 250);
+            }
+            startMorph();
+            setProgress(fpP);
+            return true;
+          }
+          // Lets go of a drag: open or close depending on where it is and how fast it moves.
+          function settlePlayer(velocity) {
+            var open = velocity > 0.6 || (velocity > -0.6 && fpP > 0.35);
+            animateTo(open ? 1 : 0, velocity, open ? endMorph : finishClose);
+          }
+          function openPlayer() {
+            if (isPlayerOpen() && fpP > 0.99) return;
+            if (!beginPlayerDrag()) return;
+            animateTo(1, 0, endMorph);
           }
           function closePlayer() {
             if (!isPlayerOpen()) return;
+            startMorph();
+            setProgress(fpP);
+            animateTo(0, 0, finishClose);
+          }
+          function finishClose() {
+            endMorph();
+            if (!fp) return;
             fp.root.classList.remove('sr-open');
-            fp.root.style.transform = '';
+            fp.root.hidden = true;
+            fpP = 0;
             document.documentElement.classList.remove('sr-lock');
             clearInterval(fpTimer);
             fpTimer = null;
-            setTimeout(function () { if (!isPlayerOpen()) fp.root.hidden = true; }, 320);
           }
 
           function songBounds(st) {
@@ -1464,7 +1640,7 @@ enum FavoritesScript {
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
             if (fp.title.textContent !== song) fp.title.textContent = song;
             if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
-            var show = isMixtape() && playlist.current ? 'Mixtape · ' + playlist.current.show : (miniShowLine() || st.show || '');
+            var show = miniShowLine() || st.show || '';
             if (fp.show.textContent !== show) fp.show.textContent = show;
             var cover = bigCover(st.cover || '');
             if (cover && fp.cover.getAttribute('src') !== cover) {
@@ -1532,29 +1708,30 @@ enum FavoritesScript {
 
           // Swipe down anywhere (except the progress bar) to close.
           function attachPlayerDrag() {
-            var y0 = 0, x0 = 0, dy = 0, mode = null;
+            var y0 = 0, x0 = 0, mode = null, track = null;
             fp.root.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1) return;
-              y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; mode = null;
+              y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; mode = null;
+              track = velocityTracker();
+              track.add(y0);
             }, { passive: true });
             fp.root.addEventListener('touchmove', function (e) {
               if (scrubbing) return;
-              var ddy = e.touches[0].clientY - y0, ddx = e.touches[0].clientX - x0;
+              var y = e.touches[0].clientY, ddy = y - y0, ddx = e.touches[0].clientX - x0;
               if (!mode) {
                 if (Math.abs(ddy) < 8 && Math.abs(ddx) < 8) return;
                 mode = ddy > 0 && Math.abs(ddy) > Math.abs(ddx) ? 'drag' : 'other';
-                if (mode === 'drag') fp.root.style.transition = 'none';
+                if (mode === 'drag') beginPlayerDrag();
               }
               if (mode !== 'drag') return;
               e.preventDefault();
-              dy = Math.max(0, ddy);
-              fp.root.style.transform = 'translateY(' + dy + 'px)';
+              track.add(y);
+              setProgress(1 - Math.max(0, ddy) / window.innerHeight);
             }, { passive: false });
             fp.root.addEventListener('touchend', function () {
               if (mode !== 'drag') return;
-              fp.root.style.transition = '';
-              if (dy > Math.min(140, window.innerHeight * 0.2)) closePlayer();
-              else fp.root.style.transform = '';
+              mode = null;
+              settlePlayer(-track.velocity() / window.innerHeight);
             });
           }
 

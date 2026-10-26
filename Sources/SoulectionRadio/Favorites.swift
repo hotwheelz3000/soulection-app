@@ -1,5 +1,6 @@
 import AVKit
 import Foundation
+import MediaPlayer
 import UIKit
 import UniformTypeIdentifiers
 import WebKit
@@ -223,7 +224,8 @@ final class FavoritesStore {
 /// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import",
 /// "backupLater" (dismiss the backup reminder until the next few favorites),
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
-/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepNow" or
+/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
+/// `seconds`), "sleepNow" or
 /// "airplay" (show the AirPlay picker), "backupFolder" (pick the auto-backup folder),
 /// "backupFolderOff" or "restoreDismissed".
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
@@ -240,29 +242,31 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     // MARK: Auto-backup
     //
-    // The user picks a folder once (ideally in iCloud Drive). After every change the app
-    // rewrites "Soulection Radio Backup.json" there. The folder lives outside the app, so
-    // deleting the app doesn't touch it; after a reinstall the page offers to restore.
-    private static let folderKey = "Backup.folderBookmark"
+    // "Turn on" saves the backup file wherever the user chooses (ideally an iCloud Drive
+    // folder) through "Save to Files", and the app keeps that exact file up to date after
+    // every change. The file lives outside the app, so deleting the app doesn't touch it;
+    // after a reinstall the page offers to restore by picking that file, which also turns
+    // auto-backup back on.
+    private static let fileKey = "Backup.fileBookmark"
     private static let lastSavedKey = "Backup.lastSaved"
     private static let restoreOfferedKey = "Backup.restoreOffered"
     static let autoBackupFileName = "Soulection Radio Backup.json"
     private var autoBackupTask: Task<Void, Never>?
     private var autoBackupError = false
-    private enum PickerPurpose { case importFile, folder }
+    private enum PickerPurpose { case importFile, saveBackup, restoreBackup }
     private var pickerPurpose: PickerPurpose = .importFile
 
-    private func backupFolder() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: Self.folderKey) else { return nil }
+    private func backupFile() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: Self.fileKey) else { return nil }
         var stale = false
         guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
-        if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.folderKey) }
+        if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.fileKey) }
         return url
     }
 
     /// Rewrites the backup file a moment after the last change.
     private func scheduleAutoBackup() {
-        guard UserDefaults.standard.data(forKey: Self.folderKey) != nil else { return }
+        guard UserDefaults.standard.data(forKey: Self.fileKey) != nil else { return }
         autoBackupTask?.cancel()
         autoBackupTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
@@ -273,13 +277,12 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     @discardableResult
     private func writeAutoBackup() -> Bool {
-        guard let folder = backupFolder(), let payload = try? store.backupData() else {
-            autoBackupError = UserDefaults.standard.data(forKey: Self.folderKey) != nil
+        guard let file = backupFile(), let payload = try? store.backupData() else {
+            autoBackupError = UserDefaults.standard.data(forKey: Self.fileKey) != nil
             return false
         }
-        let accessing = folder.startAccessingSecurityScopedResource()
-        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        let file = folder.appendingPathComponent(Self.autoBackupFileName)
+        let accessing = file.startAccessingSecurityScopedResource()
+        defer { if accessing { file.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var writeError: Error?
         NSFileCoordinator().coordinate(writingItemAt: file, options: .forReplacing, error: &coordinationError) { url in
@@ -295,47 +298,70 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     }
 
     private func autoBackupStatusJSON() -> String {
-        let folder = backupFolder()
-        var status: [String: Any] = ["on": folder != nil, "error": autoBackupError]
-        if let folder { status["folder"] = folder.lastPathComponent }
+        let file = backupFile()
+        var status: [String: Any] = ["on": file != nil, "error": autoBackupError]
+        if let file { status["folder"] = file.deletingLastPathComponent().lastPathComponent }
         let last = UserDefaults.standard.double(forKey: Self.lastSavedKey)
         if last > 0 { status["lastSaved"] = last }
-        let offer = store.isEmpty && !UserDefaults.standard.bool(forKey: Self.restoreOfferedKey)
-        status["restoreOffer"] = offer
+        status["restoreOffer"] = store.isEmpty && !UserDefaults.standard.bool(forKey: Self.restoreOfferedKey)
         guard let data = try? JSONSerialization.data(withJSONObject: status) else { return "{}" }
         return String(decoding: data, as: UTF8.self)
     }
 
-    private func pickBackupFolder() {
+    /// "Turn on": Save to Files with the current backup; the saved file is then kept up to date.
+    private func saveBackupToFiles() {
         guard let presenter = presenter() else { return }
-        pickerPurpose = .folder
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+        let temp = FileManager.default.temporaryDirectory.appendingPathComponent(Self.autoBackupFileName)
+        do {
+            try store.backupData().write(to: temp, options: .atomic)
+        } catch {
+            toast("Couldn't create the backup file.")
+            return
+        }
+        pickerPurpose = .saveBackup
+        let picker = UIDocumentPickerViewController(forExporting: [temp], asCopy: false)
+        picker.delegate = self
+        presenter.present(picker, animated: true)
+    }
+
+    /// Restore after a reinstall: pick the backup file; it's merged in and auto-backup resumes.
+    private func restoreBackupFile() {
+        guard let presenter = presenter() else { return }
+        pickerPurpose = .restoreBackup
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         presenter.present(picker, animated: true)
     }
 
-    private func useBackupFolder(_ folder: URL) {
-        let accessing = folder.startAccessingSecurityScopedResource()
-        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        guard let bookmark = try? folder.bookmarkData() else {
-            toast("Couldn't use that folder.")
-            return
-        }
-        UserDefaults.standard.set(bookmark, forKey: Self.folderKey)
+    /// Remembers the file so it can be rewritten later. Returns false if iOS won't allow it.
+    private func rememberBackupFile(_ url: URL) -> Bool {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        guard let bookmark = try? url.bookmarkData() else { return false }
+        UserDefaults.standard.set(bookmark, forKey: Self.fileKey)
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
-        // A backup already in the folder (from before a reinstall) is merged in first, so
-        // turning auto-backup back on never overwrites it with an empty list.
-        let file = folder.appendingPathComponent(Self.autoBackupFileName)
-        var restored = 0
-        if let data = try? Data(contentsOf: file), let incoming = FavoritesStore.readBackup(data) {
-            restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
+        return true
+    }
+
+    private func readBackup(at url: URL) -> (favorites: [Favorite], history: [Favorite])? {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        var coordinationError: NSError?
+        var data: Data?
+        NSFileCoordinator().coordinate(readingItemAt: url, options: [], error: &coordinationError) { readURL in
+            data = try? Data(contentsOf: readURL)
         }
-        let ok = writeAutoBackup()
-        send()
-        if !ok { toast("Auto-backup couldn't write to that folder.") }
-        else if restored > 0 { toast("Auto-backup on. Restored \(restored) songs from the backup there.") }
-        else { toast("Auto-backup on: saving to \(folder.lastPathComponent).") }
+        guard let data else { return nil }
+        return FavoritesStore.readBackup(data)
+    }
+
+    func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
+        switch pickerPurpose {
+        case .saveBackup: toast("Auto-backup wasn't turned on.")
+        case .restoreBackup: toast("Nothing restored.")
+        case .importFile: break
+        }
     }
 
     func userContentController(
@@ -383,10 +409,13 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             startSleepTimer(seconds: seconds)
             return
         case "backupFolder":
-            pickBackupFolder()
+            saveBackupToFiles()
+            return
+        case "restoreBackup":
+            restoreBackupFile()
             return
         case "backupFolderOff":
-            UserDefaults.standard.removeObject(forKey: Self.folderKey)
+            UserDefaults.standard.removeObject(forKey: Self.fileKey)
             autoBackupError = false
         case "restoreDismissed":
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
@@ -396,12 +425,18 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "sleepCancel":
             sleepTimer?.invalidate()
             sleepTimer = nil
+            cancelFade(restore: true)
+            return
+        case "sleepFade":
+            // "End of song" / "End of show": the page asks for a fade over the last seconds.
+            guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
+            startFade(over: seconds)
             return
         case "sleepNow":
             // "End of song" / "End of show" are watched by the page; it asks us to stop.
             sleepTimer?.invalidate()
             sleepTimer = nil
-            webView?.pauseAllMediaPlayback(completionHandler: nil)
+            pauseAndRestoreVolume()
             return
         case "export":
             exportFavorites()
@@ -434,14 +469,91 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     private func startSleepTimer(seconds: Double) {
         sleepTimer?.invalidate()
-        sleepTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
-            Task { @MainActor in self?.sleepTimerFired() }
+        cancelFade(restore: true)
+        // The timer fires when the fade should begin; the fade then pauses at the end.
+        let fade = min(Self.fadeLength, seconds)
+        let fadeAt = seconds - fade
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: max(0.05, fadeAt), repeats: false) { [weak self] _ in
+            Task { @MainActor in
+                self?.startFade(over: fade, then: { [weak self] in self?.sleepTimerFired() })
+            }
+        }
+    }
+
+    // MARK: Sleep fade
+    //
+    // The audio plays inside the web page's SoundCloud player, whose volume can't be set,
+    // so the fade lowers the phone's own volume (through a hidden system volume slider),
+    // pauses, then puts the volume back.
+    static let fadeLength: Double = 30
+    private var fadeTask: Task<Void, Never>?
+    private var volumeBeforeFade: Float?
+    private lazy var volumeView: MPVolumeView = {
+        let view = MPVolumeView(frame: CGRect(x: -2000, y: -2000, width: 10, height: 10))
+        view.alpha = 0.011
+        view.isUserInteractionEnabled = false
+        return view
+    }()
+
+    private func volumeSlider() -> UISlider? {
+        if volumeView.superview == nil, let host = webView { host.addSubview(volumeView) }
+        return volumeView.subviews.compactMap { $0 as? UISlider }.first
+    }
+
+    private func setSystemVolume(_ value: Float) {
+        guard let slider = volumeSlider() else { return }
+        slider.value = value
+        slider.sendActions(for: .valueChanged)
+    }
+
+    private func startFade(over seconds: Double, then done: (@MainActor @Sendable () -> Void)? = nil) {
+        cancelFade(restore: false)
+        let start = volumeBeforeFade ?? AVAudioSession.sharedInstance().outputVolume
+        volumeBeforeFade = start
+        _ = volumeSlider() // attach the hidden slider early so it's ready
+        let began = Date()
+        fadeTask = Task { @MainActor [weak self] in
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(250))
+                guard let self, !Task.isCancelled else { return }
+                let progress = min(1, Date().timeIntervalSince(began) / max(seconds, 0.1))
+                // Ease out so the drop feels even to the ear.
+                let level = Float(1 - progress)
+                self.setSystemVolume(start * level * level)
+                if progress >= 1 {
+                    self.fadeTask = nil
+                    if let done { done() } else { self.pauseAndRestoreVolume() }
+                    return
+                }
+            }
+        }
+    }
+
+    private func cancelFade(restore: Bool) {
+        fadeTask?.cancel()
+        fadeTask = nil
+        if restore, let volume = volumeBeforeFade {
+            setSystemVolume(volume)
+            volumeBeforeFade = nil
+        }
+    }
+
+    /// Pauses, then puts the phone's volume back once it's quiet.
+    private func pauseAndRestoreVolume() {
+        fadeTask?.cancel()
+        fadeTask = nil
+        webView?.pauseAllMediaPlayback(completionHandler: nil)
+        guard let volume = volumeBeforeFade else { return }
+        volumeBeforeFade = nil
+        Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(1))
+            self?.setSystemVolume(volume)
         }
     }
 
     private func sleepTimerFired() {
         sleepTimer = nil
-        webView?.pauseAllMediaPlayback(completionHandler: nil)
+        pauseAndRestoreVolume()
         webView?.evaluateJavaScript(
             "window.__soulectionFavorites && window.__soulectionFavorites.sleepFired && window.__soulectionFavorites.sleepFired();",
             completionHandler: nil
@@ -514,9 +626,31 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
-        if pickerPurpose == .folder {
-            useBackupFolder(url)
+        switch pickerPurpose {
+        case .saveBackup:
+            // The file now lives where the user saved it; keep writing to that copy.
+            guard rememberBackupFile(url) else {
+                toast("Saved, but iOS won't let the app update that file. Try a folder in iCloud Drive.")
+                return
+            }
+            let ok = writeAutoBackup()
+            send()
+            toast(ok ? "Auto-backup on: saving to \(url.deletingLastPathComponent().lastPathComponent)." : "Auto-backup couldn't write to that file.")
             return
+        case .restoreBackup:
+            guard let incoming = readBackup(at: url) else {
+                toast("That file isn't a Soulection Radio backup.")
+                return
+            }
+            let restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
+            let kept = rememberBackupFile(url)
+            UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
+            if kept { writeAutoBackup() }
+            send()
+            toast("Restored \(restored) songs." + (kept ? " Auto-backup is on again." : ""))
+            return
+        case .importFile:
+            break
         }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
