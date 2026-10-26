@@ -24,6 +24,14 @@ struct WebView: UIViewRepresentable {
                 forMainFrameOnly: true
             )
         )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: NowPlayingScript.source,
+                injectionTime: .atDocumentStart,
+                // Also the SoundCloud player iframe, which owns the audio.
+                forMainFrameOnly: false
+            )
+        )
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
