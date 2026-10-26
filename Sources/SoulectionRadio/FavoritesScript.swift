@@ -5,6 +5,9 @@ import Foundation
 ///
 /// - History: a song is recorded as soon as it starts playing (like Spotify's
 ///   Recently played), saved in the app, newest first, with replays moved to the top.
+/// - Full player: tap or swipe up on the mini player for a Spotify-style full-screen
+///   player (big cover, song, scrubber, previous/play/next, heart, sleep timer, AirPlay).
+///   Play/pause is sent straight to the audio as well as through the site, so it's quick.
 /// - Sleep timer: a zZZ icon in the top bar that pulses while a timer runs. Fixed times run in the app (so they keep
 ///   going while locked); "End of song" and "End of show" follow playback here.
 /// - Dice: picks a random episode from the site's sitemap and home page and plays it
@@ -97,6 +100,46 @@ enum FavoritesScript {
             '.sr-step{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9999px;border:1px solid ' + BORDER + ';background:none;color:' + TEXT + ';font-size:22px;line-height:1;padding:0;-webkit-appearance:none;appearance:none;cursor:pointer}',
             '.sr-step:active{background:' + HOVER + '}',
             '.sr-sleep-off{color:' + TEXT + ';font-weight:600}',
+            // Full-size player.
+            '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translateY(100%);transition:transform .32s cubic-bezier(.2,.8,.2,1);-webkit-user-select:none;user-select:none}',
+            '.sr-np.sr-open{transform:none}',
+            '.sr-np[hidden]{display:none}',
+            '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
+            '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
+            '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 6px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
+            '.sr-np-top{display:flex;align-items:center;gap:8px;flex:none}',
+            '.sr-np-from{flex:1;min-width:0;text-align:center}',
+            '.sr-np-from-label{font-size:11px;line-height:14px;letter-spacing:.08em;text-transform:uppercase;color:' + MUTED + '}',
+            '.sr-np-show{font-size:13px;line-height:18px;font-weight:600;color:' + TEXT + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-np-icon{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:8px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;flex:none;font-size:26px;line-height:1}',
+            '.sr-np-icon svg{width:1em;height:1em;display:block}',
+            '.sr-np-icon:active{opacity:.6}',
+            '.sr-np-spacer{width:42px}',
+            '.sr-np-art{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:18px 0}',
+            '.sr-np-cover{width:100%;max-width:min(100%,52vh);aspect-ratio:1;object-fit:cover;border-radius:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);background:' + TRACK + '}',
+            '.sr-np-meta{display:flex;align-items:center;gap:12px;flex:none}',
+            '.sr-np-text{flex:1;min-width:0}',
+            '.sr-np-title{font-size:22px;line-height:28px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-np-artist{font-size:16px;line-height:22px;color:' + TEXT + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-np-meta .sr-heart{font-size:26px;padding:8px;margin-right:-8px;flex:none}',
+            '.sr-np-meta .sr-heart[hidden]{display:none}',
+            '.sr-np-bar{flex:none;padding:16px 0 4px;touch-action:none}',
+            '.sr-np-track{position:relative;height:4px;border-radius:9999px;background:' + TRACK + '}',
+            '.sr-np-fill{position:absolute;left:0;top:0;bottom:0;border-radius:9999px;background:#fff}',
+            '.sr-np-knob{position:absolute;top:50%;width:12px;height:12px;margin:-6px 0 0 -6px;border-radius:9999px;background:#fff;transition:transform .15s}',
+            '.sr-np-scrubbing .sr-np-knob{transform:scale(1.4)}',
+            '.sr-np-times{display:flex;justify-content:space-between;margin-top:8px;font-size:12px;line-height:16px;color:' + MUTED + ';font-variant-numeric:tabular-nums}',
+            '.sr-np-controls{flex:none;display:flex;align-items:center;justify-content:space-between;padding:10px 12px 6px}',
+            '.sr-np-controls .sr-np-icon{font-size:36px;color:#fff}',
+            '.sr-np-play{-webkit-appearance:none;appearance:none;width:72px;height:72px;border-radius:9999px;border:0;padding:0;margin:0;background:#fff;color:' + BG + ';display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;transition:transform .12s}',
+            '.sr-np-play:active{transform:scale(.92)}',
+            '.sr-np-play svg{width:34px;height:34px;display:block}',
+            '.sr-np-extras{flex:none;display:flex;justify-content:space-between;padding-top:8px}',
+            '.sr-np-extras .sr-np-icon{font-size:24px}',
+            '.sr-np-sleep[aria-pressed="true"]{color:#fff}',
+            '.sr-np-sleep[aria-pressed="true"] .sr-z{animation:sr-zz 1.8s ease-in-out infinite}',
+            '.sr-np-sleep[aria-pressed="true"] .sr-z2{animation-delay:.3s}',
+            '.sr-np-sleep[aria-pressed="true"] .sr-z3{animation-delay:.6s}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
             '.sr-grab::after{margin:5px auto 0}',
@@ -232,6 +275,8 @@ enum FavoritesScript {
             listen.done = true;
             var entry = {};
             for (var k in t) entry[k] = t[k];
+            entry.start = Number(entry.start) || 0;
+            entry.cover = entry.cover || '';
             entry.favoritedAt = now;
             history = history.filter(function (h) { return h.id !== entry.id; }).concat([entry]);
             native({ op: 'played', favorite: entry });
@@ -413,8 +458,8 @@ enum FavoritesScript {
             if (!player.querySelector(':scope > .sr-grab')) {
               var g = el('button', 'sr-grab');
               g.type = 'button';
-              g.setAttribute('aria-label', 'Show favorites');
-              g.addEventListener('click', function (e) { e.stopPropagation(); openSheet(); });
+              g.setAttribute('aria-label', 'Open player');
+              g.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               player.appendChild(g);
             }
             var row = player.querySelector('.content-col');
@@ -1013,17 +1058,16 @@ enum FavoritesScript {
             })();
           }
 
-          // Swipe up on the mini player (or the tab) to open the sheet.
+          // Swipe up on the mini player to open the full player, like Spotify.
           function attachOpenGesture() {
             var y0 = null, x0 = 0;
             document.addEventListener('touchstart', function (e) {
               y0 = null;
-              if (e.touches.length !== 1 || isOpen()) return;
+              if (e.touches.length !== 1 || isOpen() || isPlayerOpen()) return;
               var t = e.target;
               var player = miniPlayer();
               var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"]'));
-              var onTab = tab && tab.contains(t);
-              if (!onPlayer && !onTab) return;
+              if (!onPlayer) return;
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
             }, { passive: true, capture: true });
             document.addEventListener('touchend', function (e) {
@@ -1031,8 +1075,284 @@ enum FavoritesScript {
               var p = e.changedTouches[0];
               var dy = p.clientY - y0, dx = p.clientX - x0;
               y0 = null;
-              if (dy < -30 && Math.abs(dy) > Math.abs(dx) * 1.5) openSheet();
+              if (dy < -30 && Math.abs(dy) > Math.abs(dx) * 1.5) openPlayer();
             }, { passive: true, capture: true });
+            // Tapping the mini player (anywhere but its buttons and slider) opens it too,
+            // and play/pause goes straight to the audio so it reacts right away.
+            document.addEventListener('click', function (e) {
+              var player = miniPlayer();
+              var t = e.target;
+              if (!player || !t || !t.closest || !player.contains(t)) return;
+              var btn = t.closest('button, a, input, [role="slider"], [data-orientation="horizontal"]');
+              if (btn) {
+                if (btn === sitePlayButton()) fastPlayPause();
+                return;
+              }
+              e.preventDefault();
+              e.stopPropagation();
+              openPlayer();
+            }, true);
+          }
+
+          // ---------------------------------------------------------------------------
+          // Snappier play/pause
+          // ---------------------------------------------------------------------------
+          var optimistic = null; // {paused, until} shown right after a tap, before the player confirms
+          function sitePlayButton() {
+            var player = miniPlayer();
+            var row = player && player.querySelector('.content-col');
+            row = row && row.parentElement && row.parentElement.parentElement;
+            return row ? row.querySelector(':scope > button:not(.sr-heart)') : null;
+          }
+          function isPaused() {
+            if (optimistic && Date.now() < optimistic.until) return optimistic.paused;
+            var st = npState();
+            return !st || st.paused !== false;
+          }
+          // Sends play/pause straight to the audio. The site's own button handler still
+          // runs too, so the site's player stays in sync.
+          function fastPlayPause() {
+            var st = npState();
+            if (!st || st.paused == null) return;
+            var n = np();
+            if (!n) return;
+            if (st.paused) { n.play && n.play(); optimistic = { paused: false, until: Date.now() + 1500 }; }
+            else { n.pause(); optimistic = { paused: true, until: Date.now() + 1500 }; }
+            renderPlayer();
+          }
+          function togglePlay() {
+            var btn = sitePlayButton();
+            if (btn) btn.click(); // goes through fastPlayPause via the click listener
+          }
+
+          // ---------------------------------------------------------------------------
+          // Full-size player (tap or swipe up on the mini player)
+          // ---------------------------------------------------------------------------
+          var fp = null; // full player elements
+          var fpTimer = null;
+          var scrubbing = null; // {t} while dragging the progress bar
+          var PREV = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h2v14H6zM20 5v14L9.5 12z"/></svg>';
+          var NEXT = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M16 5h2v14h-2zM4 5v14l10.5-7z"/></svg>';
+          var PLAYBIG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M8 5.5v13l10.5-6.5z"/></svg>';
+          var PAUSEBIG = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5h3.5v14H7zM13.5 5H17v14h-3.5z"/></svg>';
+          var CHEVRON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>';
+          var AIRPLAY = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 17H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h16a2 2 0 0 1 2 2v10a2 2 0 0 1-2 2h-1"/><path d="m12 15 5 6H7z"/></svg>';
+
+          function isPlayerOpen() { return !!(fp && fp.root.classList.contains('sr-open')); }
+          function bigCover(src) {
+            if (!src) return '';
+            return src.replace(/([?&])w=\d+/, '$1w=1080').replace(/-(large|t\d+x\d+)\./, '-t500x500.');
+          }
+          function miniShowLine() {
+            var player = miniPlayer();
+            var lines = player ? player.querySelectorAll('.content-col > div') : [];
+            return lines.length ? text(lines[0]) : '';
+          }
+
+          function buildPlayer() {
+            if (fp || !document.body) return;
+            var root = el('div', 'sr-fav-root sr-np');
+            root.hidden = true;
+            root.setAttribute('role', 'dialog');
+            root.setAttribute('aria-label', 'Now playing');
+            root.innerHTML =
+              '<div class="sr-np-bg"></div>' +
+              '<div class="sr-np-inner">' +
+                '<div class="sr-np-top">' +
+                  '<button type="button" class="sr-np-icon sr-np-close" aria-label="Close player">' + CHEVRON + '</button>' +
+                  '<div class="sr-np-from"><div class="sr-np-from-label">Playing from</div><div class="sr-np-show"></div></div>' +
+                  '<span class="sr-np-icon sr-np-spacer"></span>' +
+                '</div>' +
+                '<div class="sr-np-art"><img class="sr-np-cover" alt=""></div>' +
+                '<div class="sr-np-meta"><div class="sr-np-text"><div class="sr-np-title"></div><div class="sr-np-artist"></div></div></div>' +
+                '<div class="sr-np-bar"><div class="sr-np-track"><div class="sr-np-fill"></div><div class="sr-np-knob"></div></div>' +
+                  '<div class="sr-np-times"><span class="sr-np-elapsed">0:00</span><span class="sr-np-left">-0:00</span></div></div>' +
+                '<div class="sr-np-controls">' +
+                  '<button type="button" class="sr-np-icon sr-np-prev" aria-label="Previous song">' + PREV + '</button>' +
+                  '<button type="button" class="sr-np-play" aria-label="Play"></button>' +
+                  '<button type="button" class="sr-np-icon sr-np-next" aria-label="Next song">' + NEXT + '</button>' +
+                '</div>' +
+                '<div class="sr-np-extras">' +
+                  '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
+                  '<button type="button" class="sr-np-icon sr-np-airplay" aria-label="AirPlay">' + AIRPLAY + '</button>' +
+                '</div>' +
+              '</div>';
+            document.body.appendChild(root);
+            fp = {
+              root: root, bg: root.querySelector('.sr-np-bg'), show: root.querySelector('.sr-np-show'),
+              cover: root.querySelector('.sr-np-cover'), title: root.querySelector('.sr-np-title'),
+              artist: root.querySelector('.sr-np-artist'), meta: root.querySelector('.sr-np-meta'),
+              track: root.querySelector('.sr-np-track'), fill: root.querySelector('.sr-np-fill'),
+              knob: root.querySelector('.sr-np-knob'), elapsed: root.querySelector('.sr-np-elapsed'),
+              left: root.querySelector('.sr-np-left'), play: root.querySelector('.sr-np-play'),
+              sleep: root.querySelector('.sr-np-sleep'), heart: heartButton('sr-np-heart')
+            };
+            fp.meta.appendChild(fp.heart);
+            root.querySelector('.sr-np-close').addEventListener('click', closePlayer);
+            fp.play.addEventListener('click', togglePlay);
+            root.querySelector('.sr-np-prev').addEventListener('click', previousSong);
+            root.querySelector('.sr-np-next').addEventListener('click', nextSong);
+            fp.sleep.addEventListener('click', function () { openSleep(); });
+            root.querySelector('.sr-np-airplay').addEventListener('click', function () { native({ op: 'airplay' }); });
+            fp.heart.addEventListener('click', function () {
+              var t = currentTrack();
+              if (t) { t.favoritedAt = Date.now(); toggle(t); renderPlayer(); }
+            });
+            attachScrub();
+            attachPlayerDrag();
+          }
+
+          function openPlayer() {
+            if (!miniPlayer()) return;
+            buildPlayer();
+            if (!fp || isPlayerOpen()) return;
+            closeSheet();
+            fp.root.hidden = false;
+            fp.root.style.transform = '';
+            document.documentElement.classList.add('sr-lock');
+            renderPlayer();
+            void fp.root.offsetHeight; // slide up from the bottom
+            fp.root.classList.add('sr-open');
+            clearInterval(fpTimer);
+            fpTimer = setInterval(renderPlayer, 250);
+          }
+          function closePlayer() {
+            if (!isPlayerOpen()) return;
+            fp.root.classList.remove('sr-open');
+            fp.root.style.transform = '';
+            document.documentElement.classList.remove('sr-lock');
+            clearInterval(fpTimer);
+            fpTimer = null;
+            setTimeout(function () { if (!isPlayerOpen()) fp.root.hidden = true; }, 320);
+          }
+
+          function songBounds(st) {
+            if (!st || !st.tracks || st.index == null || st.index < 0) return null;
+            var cur = st.tracks[st.index];
+            var nxt = st.tracks[st.index + 1];
+            return cur ? { start: cur.start, end: nxt ? nxt.start : st.duration } : null;
+          }
+          function nextSong() {
+            if (playlist) return nextFavorite();
+            var st = npState();
+            if (!st || !st.tracks || st.t == null) return;
+            for (var i = 0; i < st.tracks.length; i++) {
+              if (st.tracks[i].start > st.t + 1) { np().seek(st.tracks[i].start); return; }
+            }
+          }
+          function previousSong() {
+            if (playlist) return previousFavorite();
+            var st = npState();
+            if (!st || !st.tracks || st.t == null) return;
+            var i = -1;
+            for (var j = 0; j < st.tracks.length; j++) if (st.tracks[j].start <= st.t + 0.25) i = j;
+            // Like Spotify: restart the song unless it just started.
+            if (i >= 0 && st.t - st.tracks[i].start > 3) return np().seek(st.tracks[i].start);
+            np().seek(i > 0 ? st.tracks[i - 1].start : 0);
+          }
+
+          function renderPlayer() {
+            if (!fp || !isPlayerOpen()) return;
+            if (!miniPlayer()) return closePlayer();
+            var st = npState() || {};
+            var t = currentTrack();
+            var song = t ? t.song : (st.title || '');
+            var artist = t ? t.artist : (st.artist || '');
+            if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
+            if (fp.title.textContent !== song) fp.title.textContent = song;
+            if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
+            var show = miniShowLine() || st.show || '';
+            if (fp.show.textContent !== show) fp.show.textContent = show;
+            var cover = bigCover(st.cover || '');
+            if (cover && fp.cover.getAttribute('src') !== cover) {
+              fp.cover.src = cover;
+              fp.cover.onerror = function () { if (st.cover && fp.cover.src !== st.cover) fp.cover.src = st.cover; };
+              fp.bg.style.backgroundImage = 'url("' + cover.replace(/"/g, '%22') + '")';
+            }
+            fp.heart.hidden = !t;
+            if (t) setHeart(fp.heart, !!byId(t.id), t.song);
+            var paused = isPaused();
+            var icon = paused ? 'play' : 'pause';
+            if (fp.play.getAttribute('data-icon') !== icon) {
+              fp.play.setAttribute('data-icon', icon);
+              fp.play.innerHTML = paused ? PLAYBIG : PAUSEBIG;
+              fp.play.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+            }
+            fp.sleep.setAttribute('aria-pressed', sleep ? 'true' : 'false');
+            var dur = st.duration || 0;
+            var pos = scrubbing ? scrubbing.t : (st.t || 0);
+            var frac = dur ? Math.min(1, Math.max(0, pos / dur)) : 0;
+            fp.fill.style.width = (frac * 100) + '%';
+            fp.knob.style.left = (frac * 100) + '%';
+            fp.elapsed.textContent = clock(pos).replace(/^0(\d:)/, '$1');
+            fp.left.textContent = '-' + clock(Math.max(0, dur - pos)).replace(/^0(\d:)/, '$1');
+          }
+
+          // Drag the progress bar to move through the show.
+          function attachScrub() {
+            function at(x) {
+              var r = fp.track.getBoundingClientRect();
+              var st = npState() || {};
+              var frac = Math.min(1, Math.max(0, (x - r.left) / r.width));
+              return frac * (st.duration || 0);
+            }
+            fp.track.parentElement.addEventListener('touchstart', function (e) {
+              e.stopPropagation();
+              scrubbing = { t: at(e.touches[0].clientX) };
+              fp.root.classList.add('sr-np-scrubbing');
+              renderPlayer();
+            }, { passive: true });
+            fp.track.parentElement.addEventListener('touchmove', function (e) {
+              if (!scrubbing) return;
+              e.preventDefault();
+              e.stopPropagation();
+              scrubbing.t = at(e.touches[0].clientX);
+              renderPlayer();
+            }, { passive: false });
+            function end() {
+              if (!scrubbing) return;
+              var target = scrubbing.t;
+              fp.root.classList.remove('sr-np-scrubbing');
+              var n = np();
+              n && n.seek(target);
+              setTimeout(function () { scrubbing = null; }, 600); // let the player catch up
+              renderPlayer();
+            }
+            fp.track.parentElement.addEventListener('touchend', end);
+            fp.track.parentElement.addEventListener('touchcancel', end);
+            fp.track.parentElement.addEventListener('click', function (e) {
+              if ('ontouchstart' in window) return;
+              var n = np();
+              n && n.seek(at(e.clientX));
+            });
+          }
+
+          // Swipe down anywhere (except the progress bar) to close.
+          function attachPlayerDrag() {
+            var y0 = 0, x0 = 0, dy = 0, mode = null;
+            fp.root.addEventListener('touchstart', function (e) {
+              if (e.touches.length !== 1) return;
+              y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; mode = null;
+            }, { passive: true });
+            fp.root.addEventListener('touchmove', function (e) {
+              if (scrubbing) return;
+              var ddy = e.touches[0].clientY - y0, ddx = e.touches[0].clientX - x0;
+              if (!mode) {
+                if (Math.abs(ddy) < 8 && Math.abs(ddx) < 8) return;
+                mode = ddy > 0 && Math.abs(ddy) > Math.abs(ddx) ? 'drag' : 'other';
+                if (mode === 'drag') fp.root.style.transition = 'none';
+              }
+              if (mode !== 'drag') return;
+              e.preventDefault();
+              dy = Math.max(0, ddy);
+              fp.root.style.transform = 'translateY(' + dy + 'px)';
+            }, { passive: false });
+            fp.root.addEventListener('touchend', function () {
+              if (mode !== 'drag') return;
+              fp.root.style.transition = '';
+              if (dy > Math.min(140, window.innerHeight * 0.2)) closePlayer();
+              else fp.root.style.transform = '';
+            });
           }
 
           // ---------------------------------------------------------------------------
@@ -1211,6 +1531,7 @@ enum FavoritesScript {
             followPlayback(e.detail);
             followListening(e.detail);
             followSleep(e.detail);
+            renderPlayer();
             schedule();
           });
 

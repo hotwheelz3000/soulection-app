@@ -8,10 +8,12 @@ An iPhone app for [Soulection Radio](https://radio.soulection.com/). It's the sa
 
 - **Keeps the music going.** Lock your phone or switch apps and the show keeps playing.
 - **Doesn't interrupt you.** Opening the app won't stop a podcast or music that's already playing. It only takes over when you press play on a show.
+- **Full-size player.** Tap or swipe up on the player at the bottom for a full-screen player like Spotify's: big cover art, the song and artist, a progress bar you can drag, large previous, play/pause and next buttons (they jump between songs in the tracklist), a heart for the current song, the sleep timer and AirPlay. Swipe down to close.
+- **Quick play and pause.** Play/pause goes straight to the audio, so it reacts right away.
 - **Shows the song that's on.** Your lock screen and Control Center show the current song, artist and show cover, and they update as the tracks change.
 - **Skip between songs.** The next and previous buttons on your lock screen jump to the next or previous song in the show's tracklist. Tap previous once to restart a song, or twice to go back one.
 - **Save your favorite songs.** Tap the heart next to any song in a show's tracklist, or the heart in the player at the bottom for the song that's playing. Tap it again to remove it. Your favorites are saved in the app, so clearing the website's data won't lose them.
-- **Your favorites, in one place.** Tap the heart next to the search box at the top, or swipe up on the player at the bottom, to see them, newest first. Swipe a song left to remove it. Swipe down or tap outside to close.
+- **Your favorites, in one place.** Tap the heart next to the search box at the top to see them, newest first. Swipe a song left to remove it. Swipe down or tap outside to close.
 - **Play your favorites as a playlist.** Tap **Play in order** or **Shuffle**, or tap a song to start from there. Each song plays from its spot in the show, then the next favorite starts, even if it's in a different show. Your lock screen shows the song, and next and previous move through your favorites. Tap a song in a show yourself to go back to normal listening.
 - **Listening history.** Every song you play is saved in the app the moment it starts, newest first, like Spotify's Recently played. Open it from the same panel as Favorites (tap **History** at the top). Each song shows when you heard it. Tap one to play it from its spot, use **Play in order** or **Shuffle**, tap the heart to add it to favorites, swipe left to remove it, or tap **Clear** to empty the list (it asks twice, and offers to export a backup first). It keeps your last 500 songs.
 - **Sleep timer.** Tap the zZZ next to the dice and pick 5, 15 or 30 minutes, 1 hour, **End of song**, **End of show**, or your own time with the − and + buttons. While it's on, the zZZ lights up in a slow wave (tap it to see the time left), and the music pauses when it's up, even with your phone locked. Tap the zZZ again to turn it off.
@@ -54,8 +56,8 @@ I'm a beginner developer, and this was built in one night by describing what I w
 - **Code:** `Sources/SoulectionRadio/`
   - `WebView.swift`: the web view, edge-to-edge layout and safe-area fixes for the site's top bar and bottom player.
   - `NowPlayingScript.swift`: lock-screen song info and next/previous track buttons.
-  - `FavoritesScript.swift`: hearts, the Favorites/History panel, playlists, listening history, the sleep timer, the dice and the backup reminder.
-  - `Favorites.swift`: saves favorites and history in the app, Export/Import, and the sleep timer's countdown.
+  - `FavoritesScript.swift`: hearts, the Favorites/History panel, playlists, listening history, the full-size player, quick play/pause, the sleep timer, the dice and the backup reminder.
+  - `Favorites.swift`: saves favorites and history in the app, Export/Import, the sleep timer's countdown and the AirPlay picker.
   - `SoulectionRadioApp.swift`: background audio setup, without interrupting other apps at launch.
 - **Icon:** `Resources/AppIcon.png`. Replace it and push to change it.
 - **App settings** (name, bundle ID, icon, Info.plist): `xtool.yml`.

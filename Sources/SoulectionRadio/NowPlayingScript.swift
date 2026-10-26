@@ -276,6 +276,7 @@ enum NowPlayingScript {
               refresh: function () { lastSent = ''; update(); },
               seek: function (t) { toPlayer({ seek: t }); },
               pause: function () { toPlayer({ pause: true }); },
+              play: function () { toPlayer({ play: true }); },
               setOverride: function (meta) { override = meta; lastSent = ''; schedule(); },
               setPlaylist: function (handlers) { playlist = handlers; lastSent = ''; schedule(); }
             };
@@ -391,6 +392,8 @@ enum NowPlayingScript {
               if (d && d.type === MSG + '-control') {
                 if (typeof d.seek === 'number') seek(d.seek);
                 if (d.pause && media) media.pause();
+                // Play straight from the page (faster than going through the widget API).
+                if (d.play && media) { var p = media.play(); if (p && p.catch) p.catch(function () {}); }
                 return;
               }
               if (!d || d.type !== MSG) return;

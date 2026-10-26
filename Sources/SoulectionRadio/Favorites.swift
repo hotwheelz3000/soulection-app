@@ -1,3 +1,4 @@
+import AVKit
 import Foundation
 import UIKit
 import UniformTypeIdentifiers
@@ -20,6 +21,24 @@ struct Favorite: Codable, Equatable, Sendable {
     var end: Double?
     /// When it was favorited, in milliseconds since 1970 (matches JavaScript's Date.now()).
     var favoritedAt: Double
+}
+
+extension Favorite {
+    /// Lenient decoding: only `id` is required, so an entry with a missing or odd field
+    /// (no cover, no timestamp) is still saved instead of being silently dropped.
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        id = try c.decode(String.self, forKey: .id)
+        song = (try? c.decodeIfPresent(String.self, forKey: .song)) ?? ""
+        artist = (try? c.decodeIfPresent(String.self, forKey: .artist)) ?? ""
+        show = (try? c.decodeIfPresent(String.self, forKey: .show)) ?? ""
+        episodeURL = (try? c.decodeIfPresent(String.self, forKey: .episodeURL)) ?? ""
+        cover = (try? c.decodeIfPresent(String.self, forKey: .cover)) ?? ""
+        start = (try? c.decodeIfPresent(Double.self, forKey: .start)) ?? 0
+        end = (try? c.decodeIfPresent(Double.self, forKey: .end)) ?? nil
+        favoritedAt = (try? c.decodeIfPresent(Double.self, forKey: .favoritedAt))
+            ?? (Date().timeIntervalSince1970 * 1000).rounded()
+    }
 }
 
 /// The file written by Export and read by Import.
@@ -197,7 +216,8 @@ final class FavoritesStore {
 /// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import",
 /// "backupLater" (dismiss the backup reminder until the next few favorites),
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
-/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel" or "sleepNow".
+/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepNow" or
+/// "airplay" (show the AirPlay picker).
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
@@ -237,12 +257,14 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "backupLater":
             store.addedSinceBackup = 0
         case "played":
-            guard let raw = body["favorite"],
-                  JSONSerialization.isValidJSONObject(raw),
-                  let data = try? JSONSerialization.data(withJSONObject: raw),
-                  let entry = try? JSONDecoder().decode(Favorite.self, from: data)
-            else { return }
-            store.recordPlay(entry)
+            // Always reply with what's actually stored, so the page never shows a song
+            // that wasn't saved.
+            if let raw = body["favorite"],
+               JSONSerialization.isValidJSONObject(raw),
+               let data = try? JSONSerialization.data(withJSONObject: raw),
+               let entry = try? JSONDecoder().decode(Favorite.self, from: data) {
+                store.recordPlay(entry)
+            }
         case "historyRemove":
             guard let id = body["id"] as? String else { return }
             store.removeFromHistory(id: id)
@@ -251,6 +273,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "sleepStart":
             guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
             startSleepTimer(seconds: seconds)
+            return
+        case "airplay":
+            showAirPlayPicker()
             return
         case "sleepCancel":
             sleepTimer?.invalidate()
@@ -272,6 +297,22 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             break
         }
         send()
+    }
+
+    /// AirPlay: an invisible system route picker, tapped for the user.
+    private lazy var routePicker: AVRoutePickerView = {
+        let picker = AVRoutePickerView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
+        picker.alpha = 0.011
+        picker.isUserInteractionEnabled = false
+        return picker
+    }()
+
+    private func showAirPlayPicker() {
+        guard let view = webView else { return }
+        if routePicker.superview == nil { view.addSubview(routePicker) }
+        for case let button as UIButton in routePicker.subviews {
+            button.sendActions(for: .touchUpInside)
+        }
     }
 
     private func startSleepTimer(seconds: Double) {
