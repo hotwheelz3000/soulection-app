@@ -12,7 +12,7 @@ import Foundation
 ///   Styled with the site's own values (read from radio.soulection.com): background
 ///   rgb(26,26,26), border rgb(42,42,42), 9px corners like the mini player card, Bai
 ///   Jamjuree, rgb(138,138,138) text with semibold song names, rgb(90,90,90) for the
-///   show line, and the progress dot's orange rgb(234,88,12) as the accent.
+///   show line, and the text grey as the accent (filled hearts, button icons).
 /// - Playlist: playing a favorite opens its episode and taps its tracklist row (the
 ///   site's own way to start an episode at a song). When playback reaches the
 ///   favorite's end (the next song's timestamp) it moves to the next favorite,
@@ -33,7 +33,7 @@ enum FavoritesScript {
           var TEXT = 'rgb(138, 138, 138)';    // body text, song and artist
           var MUTED = 'rgb(90, 90, 90)';      // mini player show line, column headings
           var TRACK = 'rgb(58, 58, 58)';      // progress track
-          var ACCENT = 'rgb(234, 88, 12)';    // progress dot (bg-orange-600)
+          var ACCENT = TEXT;                  // filled hearts and icons match the text
           var HOVER = 'rgba(51, 65, 85, 0.7)'; // tracklist row hover
           var SHADOW = 'rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px';
 
@@ -174,13 +174,17 @@ enum FavoritesScript {
               if (start == null) continue;
               var artist = text(rows[i].querySelector('a[href*="/artists/"]')) || text(spans[1]);
               var song = text(rows[i].querySelector('a[href*="/songs/"]')) || text(spans[2]);
-              // Voice-over rows ("VO - Joe Kay") have no song name: use the artist column.
+              // Voice-over rows ("VO - Joe Kay") are the host talking, not a song: they
+              // stay in the list (for next-song timing) but get no heart.
+              var vo = !song || isVoiceOver(artist);
               if (!song) { song = artist; artist = ''; }
-              out.push({ row: rows[i], songCell: spans[2], start: start, artist: artist, song: song });
+              out.push({ row: rows[i], songCell: spans[2], start: start, artist: artist, song: song, vo: vo });
             }
             out.sort(function (a, b) { return a.start - b.start; });
             return out;
           }
+
+          function isVoiceOver(artist) { return /^\s*VO\b/i.test(artist || ''); }
 
           function pageEpisodeInfo() {
             var h1 = document.querySelector('#episode-card-header h1, main h1');
@@ -214,6 +218,7 @@ enum FavoritesScript {
             var info = null;
             rows.forEach(function (r, i) {
               var b = r.songCell.querySelector(':scope > .sr-heart');
+              if (r.vo) { if (b) b.remove(); return; }
               if (!b) {
                 b = heartButton('sr-heart-row');
                 b.addEventListener('click', function (e) {
@@ -243,6 +248,7 @@ enum FavoritesScript {
             var st = npState();
             if (!st || !st.episodeURL || st.index == null || st.index < 0 || !st.tracks || !st.tracks[st.index]) return null;
             var t = st.tracks[st.index];
+            if (!t.title || isVoiceOver(t.artist)) return null; // no heart for voice-overs
             var next = st.tracks[st.index + 1];
             return {
               id: favId(st.episodeURL, t.start), song: t.title || t.artist, artist: t.title ? t.artist : '', show: st.show || ('Show #' + st.number),
