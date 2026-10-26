@@ -19,6 +19,8 @@ import Foundation
 ///   site's mini player for the current song. Tapping saves or removes the song.
 /// - Storage: the list lives in the app (FavoritesBridge, UserDefaults), not in the
 ///   website's storage. The page asks for it on load and gets it back after changes.
+/// - Welcome screen on each launch until "Don't show again" is ticked; ? panel and
+///   press-and-hold labels explain the top bar icons.
 /// - Sheet: swipe up on the mini player (it gets a grab handle), or tap the heart
 ///   button in the top bar, next to search. Lists favorites newest first, with swipe left
 ///   to remove, "Play in order" and "Shuffle", and Export/Import to back them up
@@ -106,13 +108,16 @@ enum FavoritesScript {
             '.sr-help-icon svg{width:1em;height:1em;display:block}',
             '.sr-help-title{font-size:15px;line-height:20px;font-weight:600;color:#fff}',
             '.sr-help-desc{font-size:13px;line-height:18px;color:' + TEXT + ';margin-top:2px}',
-            '.sr-welcome{position:fixed;inset:0;z-index:65;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 20px);box-sizing:border-box;overflow-y:auto;opacity:0;transition:opacity .3s}',
+            '.sr-welcome{position:fixed;inset:0;z-index:65;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 20px);box-sizing:border-box;overflow:hidden;opacity:0;transition:opacity .3s}',
             '.sr-welcome.sr-show{opacity:1}',
-            '.sr-welcome-eye{width:84px;color:#fff;margin:8px 0 18px}',
-            '.sr-welcome-eye svg{width:100%;display:block}',
-            '.sr-welcome-title{font-size:28px;line-height:34px;font-weight:600;color:#fff;margin:0}',
+            '.sr-welcome-title{font-size:28px;line-height:1.2;font-weight:600;color:#fff;margin:6px 0 0;white-space:nowrap}',
+            '.sr-welcome-check{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px;line-height:20px;color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-welcome-check input{-webkit-appearance:none;appearance:none;flex:none;width:22px;height:22px;margin:0;border:1.5px solid ' + MUTED + ';border-radius:6px;background:none;display:grid;place-content:center}',
+            '.sr-welcome-check input:checked{background:#fff;border-color:#fff}',
+            '.sr-welcome-check input:checked::after{content:"";width:6px;height:11px;border:solid ' + BG + ';border-width:0 2.5px 2.5px 0;transform:translateY(-1px) rotate(45deg)}',
             '.sr-welcome-sub{font-size:15px;line-height:21px;color:' + TEXT + ';margin:8px 0 14px}',
-            '.sr-welcome .sr-help-list{flex:1}',
+            '.sr-welcome .sr-help-list{flex:1;min-height:0;overflow-y:auto;-webkit-overflow-scrolling:touch;border-bottom:1px solid ' + BORDER + '}',
+            '.sr-welcome-title,.sr-welcome-sub,.sr-welcome-check,.sr-welcome-go{flex:none}',
             '.sr-welcome-go{-webkit-appearance:none;appearance:none;flex:none;margin-top:16px;width:100%;height:52px;border:0;border-radius:9999px;background:#fff;color:' + BG + ';font-family:' + FONT + ';font-size:17px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-welcome-go:active{transform:scale(.98)}',
             '.sr-tape-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
@@ -1086,23 +1091,37 @@ enum FavoritesScript {
             }, 300);
           }
 
+          // Shows on each launch (once per app session, not on every page load) until
+          // "Don't show again" is ticked.
+          var WELCOME_SESSION_KEY = 'sr-welcome-shown';
           var welcomeOpen = false, welcomeShown = false, restoreAfterWelcome = false;
+          try { welcomeShown = sessionStorage.getItem(WELCOME_SESSION_KEY) === '1'; } catch (e) {}
+          function fitOneLine(node, max, min) {
+            var size = max;
+            node.style.fontSize = size + 'px';
+            while (size > min && node.scrollWidth > node.clientWidth) {
+              size -= 0.5;
+              node.style.fontSize = size + 'px';
+            }
+          }
           function showWelcome() {
             if (welcomeShown || !document.body) return;
             welcomeShown = welcomeOpen = true;
+            try { sessionStorage.setItem(WELCOME_SESSION_KEY, '1'); } catch (e) {}
             var w = el('div', 'sr-fav-root sr-welcome',
-              '<div class="sr-welcome-eye">' + EYE + '</div>' +
               '<h1 class="sr-welcome-title">Welcome to Soulection Radio</h1>' +
               '<div class="sr-welcome-sub">Every show, playing in the background, with a few extras:</div>' +
               helpListHTML() +
+              '<label class="sr-welcome-check"><input type="checkbox"><span>Don’t show again</span></label>' +
               '<button type="button" class="sr-welcome-go">Get started</button>');
             w.setAttribute('role', 'dialog');
             w.setAttribute('aria-label', 'Welcome');
             document.body.appendChild(w);
+            fitOneLine(w.querySelector('.sr-welcome-title'), 28, 16);
             void w.offsetHeight;
             w.classList.add('sr-show');
             w.querySelector('.sr-welcome-go').addEventListener('click', function () {
-              native({ op: 'welcomeSeen' });
+              if (w.querySelector('.sr-welcome-check input').checked) native({ op: 'welcomeSeen' });
               welcomeOpen = false;
               w.classList.remove('sr-show');
               setTimeout(function () { w.remove(); }, 320);

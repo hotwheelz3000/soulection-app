@@ -250,7 +250,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private static let fileKey = "Backup.fileBookmark"
     private static let lastSavedKey = "Backup.lastSaved"
     private static let restoreOfferedKey = "Backup.restoreOffered"
-    private static let welcomeSeenKey = "App.welcomeSeen"
+    // Set when "Don't show again" is ticked on the welcome screen. (A new key, so the
+    // screen comes back for anyone who dismissed the earlier show-once version.)
+    private static let welcomeSeenKey = "App.welcomeHidden"
     static let autoBackupFileName = "Soulection Radio Backup.json"
     private var autoBackupTask: Task<Void, Never>?
     private var autoBackupError = false
@@ -567,7 +569,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     private func send() {
         let due = store.backupDue ? "true" : "false"
-        // The welcome screen shows once per install (stored in the app, not the website).
+        // The welcome screen shows on each launch until "Don't show again" is ticked
+        // (stored in the app, not the website).
         let welcome = UserDefaults.standard.bool(forKey: Self.welcomeSeenKey) ? "false" : "true"
         webView?.evaluateJavaScript(
             "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome)});",
