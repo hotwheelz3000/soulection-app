@@ -101,6 +101,8 @@ enum FavoritesScript {
             '.sr-mo-fill{position:absolute;left:0;top:0;bottom:0;width:0}',
             '.sr-mo-knob{position:absolute;top:50%;transform:translate(-50%,-50%)}',
             '.sr-mo-time{white-space:nowrap;pointer-events:none}',
+            '.sr-mo-play{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}',
+            '.sr-mo-play svg{width:var(--sr-icon,24px);height:var(--sr-icon,24px);display:block}',
             '.sr-mini-direct [data-sr-mini-hide]{visibility:hidden}',
             '.sr-mini-direct .sr-heart-mini, .sr-mini-direct .sr-site-play{position:relative;z-index:4}',
             '.sr-mini-direct .sr-grab{z-index:4}',
@@ -689,7 +691,13 @@ enum FavoritesScript {
                 '<img class="sr-mo-img" alt="">' +
                 '<div class="sr-mo-text"><div class="sr-mo-show"></div><div class="sr-mo-line"><span class="sr-mo-song"></span> <span class="sr-mo-artist"></span></div></div>' +
                 '<div class="sr-mo-bar"><div class="sr-mo-track"><div class="sr-mo-fill"></div></div><div class="sr-mo-knob"></div></div>' +
-                '<span class="sr-mo-time sr-mo-el"></span><span class="sr-mo-time sr-mo-dur"></span>');
+                '<span class="sr-mo-time sr-mo-el"></span><span class="sr-mo-time sr-mo-dur"></span>' +
+                '<button type="button" class="sr-mo-play" aria-label="Play"></button>');
+              over.querySelector('.sr-mo-play').addEventListener('click', function (e) {
+                e.preventDefault(); e.stopPropagation();
+                togglePlay();
+                renderMiniOverlay(player);
+              });
               ['.sr-mo-img', '.sr-mo-text', '.sr-mo-bar'].forEach(function (sel) {
                 over.querySelector(sel).addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               });
@@ -698,8 +706,19 @@ enum FavoritesScript {
             var base = player.getBoundingClientRect();
             // Measuring the site's layout is the costly part: only redo it when the card
             // changed size or every few seconds, not on every update (keeps scrolling smooth).
+            var siteImg = player.querySelector('img:not(.sr-mo-img)');
+            var col = player.querySelector('.content-col');
+            var thumb = player.querySelector('[role="slider"]');
+            var root = thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement);
+            var times = player.querySelectorAll('[data-sr-time]:not(.sr-mo-time)');
+            var siteBtn = sitePlayButton();
+            // Hidden every time: the site redraws its mini player now and then.
+            [siteImg, col, root, siteBtn, times[0], times[1]].forEach(hideSite);
+            var nodes = [siteImg, col, root, siteBtn, times[0], times[1]];
+            var sameNodes = over.__nodes && nodes.every(function (n, i) { return n === over.__nodes[i]; });
+            over.__nodes = nodes;
             var layoutKey = Math.round(base.width) + 'x' + Math.round(base.height);
-            var relayout = over.__key !== layoutKey || !over.__at || Date.now() - over.__at > 3000;
+            var relayout = !sameNodes || over.__key !== layoutKey || !over.__at || Date.now() - over.__at > 3000;
             if (relayout) { over.__key = layoutKey; over.__at = Date.now(); }
             var st = npState() || {};
             var cur = playlist && playlist.current;
@@ -709,10 +728,8 @@ enum FavoritesScript {
             var set = function (sel, v) { var n = over.querySelector(sel); if (n.textContent !== v) n.textContent = v; return n; };
 
             // Artwork
-            var siteImg = player.querySelector('img:not(.sr-mo-img)');
             var img = over.querySelector('.sr-mo-img');
             if (siteImg && relayout) {
-              hideSite(siteImg);
               place(img, siteImg.getBoundingClientRect(), base);
               var r = getComputedStyle(siteImg).borderRadius;
               if (img.style.borderRadius !== r) img.style.borderRadius = r;
@@ -720,10 +737,8 @@ enum FavoritesScript {
             if (directShown.cover && img.getAttribute('src') !== directShown.cover) img.src = directShown.cover;
 
             // Show line and song
-            var col = player.querySelector('.content-col');
             var textBox = over.querySelector('.sr-mo-text');
             if (col && relayout) {
-              hideSite(col);
               place(textBox, col.getBoundingClientRect(), base);
               var lines = col.querySelectorAll(':scope > div');
               copyFont(lines[0], over.querySelector('.sr-mo-show'));
@@ -738,11 +753,8 @@ enum FavoritesScript {
             // Progress bar
             var dur = st.duration || 0, pos = st.t || 0;
             var frac = dur ? Math.min(1, Math.max(0, pos / dur)) : 0;
-            var thumb = player.querySelector('[role="slider"]');
-            var root = thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement);
             var bar = over.querySelector('.sr-mo-bar');
             if (root && relayout) {
-              hideSite(root);
               place(bar, root.getBoundingClientRect(), base);
               var siteTrack = root.firstElementChild && root.firstElementChild !== thumb ? root.firstElementChild : null;
               var track = over.querySelector('.sr-mo-track');
@@ -762,8 +774,30 @@ enum FavoritesScript {
             over.querySelector('.sr-mo-knob').style.left = (frac * 100) + '%';
             over.querySelector('.sr-mo-fill').style.width = (frac * 100) + '%';
 
+            // Play/pause: the site's button follows the site's (paused) player, so show the
+            // real state of the music that's playing.
+            var pb = over.querySelector('.sr-mo-play');
+            if (siteBtn) {
+              if (relayout) {
+                place(pb, siteBtn.getBoundingClientRect(), base);
+                var bs = getComputedStyle(siteBtn);
+                pb.style.color = bs.color;
+                var svg = siteBtn.querySelector('svg');
+                var sr = svg ? svg.getBoundingClientRect() : null;
+                pb.style.setProperty('--sr-icon', (sr && sr.width ? sr.width : 24) + 'px');
+              }
+              var paused = isPaused();
+              var want = paused ? 'play' : 'pause';
+              if (pb.getAttribute('data-icon') !== want) {
+                pb.setAttribute('data-icon', want);
+                pb.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+                pb.innerHTML = paused
+                  ? '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 4.5v15l12.5-7.5z"/></svg>'
+                  : '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 4h4.5v16H6zM13.5 4H18v16h-4.5z"/></svg>';
+              }
+            }
+
             // Times, in the same spots and size as the site's (already enlarged 1.2x)
-            var times = player.querySelectorAll('[data-sr-time]');
             var mine = [over.querySelector('.sr-mo-el'), over.querySelector('.sr-mo-dur')];
             var labels = [clock(pos).replace(/^0(\d:)/, '$1'), dur ? clock(dur).replace(/^0(\d:)/, '$1') : ''];
             for (var i = 0; i < 2; i++) {
@@ -772,7 +806,6 @@ enum FavoritesScript {
               mine[i].hidden = false;
               if (mine[i].textContent !== labels[i]) mine[i].textContent = labels[i];
               if (!relayout) continue;
-              hideSite(siteT);
               var tr = siteT.getBoundingClientRect();
               var tl = (tr.left - base.left) + 'px', tt = (tr.top - base.top) + 'px';
               if (i === 0) { mine[i].style.left = tl; mine[i].style.right = ''; }
@@ -793,6 +826,10 @@ enum FavoritesScript {
               g.setAttribute('aria-label', 'Open player');
               g.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               player.appendChild(g);
+            }
+            if (miniTouchMove && player.__srMove !== miniTouchMove) {
+              player.addEventListener('touchmove', miniTouchMove, { passive: false });
+              player.__srMove = miniTouchMove;
             }
             renderMiniOverlay(player);
             var row = player.querySelector('.content-col');
@@ -1794,6 +1831,7 @@ enum FavoritesScript {
           }
 
           // Swipe up on the mini player to open the full player, like Spotify.
+          var miniTouchMove = null;
           function attachOpenGesture() {
             var y0 = null, x0 = 0, mode = null, track = null;
             document.addEventListener('touchstart', function (e) {
@@ -1807,8 +1845,10 @@ enum FavoritesScript {
               track = velocityTracker();
               track.add(y0);
             }, { passive: true, capture: true });
-            // The player follows the finger as it slides up, like Spotify.
-            document.addEventListener('touchmove', function (e) {
+            // The player follows the finger as it slides up, like Spotify. This listener sits
+            // on the mini player only (see renderMiniPlayer): one on the whole page would make
+            // every scroll wait for the app's scripts.
+            miniTouchMove = function (e) {
               if (y0 == null) return;
               var y = e.touches[0].clientY, dy = y - y0, dx = e.touches[0].clientX - x0;
               if (!mode) {
@@ -1820,14 +1860,18 @@ enum FavoritesScript {
               e.preventDefault();
               track.add(y);
               setProgress(Math.max(0, Math.min(1, -dy / window.innerHeight)));
-            }, { passive: false, capture: true });
-            document.addEventListener('touchend', function () {
+            };
+            var end = function () {
               if (y0 == null) return;
               y0 = null;
               if (mode !== 'open') return;
               mode = null;
               settlePlayer(-track.velocity() / window.innerHeight);
-            }, { passive: true, capture: true });
+            };
+            document.addEventListener('touchend', end, { passive: true, capture: true });
+            // A touch taken over by iOS (a system swipe, leaving the app) must not leave the
+            // half-opened player behind.
+            document.addEventListener('touchcancel', end, { passive: true, capture: true });
             // Tapping the mini player (anywhere but its buttons and slider) opens it too,
             // and play/pause goes straight to the audio so it reacts right away.
             document.addEventListener('click', function (e) {
@@ -2070,6 +2114,24 @@ enum FavoritesScript {
             setProgress(fpP);
             animateTo(0, 0, finishClose);
           }
+          // The page can't scroll while html has sr-lock (a panel or the full player is open).
+          // If coming back from the background left it on with nothing open, take it off.
+          function healScrollLock() {
+            if (fp && isPlayerOpen() && fpP < 0.02 && fpAnim == null) finishClose();
+            var anyOpen = isOpen() || isPlayerOpen() || welcomeOpen ||
+              !!(helpPanel && helpPanel.root.classList.contains('sr-open')) ||
+              !!(sleepPanel && sleepPanel.root.classList.contains('sr-open'));
+            if (!anyOpen && document.documentElement.classList.contains('sr-lock')) document.documentElement.classList.remove('sr-lock');
+          }
+          document.addEventListener('visibilitychange', function () {
+            if (document.hidden) return;
+            setTimeout(healScrollLock, 400);
+            var over = document.querySelector('.sr-mini-over');
+            if (over) over.__at = 0; // redo the mini player layout
+            schedule();
+          });
+          setInterval(function () { if (!document.hidden) healScrollLock(); }, 2000);
+
           function finishClose() {
             endMorph();
             if (!fp) return;

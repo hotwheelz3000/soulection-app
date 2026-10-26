@@ -191,6 +191,7 @@ struct WebView: UIViewRepresentable {
             for (var i = 0; i < els.length; i++) {
               var el = els[i];
               if (el.children.length || el.hasAttribute('data-sr-time')) continue;
+              if (el.closest && el.closest('.sr-mini-over')) continue; // the app's own copies are sized already
               if (!TIME.test((el.textContent || '').trim())) continue;
               var size = parseFloat(getComputedStyle(el).fontSize) || 0;
               if (!size) continue;
