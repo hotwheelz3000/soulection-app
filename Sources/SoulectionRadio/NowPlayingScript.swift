@@ -13,8 +13,9 @@ import Foundation
 ///   track and posts {title, artist, album, artwork, track start times} to the iframe.
 /// - In the player iframe it applies that metadata, keeps the widget from
 ///   overwriting it, and handles nexttrack/previoustrack (seek to the next/previous
-///   tracklist timestamp; previous restarts the current song after 3 seconds) and
-///   10-second seekforward/seekbackward. Play/pause stay with the widget.
+///   tracklist timestamp; previous restarts the current song after 3 seconds). It
+///   clears seekforward/seekbackward so iOS shows track buttons instead of 10-second
+///   skips. Play/pause stay with the widget.
 enum NowPlayingScript {
     static let source = #"""
         (function () {
@@ -319,8 +320,10 @@ enum NowPlayingScript {
                 if (i >= 0 && t - starts[i] > 3) return seek(starts[i]);
                 seek(i > 0 ? starts[i - 1] : 0);
               } : null);
-              set('seekforward', function (d) { seek(now() + ((d && d.seekOffset) || 10)); });
-              set('seekbackward', function (d) { seek(now() - ((d && d.seekOffset) || 10)); });
+              // iOS shows 10-second skip buttons instead of next/previous track whenever
+              // seek handlers exist, so clear them (including any the widget set earlier).
+              set('seekforward', null);
+              set('seekbackward', null);
             }
 
             window.addEventListener('message', function (e) {
