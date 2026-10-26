@@ -217,6 +217,8 @@ enum FavoritesScript {
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
               if (opts && Array.isArray(opts.history)) history = opts.history;
+              // Back from "Export first": show the final warning again.
+              if (clearAfterExport) { clearAfterExport = false; setTimeout(clearStepTwo, 400); }
               if (opts && opts.backupDue) maybeRemindBackup();
               if (resumeAfterLoad) {
                 playlist = resumeAfterLoad;
@@ -502,25 +504,47 @@ enum FavoritesScript {
             renderSheet();
           }
 
+          // Clearing history takes two warnings: a first "are you sure", then a final one
+          // that also offers to export a backup first.
+          var clearAfterExport = false;
           function confirmClearHistory() {
-            if (!history.length || !sheet) return;
-            var btn = sheet.clearBtn;
-            if (btn.getAttribute('data-confirm')) {
-              btn.removeAttribute('data-confirm');
-              btn.querySelector('span').textContent = 'Clear';
-              history = [];
-              native({ op: 'historyClear' });
-              sheet.key = '';
-              renderSheet();
-              return;
-            }
-            btn.setAttribute('data-confirm', '1');
-            btn.querySelector('span').textContent = 'Tap again to clear';
-            setTimeout(function () {
-              if (!btn.getAttribute('data-confirm')) return;
-              btn.removeAttribute('data-confirm');
-              btn.querySelector('span').textContent = 'Clear';
-            }, 3000);
+            if (!history.length) return;
+            var n = history.length;
+            noteWithButtons(
+              '<div class="sr-note-title">Clear listening history?</div>' +
+              '<div>This removes all ' + n + (n === 1 ? ' song' : ' songs') + ' from History. Your favorites stay.</div>',
+              [['Continue', clearStepTwo], ['Cancel', null]]);
+          }
+          function clearStepTwo() {
+            if (!history.length) return;
+            noteWithButtons(
+              '<div class="sr-note-title">Are you sure?</div>' +
+              '<div>This can\'t be undone.</div>',
+              [['Clear history', clearHistoryNow], ['Export first', function () {
+                clearAfterExport = true;
+                native({ op: 'export' });
+              }], ['Cancel', null]]);
+          }
+          function clearHistoryNow() {
+            history = [];
+            native({ op: 'historyClear' });
+            if (sheet) { sheet.key = ''; renderSheet(); }
+            showToast('Listening history cleared.');
+          }
+          function noteWithButtons(html, buttons) {
+            var n = showNote(html + '<div class="sr-actions"></div>', 0);
+            if (!n) return;
+            var row = n.querySelector('.sr-actions');
+            buttons.forEach(function (b) {
+              var btn = el('button', 'sr-btn', '<span>' + esc(b[0]) + '</span>');
+              btn.type = 'button';
+              btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                hideNote();
+                if (b[1]) b[1]();
+              });
+              row.appendChild(btn);
+            });
           }
 
           function renderSheet() {
