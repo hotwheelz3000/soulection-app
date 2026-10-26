@@ -247,7 +247,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private static let lastSavedKey = "Backup.lastSaved"
     private static let restoreOfferedKey = "Backup.restoreOffered"
     static let autoBackupFileName = "Soulection Radio Backup.json"
-    private var autoBackupWork: DispatchWorkItem?
+    private var autoBackupTask: Task<Void, Never>?
     private var autoBackupError = false
     private enum PickerPurpose { case importFile, folder }
     private var pickerPurpose: PickerPurpose = .importFile
@@ -263,12 +263,12 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     /// Rewrites the backup file a moment after the last change.
     private func scheduleAutoBackup() {
         guard UserDefaults.standard.data(forKey: Self.folderKey) != nil else { return }
-        autoBackupWork?.cancel()
-        let work = DispatchWorkItem { [weak self] in
-            MainActor.assumeIsolated { self?.writeAutoBackup() }
+        autoBackupTask?.cancel()
+        autoBackupTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(2))
+            guard !Task.isCancelled else { return }
+            self?.writeAutoBackup()
         }
-        autoBackupWork = work
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
     }
 
     @discardableResult
