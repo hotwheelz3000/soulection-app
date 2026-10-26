@@ -289,6 +289,18 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           var listen = null; // {track, played: seconds heard so far, last: ms, done}
           function followListening(st) {
+            if (direct && playlist && playlist.current) {
+              var f = playlist.current;
+              if (arriving || (listen && listen.track.id === f.id && listen.done)) return;
+              listen = { track: f, done: true, played: 0, last: Date.now(), lastT: st && st.t };
+              var entry = {};
+              for (var k in f) entry[k] = f[k];
+              entry.favoritedAt = Date.now();
+              history = history.filter(function (h) { return h.id !== entry.id; }).concat([entry]);
+              native({ op: 'played', favorite: entry });
+              schedule();
+              return;
+            }
             var t = currentTrack();
             if (!t || !st) { listen = null; return; }
             var now = Date.now();
@@ -1265,10 +1277,12 @@ enum FavoritesScript {
                 var img = doc.querySelector('#episode-card-header img');
                 var cover = img ? (img.getAttribute('src') || '') : '';
                 if (cover && cover.charAt(0) === '/') cover = location.origin + cover;
-                return {
+                var item = {
                   id: favId(path, row.start), song: row.song, artist: row.artist, show: 'Show #' + number,
                   episodeURL: path, cover: cover, start: row.start, end: rows[i2 + 1].start, favoritedAt: Date.now()
                 };
+                episodeAudio[path] = soundcloudLink(doc);
+                return item;
               });
             }).catch(function (err) {
               if (tries < 4) return randomSong(tries + 1);
@@ -1779,6 +1793,7 @@ enum FavoritesScript {
             var n = np();
             if (n) { n.setPlaylist(null); n.setOverride(null); if (pause) n.pause(); }
             mixNext = null;
+            direct = null;
             renderTape();
             schedule();
           }
@@ -1809,12 +1824,72 @@ enum FavoritesScript {
               return;
             }
             arriving = { id: f.id, since: Date.now(), tries: 0 };
-            openEpisodeAndPlay(f);
+            if (document.hidden) switchInPlayer(f);
+            else openEpisodeAndPlay(f);
           }
+
+          // ---------------------------------------------------------------------------
+          // Switching shows while the app is in the background. iOS stops drawing the page
+          // then, so opening the next show's page never finishes. Instead, load the show's
+          // audio straight into the site's SoundCloud player and jump to the song. The page
+          // catches up when the app comes back.
+          // ---------------------------------------------------------------------------
+          var episodeAudio = {}; // episode path -> SoundCloud link
+          var direct = null;     // {number, id} while the player plays a show the page doesn't show
+          function soundcloudLink(doc) {
+            var a = doc.querySelector('a[href*="soundcloud.com/"]');
+            return a ? a.getAttribute('href') : null;
+          }
+          function audioLink(path) {
+            if (episodeAudio[path]) return Promise.resolve(episodeAudio[path]);
+            return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+              var link = soundcloudLink(new DOMParser().parseFromString(html, 'text/html'));
+              if (link) episodeAudio[path] = link;
+              return link;
+            });
+          }
+          function soundcloudFrame() {
+            return document.querySelector('iframe[src*="w.soundcloud.com"]');
+          }
+          function switchInPlayer(f) {
+            var frame = soundcloudFrame();
+            if (!frame || !window.SC || !SC.Widget) return openEpisodeAndPlay(f);
+            audioLink(f.episodeURL).then(function (link) {
+              if (!playlist || playlist.current !== f) return;
+              if (!link) return openEpisodeAndPlay(f);
+              var widget = SC.Widget(frame);
+              var ms = Math.max(0, f.start) * 1000;
+              direct = { number: showNumber(f.show), id: f.id };
+              arriving = { id: f.id, since: Date.now(), tries: 1 };
+              var onPlay = function () {
+                widget.unbind(SC.Widget.Events.PLAY);
+                widget.seekTo(ms);
+              };
+              widget.load(link, {
+                auto_play: true,
+                callback: function () {
+                  widget.bind(SC.Widget.Events.PLAY, onPlay);
+                  widget.play();
+                  widget.seekTo(ms);
+                }
+              });
+            }).catch(function () { if (playlist && playlist.current === f) openEpisodeAndPlay(f); });
+          }
+          // Back in the app after a background switch: show the playing show's page and let
+          // the site take over from the same spot.
+          document.addEventListener('visibilitychange', function () {
+            if (document.hidden || !direct || !playlist || !playlist.current) return;
+            var f = playlist.current;
+            var st = npState();
+            var at = st && st.t != null ? st.t : f.start;
+            direct = null;
+            arriving = { id: f.id, since: Date.now(), tries: 0, at: at };
+            openEpisodeAndPlay(f, at);
+          });
 
           // Opens the favorite's episode page and taps its tracklist row, which is how the
           // site itself starts an episode at a song.
-          function openEpisodeAndPlay(f) {
+          function openEpisodeAndPlay(f, resumeAt) {
             if (location.pathname.replace(/\/$/, '') !== f.episodeURL) {
               if (window.next && window.next.router && window.next.router.push) {
                 window.next.router.push(f.episodeURL);
@@ -1840,7 +1915,8 @@ enum FavoritesScript {
                     arriving.tries++;
                     arriving.since = Date.now();
                     btn.click();
-                    if (Math.abs(best.start - f.start) > 1) setTimeout(function () { var n = np(); n && n.seek(f.start); }, 1500);
+                    var target = resumeAt != null ? resumeAt : f.start;
+                    if (Math.abs(best.start - target) > 1) setTimeout(function () { var n = np(); n && n.seek(target); }, 1500);
                     return;
                   }
                 }
@@ -1880,15 +1956,19 @@ enum FavoritesScript {
             if (!playlist || !playlist.current) return;
             var f = playlist.current;
             var number = showNumber(f.show);
+            // After a background switch the site's mini player still shows the old show,
+            // but the player is playing this one.
+            var playingNumber = direct && direct.id === f.id ? direct.number : (st && st.number);
             if (arriving) {
-              if (st && st.number === number && st.t != null && st.t >= f.start - 2 && st.t <= f.start + 20) {
+              var at = arriving.at != null ? arriving.at : f.start;
+              if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20) {
                 arriving = null;
               } else if (Date.now() - arriving.since > 7000) {
-                if (st && st.number === number && arriving.tries < 3) {
+                if (st && playingNumber === number && arriving.tries < 3) {
                   arriving.tries++;
                   arriving.since = Date.now();
                   var n = np();
-                  n && n.seek(f.start);
+                  n && n.seek(at);
                 } else if (arriving.tries >= 3 || Date.now() - arriving.since > 20000) {
                   endPlaylist(false);
                 }
@@ -1896,7 +1976,7 @@ enum FavoritesScript {
               return;
             }
             if (!st || st.t == null) return;
-            if (st.number !== number) return endPlaylist(false);
+            if (playingNumber !== number) return endPlaylist(false);
             var end = f.end != null ? f.end : (st.duration || Infinity);
             var left = end - st.t;
             if (left <= 0.4) return nextFavorite();
