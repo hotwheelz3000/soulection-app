@@ -229,7 +229,7 @@ enum FavoritesScript {
             '.sr-item-show{font-size:9px;line-height:12px;color:' + MUTED + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-item-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-item-song{font-weight:600}',
-            '.sr-item-playing .sr-item-show::before{content:"";display:inline-block;width:6px;height:6px;border-radius:9999px;background:' + ACCENT + ';margin-right:5px;vertical-align:1px}',
+            '.sr-item-main .sr-bars{margin:0 2px 0 0;align-self:center}',
             '.sr-item .sr-heart{font-size:23px;padding:10px;margin-right:-10px}',
             '.sr-empty{padding:24px 12px;text-align:center;color:' + MUTED + '}',
             'html.sr-lock,html.sr-lock body{overflow:hidden}',
@@ -834,8 +834,17 @@ enum FavoritesScript {
             var count = sorted.length;
             sheet.sub.textContent = count === 1 ? '1 song' : count + ' songs';
             sheet.playBtn.disabled = sheet.shuffleBtn.disabled = sheet.clearBtn.disabled = !count;
-            if (key === sheet.key) return;
-            sheet.key = key;
+            if (key !== sheet.key) {
+              sheet.key = key;
+              buildSheetList(sorted, hist, playingId, count);
+            }
+            var st = npState();
+            var paused = !st || !!st.paused;
+            var sb = sheet.list.querySelector('.sr-sheet-bars');
+            if (sb && sb.classList.contains('sr-paused') !== paused) sb.classList.toggle('sr-paused', paused);
+          }
+
+          function buildSheetList(sorted, hist, playingId, count) {
             sheet.list.textContent = '';
             if (!count) {
               sheet.list.appendChild(el('div', 'sr-empty', hist
@@ -865,6 +874,11 @@ enum FavoritesScript {
               } else {
                 setHeart(heart, true, f.song);
                 heart.addEventListener('click', function (e) { e.stopPropagation(); removeItem(item, f.id, 'favorites'); });
+              }
+              if (f.id === playingId) {
+                var bars = el('span', 'sr-bars sr-sheet-bars', '<i></i><i></i><i></i>');
+                bars.setAttribute('aria-hidden', 'true');
+                main.appendChild(bars);
               }
               main.appendChild(heart);
               // Tapping the cover opens the song's show instead of playing it.
@@ -2063,13 +2077,13 @@ enum FavoritesScript {
             return a;
           }
 
-          // Plays favorites (oldest favorited first) or history (most recent first).
+          // Plays Likes or History in the order the list shows them (newest at the top).
           function startPlaylist(mode, firstId, source) {
             source = source === 'history' ? 'history' : 'favorites';
             var items = sourceList(source);
             if (!items.length) return;
             var ids = items.slice()
-              .sort(function (a, b) { return source === 'history' ? b.favoritedAt - a.favoritedAt : a.favoritedAt - b.favoritedAt; })
+              .sort(function (a, b) { return b.favoritedAt - a.favoritedAt; }) // same order as the list, top to bottom
               .map(function (f) { return f.id; });
             var pos = 0;
             if (mode === 'shuffle') {

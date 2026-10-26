@@ -260,12 +260,49 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private enum PickerPurpose { case importFile, saveBackup, restoreBackup }
     private var pickerPurpose: PickerPurpose = .importFile
 
+    /// The backup file as iOS handed it over this session. Used when the saved bookmark
+    /// can't be read back yet (right after saving, iCloud may still be moving the file).
+    private var liveBackupURL: URL?
+    /// Why the bookmark couldn't be read back, in iOS's words.
+    private var bookmarkFailure: String?
+
     private func backupFile() -> URL? {
         guard let data = UserDefaults.standard.data(forKey: Self.fileKey) else { return nil }
         var stale = false
-        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
-        if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.fileKey) }
-        return url
+        do {
+            let url = try URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)
+            if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.fileKey) }
+            bookmarkFailure = nil
+            return url
+        } catch {
+            let e = error as NSError
+            bookmarkFailure = "\(e.localizedDescription) (\(e.domain) \(e.code))"
+            if let live = liveBackupURL { refreshBookmark(from: live) }
+            return liveBackupURL
+        }
+    }
+
+    /// Saves a new bookmark for the file, if iOS can make one that reads back.
+    @discardableResult
+    private func refreshBookmark(from url: URL) -> Bool {
+        let accessing = url.startAccessingSecurityScopedResource()
+        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
+        guard let bookmark = try? url.bookmarkData() else { return false }
+        var stale = false
+        guard (try? URL(resolvingBookmarkData: bookmark, options: [], relativeTo: nil, bookmarkDataIsStale: &stale)) != nil else { return false }
+        UserDefaults.standard.set(bookmark, forKey: Self.fileKey)
+        return true
+    }
+
+    /// Tries the bookmark again a few times after iCloud has settled.
+    private func retryBookmark(_ url: URL) {
+        Task { @MainActor [weak self] in
+            for delay in [3, 10, 30] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self, self.liveBackupURL == url else { return }
+                if self.refreshBookmark(from: url) { return }
+            }
+        }
     }
 
     /// Rewrites the backup file a moment after the last change.
@@ -286,7 +323,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func writeAutoBackup() -> Bool {
         guard let file = backupFile(), let payload = try? store.backupData() else {
             autoBackupError = UserDefaults.standard.data(forKey: Self.fileKey) != nil
-            lastWriteFailure = "The app lost track of the backup file."
+            lastWriteFailure = "The app lost track of the backup file" + (bookmarkFailure.map { ": " + $0 } ?? "")
             return false
         }
         let accessing = file.startAccessingSecurityScopedResource()
@@ -365,11 +402,13 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     /// Remembers the file so it can be rewritten later. Returns false if iOS won't allow it.
     private func rememberBackupFile(_ url: URL) -> Bool {
-        let accessing = url.startAccessingSecurityScopedResource()
-        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        guard let bookmark = try? url.bookmarkData() else { return false }
-        UserDefaults.standard.set(bookmark, forKey: Self.fileKey)
+        liveBackupURL = url
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
+        if refreshBookmark(from: url) { return true }
+        // No bookmark that reads back yet: keep using the file from this session and try
+        // again shortly. A placeholder keeps auto-backup marked as on.
+        UserDefaults.standard.set(Data([0]), forKey: Self.fileKey)
+        retryBookmark(url)
         return true
     }
 
@@ -448,6 +487,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return
         case "backupFolderOff":
             UserDefaults.standard.removeObject(forKey: Self.fileKey)
+            liveBackupURL = nil
             autoBackupError = false
         case "restoreDismissed":
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
