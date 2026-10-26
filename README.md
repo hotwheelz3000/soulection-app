@@ -1,54 +1,38 @@
 # Soulection Radio
 
-A full-screen iOS app for [radio.soulection.com](https://radio.soulection.com/), built Xcode-free with [xtool](https://xtool.sh). It looks and behaves like the Safari home-screen web app, plus reliable background audio and a lock screen that follows each song.
+An iPhone app for [Soulection Radio](https://radio.soulection.com/). It's the same site you'd open in Safari, but as a real app on your home screen that keeps playing in the background.
 
-## Features
+## What it does
 
-- **Background audio:** keeps playing with the screen locked or the app in the background (`UIBackgroundModes: audio` in `SoulectionRadio-Info.plist`, `AVAudioSession` `.playback` category in `SoulectionRadioApp.swift`).
-- **Edge to edge:** the web view fills the whole screen and the page handles safe areas with CSS `env(safe-area-inset-*)`. `viewport-fit=cover` is injected if the page lacks it.
-- **Lock screen / Now Playing follows the current song:** title, artist, show name and episode cover update as the tracklist moves. Next/previous track jump between tracklist timestamps (previous restarts the current song unless you're under 3 seconds in). Playback runs inside an embedded SoundCloud player, so the script runs in both the Soulection page and that player.
-- **Browsing:** pull to refresh, swipe back/forward, and links that leave `soulection.com` open in Safari.
-- **Playback extras:** inline media playback with no tap required, AirPlay and Picture in Picture.
+- **Keeps the music going.** Lock your phone or switch apps and the show keeps playing.
+- **Shows the song that's on.** Your lock screen and Control Center show the current song, artist and show cover, and they update as the tracks change.
+- **Skip between songs.** The next and previous buttons on your lock screen jump to the next or previous song in the show's tracklist. Tap previous once to restart a song, or twice to go back one.
+- **Feels like the website.** Full screen, same look, same episodes and search.
+- **Works with your speakers.** AirPlay to your TV or speakers is supported.
 
-## Files
+## How to install
 
-| Path | What it does |
-| --- | --- |
-| `Sources/SoulectionRadio/SoulectionRadioApp.swift` | App entry point, audio session setup |
-| `Sources/SoulectionRadio/ContentView.swift` | Root view |
-| `Sources/SoulectionRadio/WebView.swift` | WKWebView wrapper: edge to edge, refresh, gestures, external links |
-| `Sources/SoulectionRadio/NowPlayingScript.swift` | Injected script that drives lock-screen song info and track buttons |
-| `Sources/SoulectionRadio/PageAppearance.swift` | Remembers the page background color between launches |
-| `SoulectionRadio-Info.plist` | Background audio mode (`infoPath` in `xtool.yml`) |
-| `xtool.yml` | App name, bundle ID, icon and Info.plist paths |
-| `Resources/AppIcon.png` | App icon |
-| `scripts/fetch-app-icon.py` | Fallback: builds an icon from the site's favicon if `AppIcon.png` is missing |
-| `.github/workflows/build-ipa.yml` | Builds the unsigned IPA on every push to `main` |
+The app isn't on the App Store, so you install it yourself. It takes a few minutes.
 
-## App icon
+1. **Download the app file.** Open the [Actions page](https://github.com/hotwheelz3000/soulection-app/actions), tap the newest **Build IPA** run with a green check, scroll to **Artifacts** and download **SoulectionRadio-ipa**. Unzip it to get `SoulectionRadio.ipa`.
+2. **Install it with a sideloading app** such as [Sideloadly](https://sideloadly.io) or [AltStore](https://altstore.io). Sign in with your Apple ID when it asks.
+3. **Trust it on your iPhone.** Go to **Settings → General → VPN & Device Management**, tap your Apple ID, then **Trust**. If iOS asks, turn on **Developer Mode** in **Settings → Privacy & Security** and restart.
 
-The icon is the chrome Soulection eye on black, at `Resources/AppIcon.png` (1024×1024 PNG, no transparency). To change it, replace that file and push. If the file is ever deleted, the build workflow runs `scripts/fetch-app-icon.py` to generate one from the site's favicon and commits it.
+With a free Apple ID, the app stops opening after 7 days. Just install it again the same way.
 
-After installing a build with a new icon, delete the old app first so iOS doesn't keep the cached icon.
+## Tips
 
-## Download the IPA
+- **Updating:** download the newest file and install it over the old one.
+- **New icon not showing?** Delete the app first, then install the new version.
+- **Song name not changing on the lock screen?** Playback still works. Soulection may have changed their site, so the song info needs an update.
 
-1. Open the repo's **Actions** tab and pick the latest **Build IPA** run. To build without pushing, choose **Build IPA → Run workflow**.
-2. At the bottom of the run page, under **Artifacts**, download **SoulectionRadio-ipa**. It's a zip containing `SoulectionRadio.ipa`.
+## For developers
 
-The IPA is **unsigned**. Sign it when installing, for example with `xtool install` after `xtool auth login`, or with Sideloadly or AltStore. GitHub keeps artifacts for 90 days.
+Built with [xtool](https://xtool.sh), so there's no Xcode project. Every push to `main` builds a fresh, unsigned app file on GitHub Actions.
 
-## Build locally
+- App code is in `Sources/SoulectionRadio/`. The lock-screen song info lives in `NowPlayingScript.swift`.
+- The icon is `Resources/AppIcon.png`. Replace it and push to change it.
+- App settings (name, bundle ID, icon) are in `xtool.yml`.
+- To build locally with xtool installed: `xtool dev build --ipa`.
 
-With xtool installed ([macOS](https://xtool.sh/documentation/xtooldocs/installation-macos), [Linux/Windows](https://xtool.sh/documentation/xtooldocs/installation-linux)):
-
-```bash
-xtool dev build --ipa   # unsigned IPA at xtool/SoulectionRadio.ipa
-xtool dev               # build, sign and run on a connected device
-```
-
-## Notes
-
-- Made from the `my-ios-app` template, renamed with `./rename-app.sh SoulectionRadio com.hotwheelz3000.SoulectionRadio`.
-- The Now Playing script depends on the site's current markup (tracklist rows and the bottom player). If Soulection redesigns the site, the lock-screen song info may stop updating while playback keeps working.
-- `.claude/skills/using-xtool/` holds xtool reference notes for Claude Code sessions.
+Made from the `my-ios-app` template.
