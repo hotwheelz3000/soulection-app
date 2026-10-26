@@ -122,7 +122,7 @@ jobs:
           TZ=UTC touch -t "$la_now" "xtool/$APP_NAME.ipa"
           echo "Stamped with LA time $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M %Z')"
 
-      - uses: actions/upload-artifact@v5
+      - uses: actions/upload-artifact@v7
         with:
           name: ${{ steps.app.outputs.name }}-ipa
           path: xtool/${{ steps.app.outputs.name }}.ipa
