@@ -1044,7 +1044,7 @@ enum FavoritesScript {
             return [
               [HEART, 'Likes', 'Your saved songs and your listening History. Play them as a playlist, and back them up to iCloud Drive.'],
               [DICE, 'Random show', 'Starts a random episode from the very beginning.'],
-              [CASSETTE, 'Mixtape', 'Endless random songs from random shows. Each song goes into your Likes as soon as it’s picked (even if you skip it) and into History once it starts playing. Stopping Mixtape keeps them; remove any you don’t want. A song you removed can come back if Mixtape picks it again.'],
+              [CASSETTE, 'Mixtape', 'Endless random songs from random shows. Each song is added to your Likes and History, even if you skip it. Remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Fades out and pauses after a set time, or at the end of a song or show.'],
               [PLAYBIG, 'Full player', 'Tap or swipe up on the player at the bottom for big artwork and controls.'],
               [HEART, 'Heart any song', 'Tap the heart next to a song in a show’s tracklist, or in the player.'],
