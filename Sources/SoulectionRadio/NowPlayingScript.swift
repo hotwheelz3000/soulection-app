@@ -358,7 +358,7 @@ enum NowPlayingScript {
             function track(el) {
               if (!(el instanceof HTMLMediaElement) || media === el) return;
               media = el;
-              if (standby) el.muted = true; // loaded ahead: silent until handed over
+              if (standby) el.muted = true; // loaded ahead: silent until it's at the song
               ['timeupdate', 'seeked', 'play', 'pause', 'loadedmetadata', 'canplay'].forEach(function (name) {
                 el.addEventListener(name, reportTime);
               });
@@ -377,8 +377,6 @@ enum NowPlayingScript {
               if (pendingStart == null || !media || media.readyState < 1) return;
               if (Math.abs(media.currentTime - pendingStart) < 2 && !media.paused) {
                 pendingStart = null;
-                // Loaded ahead: wait at the song's start until the app hands over.
-                if (standby && media.muted) { media.pause(); post({ standbyReady: true, t: media.currentTime, paused: true }); }
                 return;
               }
               if (++startTries > 20) { pendingStart = null; return; }

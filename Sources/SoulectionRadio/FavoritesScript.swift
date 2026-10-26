@@ -2259,7 +2259,9 @@ enum FavoritesScript {
           }
           function playerURL(link, start, isStandby) {
             return 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(link) +
-              '&auto_play=true&visual=false&show_comments=false&sr_start=' + Math.max(0, start) +
+              // A player loaded ahead must not play early: on iPhone, starting a second
+              // player pauses the one you're listening to.
+              '&auto_play=' + (isStandby ? 'false' : 'true') + '&visual=false&show_comments=false&sr_start=' + Math.max(0, start) +
               (isStandby ? '&sr_standby=1' : '') + '&sr_id=' + Date.now();
           }
 
@@ -2352,7 +2354,12 @@ enum FavoritesScript {
             if (standby && d.win === standby.win && !standby.ready) {
               if (d.ready || (d.paused && d.t != null && Math.abs(d.t - standby.f.start) < 3)) standby.ready = true;
             }
-            if (handing && d.win === handing.win && d.paused === false) finishHandoff();
+            if (handing && d.win === handing.win && d.paused === false) {
+              // Unmute once it's at the song; give it a moment to get there, but not longer.
+              var near = d.t != null && Math.abs(d.t - handing.f.start) < 3;
+              if (!handing.playingSince) handing.playingSince = Date.now();
+              if (near || Date.now() - handing.playingSince > 1500) finishHandoff();
+            }
           });
 
           function handoff(f) {
@@ -2369,7 +2376,13 @@ enum FavoritesScript {
             var oldWin = oldFrame ? oldFrame.contentWindow : (site ? site.contentWindow : null);
             handing = { f: f, win: sb.win, frame: sb.frame, oldWin: oldWin, oldFrame: oldFrame, info: sb.info, timer: null };
             arriving = { id: f.id, since: Date.now(), tries: 1 };
-            n.toFrame(sb.win, { play: true, seek: f.start }); // still muted
+            // Start it now (still muted), at the song: through SoundCloud's own player API,
+            // and directly in case the audio is already set up.
+            try {
+              sb.win.postMessage(JSON.stringify({ method: 'seekTo', value: Math.max(0, f.start) * 1000 }), '*');
+              sb.win.postMessage(JSON.stringify({ method: 'play' }), '*');
+            } catch (e) {}
+            n.toFrame(sb.win, { seek: f.start, play: true });
             // If it hasn't started after a few seconds, iOS held it back: fall back.
             handing.timer = setTimeout(function () {
               if (!handing || handing.f !== f) return;
