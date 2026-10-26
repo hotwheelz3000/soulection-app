@@ -88,6 +88,16 @@ enum FavoritesScript {
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
+            // The song playing in a show's tracklist: a light background and moving bars.
+            '.sr-row-playing{background:rgba(255,255,255,.06);border-radius:8px}',
+            '.sr-row-flash{animation:sr-flash 1.8s ease}',
+            '@keyframes sr-flash{0%,60%{background:rgba(255,255,255,.16)}100%{background:transparent}}',
+            '.sr-bars{display:inline-flex;align-items:flex-end;gap:2px;width:12px;height:12px;margin-top:4px;flex:none;color:' + TEXT + '}',
+            '.sr-bars i{display:block;width:2.5px;height:100%;background:currentColor;border-radius:1px;transform-origin:bottom;animation:sr-bar 1s ease-in-out infinite}',
+            '.sr-bars i:nth-child(2){animation-delay:-.4s}',
+            '.sr-bars i:nth-child(3){animation-delay:-.7s}',
+            '.sr-bars.sr-paused i{animation-play-state:paused}',
+            '@keyframes sr-bar{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
             '.sr-auto{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-auto .sr-auto-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
@@ -857,6 +867,13 @@ enum FavoritesScript {
                 heart.addEventListener('click', function (e) { e.stopPropagation(); removeItem(item, f.id, 'favorites'); });
               }
               main.appendChild(heart);
+              // Tapping the cover opens the song's show instead of playing it.
+              var cover = main.querySelector('img');
+              cover.addEventListener('click', function (e) {
+                if (main.getAttribute('data-swiped')) return;
+                e.stopPropagation();
+                showSongInShow(f);
+              });
               main.addEventListener('click', function () {
                 if (main.getAttribute('data-swiped')) return;
                 startPlaylist('order', f.id, sheet.mode);
@@ -1042,7 +1059,7 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           function helpItems() {
             return [
-              [HEART, 'Likes', 'Your saved songs and your listening History. Play them as a playlist, and back them up to iCloud Drive.'],
+              [HEART, 'Likes', 'Your saved songs and your listening History. Play them as a playlist, tap a cover to open its show, and back them up to iCloud Drive.'],
               [DICE, 'Random show', 'Starts a random episode from the very beginning.'],
               [CASSETTE, 'Mixtape', 'Endless random songs from random shows. Each song is added to your Likes and History, even if you skip it. Remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Fades out and pauses after a set time, or at the end of a song or show.'],
@@ -1403,6 +1420,66 @@ enum FavoritesScript {
             location.assign(path);
             return false; // the page reloads; it picks up again from sessionStorage
           }
+          // Opens a song's show page and scrolls to the song, flashing its row.
+          var REVEAL_KEY = 'sr-reveal-song';
+          function showSongInShow(f) {
+            closeSheet();
+            var wantNumber = showNumber(f.show);
+            var oldHeading = location.pathname.replace(/\/$/, '') === f.episodeURL ? null : episodeHeading();
+            if (!goTo(f.episodeURL, REVEAL_KEY, JSON.stringify({ url: f.episodeURL, start: f.start, show: f.show }))) return;
+            revealSong(f.episodeURL, f.start, wantNumber, oldHeading);
+          }
+          function revealSong(url, start, wantNumber, oldHeading) {
+            var deadline = Date.now() + 10000;
+            (function look() {
+              var heading = episodeHeading();
+              var onPage = location.pathname.replace(/\/$/, '') === url &&
+                (oldHeading == null || heading !== oldHeading) &&
+                (!wantNumber || showNumber(heading) === wantNumber);
+              var rows = onPage ? pageRows() : [];
+              var best = null;
+              rows.forEach(function (r) { if (r.start <= start + 1 && (!best || r.start > best.start)) best = r; });
+              if (!best) {
+                if (Date.now() < deadline) setTimeout(look, 250);
+                return;
+              }
+              best.row.scrollIntoView({ block: 'center', behavior: 'smooth' });
+              best.row.classList.remove('sr-row-flash');
+              void best.row.offsetWidth;
+              best.row.classList.add('sr-row-flash');
+              setTimeout(function () { best.row.classList.remove('sr-row-flash'); }, 1900);
+            })();
+          }
+
+          // Marks the tracklist row of the song that's playing, on that show's page.
+          function renderPlayingRow() {
+            var rows = episodePath() ? pageRows() : [];
+            var st = npState();
+            var pageNumber = rows.length ? showNumber(episodeHeading()) : null;
+            var playingNumber = direct ? direct.number : (st && st.number);
+            var current = null;
+            if (pageNumber && st && st.t != null && playingNumber === pageNumber) {
+              rows.forEach(function (r) { if (r.start <= st.t + 0.25 && (!current || r.start > current.start)) current = r; });
+            }
+            var marked = document.querySelectorAll('.sr-row-playing');
+            for (var i = 0; i < marked.length; i++) {
+              if (current && marked[i] === current.row) continue;
+              marked[i].classList.remove('sr-row-playing');
+              var old = marked[i].querySelector('.sr-bars');
+              if (old) old.remove();
+            }
+            if (!current) return;
+            if (!current.row.classList.contains('sr-row-playing')) current.row.classList.add('sr-row-playing');
+            var bars = current.songCell.querySelector(':scope > .sr-bars');
+            if (!bars) {
+              bars = el('span', 'sr-bars', '<i></i><i></i><i></i>');
+              bars.setAttribute('aria-hidden', 'true');
+              current.songCell.insertBefore(bars, current.songCell.firstChild);
+            }
+            var paused = !!st.paused;
+            if (bars.classList.contains('sr-paused') !== paused) bars.classList.toggle('sr-paused', paused);
+          }
+
           function playRandomShow() {
             if (!dice || dice.getAttribute('aria-busy') === 'true') return;
             dice.setAttribute('aria-busy', 'true');
@@ -2279,6 +2356,7 @@ enum FavoritesScript {
               (document.head || document.documentElement).appendChild(style);
             }
             renderRowHearts();
+            renderPlayingRow();
             renderMiniPlayer(miniPlayer());
             renderTab();
             if (isOpen()) renderSheet();
@@ -2296,7 +2374,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -2307,6 +2385,11 @@ enum FavoritesScript {
                 pending.current = null;
                 resumeAfterLoad = pending;
               }
+            } catch (e) {}
+            try {
+              var reveal = JSON.parse(sessionStorage.getItem(REVEAL_KEY) || 'null');
+              sessionStorage.removeItem(REVEAL_KEY);
+              if (reveal && reveal.url) revealSong(reveal.url, reveal.start, showNumber(reveal.show), null);
             } catch (e) {}
             try {
               var randomPath = sessionStorage.getItem(RANDOM_KEY);
