@@ -133,6 +133,22 @@ struct WebView: UIViewRepresentable {
             }
             return null;
           }
+          // The elapsed/total times under the progress bar ("9:16", "2:01:57") are a bit
+          // small on a phone, so make them 20% larger.
+          var TIME = /^\d{1,2}:\d{2}(:\d{2})?$/;
+          var TIME_SCALE = 1.2;
+          function enlargeTimes(bar) {
+            var els = bar.querySelectorAll('*');
+            for (var i = 0; i < els.length; i++) {
+              var el = els[i];
+              if (el.children.length || el.hasAttribute('data-sr-time')) continue;
+              if (!TIME.test((el.textContent || '').trim())) continue;
+              var size = parseFloat(getComputedStyle(el).fontSize) || 0;
+              if (!size) continue;
+              el.setAttribute('data-sr-time', '');
+              el.style.setProperty('font-size', (size * TIME_SCALE).toFixed(1) + 'px', 'important');
+            }
+          }
           function apply() {
             var inset = bottomInset();
             if (!inset) return;
@@ -144,6 +160,7 @@ struct WebView: UIViewRepresentable {
                 if (!bar) continue;
                 var r = bar.getBoundingClientRect();
                 if (r.bottom < h - 2 || r.height > h / 2) continue;
+                enlargeTimes(bar);
                 if (bar.getAttribute(MARK) === String(inset)) return;
                 var base = bar.hasAttribute(MARK + '-base')
                   ? parseFloat(bar.getAttribute(MARK + '-base'))
