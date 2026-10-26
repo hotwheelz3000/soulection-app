@@ -90,15 +90,18 @@ enum FavoritesScript {
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
             // The song playing in a show's tracklist: a light background and moving bars.
             '.sr-row-playing{background:rgba(255,255,255,.06);border-radius:8px}',
-            '.sr-mini-over{position:absolute;inset:0;z-index:3;background:' + BG + ';display:grid;grid-template-columns:auto 1fr;grid-template-rows:1fr auto auto;column-gap:12px;padding:12px 116px 10px 12px;cursor:pointer;border-radius:inherit}',
-            '.sr-mini-over img{width:48px;height:48px;border-radius:2px;object-fit:cover;grid-row:1;align-self:center;background:' + TRACK + '}',
-            '.sr-mo-text{grid-row:1;align-self:center;min-width:0;font-size:13px;line-height:18px}',
-            '.sr-mo-show{color:' + MUTED + ';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-            '.sr-mo-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + TEXT + '}',
-            '.sr-mo-song{font-weight:700;color:' + ACCENT + '}',
-            '.sr-mo-bar{grid-column:1/3;grid-row:2;height:3px;background:' + TRACK + ';border-radius:2px;margin:10px -104px 0 0;overflow:hidden}',
-            '.sr-mo-fill{height:100%;background:' + ACCENT + ';width:0}',
-            '.sr-mo-times{grid-column:1/3;grid-row:3;display:flex;justify-content:space-between;margin:4px -104px 0 0;font-size:14px;color:' + TEXT + '}',
+            '.sr-mini-over{position:absolute;inset:0;z-index:3;pointer-events:none}',
+            '.sr-mini-over > *{position:absolute;pointer-events:auto;cursor:pointer;margin:0;box-sizing:border-box}',
+            '.sr-mo-img{object-fit:cover}',
+            '.sr-mo-text{display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden}',
+            '.sr-mo-text > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-mo-song{font-weight:700}',
+            '.sr-mo-bar{display:flex;align-items:center}',
+            '.sr-mo-track{position:relative;flex:1;overflow:hidden}',
+            '.sr-mo-fill{position:absolute;left:0;top:0;bottom:0;width:0}',
+            '.sr-mo-knob{position:absolute;top:50%;transform:translate(-50%,-50%)}',
+            '.sr-mo-time{white-space:nowrap;pointer-events:none}',
+            '.sr-mini-direct [data-sr-mini-hide]{visibility:hidden}',
             '.sr-mini-direct .sr-heart-mini, .sr-mini-direct .sr-site-play{position:relative;z-index:4}',
             '.sr-mini-direct .sr-grab{z-index:4}',
             '.sr-player-frame{position:fixed;left:-10px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0}',
@@ -659,36 +662,118 @@ enum FavoritesScript {
           }
 
           // While the app's own player plays a show the site's mini player doesn't know about,
-          // cover the mini player's artwork, text and progress with the right song. Its heart
-          // and play button stay on top and work as usual; tapping the rest opens the full player.
+          // its artwork, text, progress bar and times are hidden and the right song is drawn in
+          // exactly the same spots, sizes and fonts. Its heart and play button stay as they are.
+          var MINI_FONT = ['fontFamily', 'fontSize', 'fontWeight', 'lineHeight', 'letterSpacing', 'color', 'fontVariantNumeric', 'textTransform'];
+          function copyFont(from, to) {
+            if (!from) return;
+            var cs = getComputedStyle(from);
+            MINI_FONT.forEach(function (k) { if (to.style[k] !== cs[k]) to.style[k] = cs[k]; });
+          }
+          function place(node, rect, base) {
+            var l = (rect.left - base.left) + 'px', t = (rect.top - base.top) + 'px';
+            var w = rect.width + 'px', h = rect.height + 'px';
+            if (node.style.left !== l) node.style.left = l;
+            if (node.style.top !== t) node.style.top = t;
+            if (node.style.width !== w) node.style.width = w;
+            if (node.style.height !== h) node.style.height = h;
+          }
+          function hideSite(node) { if (node && !node.hasAttribute('data-sr-mini-hide')) node.setAttribute('data-sr-mini-hide', ''); }
           function renderMiniOverlay(player) {
             var over = player.querySelector(':scope > .sr-mini-over');
             var on = !!(directShown && activeOurs());
             if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
-            var playBtn = sitePlayButton();
-            if (playBtn && on && !playBtn.classList.contains('sr-site-play')) playBtn.classList.add('sr-site-play');
             if (!on) { if (over) over.remove(); return; }
             if (!over) {
               over = el('div', 'sr-mini-over',
-                '<img alt=""><div class="sr-mo-text"><div class="sr-mo-show"></div><div class="sr-mo-line"><span class="sr-mo-song"></span> <span class="sr-mo-artist"></span></div></div>' +
-                '<div class="sr-mo-bar"><div class="sr-mo-fill"></div></div><div class="sr-mo-times"><span class="sr-mo-el"></span><span class="sr-mo-dur"></span></div>');
-              over.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
+                '<img class="sr-mo-img" alt="">' +
+                '<div class="sr-mo-text"><div class="sr-mo-show"></div><div class="sr-mo-line"><span class="sr-mo-song"></span> <span class="sr-mo-artist"></span></div></div>' +
+                '<div class="sr-mo-bar"><div class="sr-mo-track"><div class="sr-mo-fill"></div></div><div class="sr-mo-knob"></div></div>' +
+                '<span class="sr-mo-time sr-mo-el"></span><span class="sr-mo-time sr-mo-dur"></span>');
+              ['.sr-mo-img', '.sr-mo-text', '.sr-mo-bar'].forEach(function (sel) {
+                over.querySelector(sel).addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
+              });
               player.appendChild(over);
             }
+            var base = player.getBoundingClientRect();
             var st = npState() || {};
+            var cur = playlist && playlist.current;
             var t = currentTrack();
-            var song = playlist && playlist.current ? playlist.current.song : (t ? t.song : '');
-            var artist = playlist && playlist.current ? playlist.current.artist : (t ? t.artist : '');
-            var img = over.querySelector('img');
+            var song = cur ? cur.song : (t ? t.song : '');
+            var artist = cur ? cur.artist : (t ? t.artist : '');
+            var set = function (sel, v) { var n = over.querySelector(sel); if (n.textContent !== v) n.textContent = v; return n; };
+
+            // Artwork
+            var siteImg = player.querySelector('img:not(.sr-mo-img)');
+            var img = over.querySelector('.sr-mo-img');
+            if (siteImg) {
+              hideSite(siteImg);
+              place(img, siteImg.getBoundingClientRect(), base);
+              var r = getComputedStyle(siteImg).borderRadius;
+              if (img.style.borderRadius !== r) img.style.borderRadius = r;
+            }
             if (directShown.cover && img.getAttribute('src') !== directShown.cover) img.src = directShown.cover;
-            var set = function (sel, v) { var n = over.querySelector(sel); if (n.textContent !== v) n.textContent = v; };
+
+            // Show line and song
+            var col = player.querySelector('.content-col');
+            var textBox = over.querySelector('.sr-mo-text');
+            if (col) {
+              hideSite(col);
+              place(textBox, col.getBoundingClientRect(), base);
+              var lines = col.querySelectorAll(':scope > div');
+              copyFont(lines[0], over.querySelector('.sr-mo-show'));
+              copyFont(lines[1], over.querySelector('.sr-mo-artist'));
+              copyFont((lines[1] && lines[1].querySelector('b, strong, span')) || lines[1], over.querySelector('.sr-mo-song'));
+              copyFont(lines[1], over.querySelector('.sr-mo-line'));
+            }
             set('.sr-mo-show', directShown.show || '');
             set('.sr-mo-song', song || '');
             set('.sr-mo-artist', artist || '');
+
+            // Progress bar
             var dur = st.duration || 0, pos = st.t || 0;
-            over.querySelector('.sr-mo-fill').style.width = (dur ? Math.min(100, Math.max(0, pos / dur * 100)) : 0) + '%';
-            set('.sr-mo-el', clock(pos).replace(/^0(\d:)/, '$1'));
-            set('.sr-mo-dur', dur ? clock(dur).replace(/^0(\d:)/, '$1') : '');
+            var frac = dur ? Math.min(1, Math.max(0, pos / dur)) : 0;
+            var thumb = player.querySelector('[role="slider"]');
+            var root = thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement);
+            var bar = over.querySelector('.sr-mo-bar');
+            if (root) {
+              hideSite(root);
+              place(bar, root.getBoundingClientRect(), base);
+              var siteTrack = root.firstElementChild && root.firstElementChild !== thumb ? root.firstElementChild : null;
+              var track = over.querySelector('.sr-mo-track');
+              if (siteTrack) {
+                var ts = getComputedStyle(siteTrack);
+                track.style.height = ts.height;
+                track.style.background = ts.backgroundColor;
+                track.style.borderRadius = ts.borderRadius;
+                var range = siteTrack.firstElementChild;
+                if (range) over.querySelector('.sr-mo-fill').style.background = getComputedStyle(range).backgroundColor;
+              }
+              var knob = over.querySelector('.sr-mo-knob');
+              var ks = getComputedStyle(thumb);
+              knob.style.width = ks.width; knob.style.height = ks.height;
+              knob.style.background = ks.backgroundColor; knob.style.borderRadius = ks.borderRadius;
+              knob.style.left = (frac * 100) + '%';
+            }
+            over.querySelector('.sr-mo-fill').style.width = (frac * 100) + '%';
+
+            // Times, in the same spots and size as the site's (already enlarged 1.2x)
+            var times = player.querySelectorAll('[data-sr-time]');
+            var mine = [over.querySelector('.sr-mo-el'), over.querySelector('.sr-mo-dur')];
+            var labels = [clock(pos).replace(/^0(\d:)/, '$1'), dur ? clock(dur).replace(/^0(\d:)/, '$1') : ''];
+            for (var i = 0; i < 2; i++) {
+              var siteT = times[i];
+              if (!siteT) { mine[i].hidden = true; continue; }
+              mine[i].hidden = false;
+              hideSite(siteT);
+              var tr = siteT.getBoundingClientRect();
+              var tl = (tr.left - base.left) + 'px', tt = (tr.top - base.top) + 'px';
+              if (i === 0) { mine[i].style.left = tl; mine[i].style.right = ''; }
+              else { mine[i].style.right = (base.right - tr.right) + 'px'; mine[i].style.left = ''; }
+              mine[i].style.top = tt;
+              copyFont(siteT, mine[i]);
+              if (mine[i].textContent !== labels[i]) mine[i].textContent = labels[i];
+            }
           }
 
           function renderMiniPlayer(player) {
