@@ -219,7 +219,6 @@ enum FavoritesScript {
             '.sr-np-top{display:flex;align-items:center;gap:8px;flex:none}',
             '.sr-np-from{flex:1;min-width:0;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-from:active .sr-np-show{color:' + ACCENT + '}',
-            '.sr-np-show{text-decoration:underline;text-decoration-color:' + MUTED + ';text-underline-offset:3px}',
             '.sr-np-from-label{font-size:11px;line-height:14px;letter-spacing:.08em;text-transform:uppercase;color:' + MUTED + '}',
             '.sr-np-show{font-size:13px;line-height:18px;font-weight:600;color:' + TEXT + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-icon{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:8px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;flex:none;font-size:26px;line-height:1}',
@@ -2402,11 +2401,16 @@ enum FavoritesScript {
             var r = img && img.getBoundingClientRect();
             return r && r.width ? r : null;
           }
+          // Where the big cover sits once the player is fully open. The player's content is
+          // still slid down a little while it opens, so measure it without that offset (or the
+          // growing cover would aim too low and jump at the end).
           function finalCoverRect() {
-            var prev = fp.root.style.transform;
+            var prevRoot = fp.root.style.transform, prevInner = fp.inner.style.transform;
             fp.root.style.transform = 'none';
+            fp.inner.style.transform = 'none';
             var r = fp.cover.getBoundingClientRect();
-            fp.root.style.transform = prev;
+            fp.root.style.transform = prevRoot;
+            fp.inner.style.transform = prevInner;
             return r.width ? r : null;
           }
           function startMorph() {
