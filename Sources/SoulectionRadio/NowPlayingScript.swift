@@ -401,7 +401,7 @@ enum NowPlayingScript {
             function track(el) {
               if (!(el instanceof HTMLMediaElement) || media === el) return;
               media = el;
-              if (standby) el.muted = true; // loaded ahead: silent until it's at the song
+              if (standby && pendingStart != null && Math.abs((el.currentTime || 0) - pendingStart) > 2) el.muted = true; // until it's at its song
               ['timeupdate', 'seeked', 'play', 'pause', 'loadedmetadata', 'canplay'].forEach(function (name) {
                 el.addEventListener(name, reportTime);
               });
@@ -421,10 +421,13 @@ enum NowPlayingScript {
               if (pendingStart == null || !media || media.readyState < 1) return;
               if (Math.abs(media.currentTime - pendingStart) < 2 && !media.paused) {
                 pendingStart = null;
+                // Loaded ahead: it's at its song now, so it can be heard right away.
+                if (standby) { media.muted = false; standby = false; announce(true); }
                 return;
               }
-              if (++startTries > 20) { pendingStart = null; return; }
+              if (++startTries > 20) { pendingStart = null; if (standby) { media.muted = false; standby = false; } return; }
               if (Math.abs(media.currentTime - pendingStart) >= 2) {
+                if (standby && !media.paused) media.muted = true; // no blip from the wrong spot
                 try { media.currentTime = pendingStart; } catch (e) {}
               }
             }

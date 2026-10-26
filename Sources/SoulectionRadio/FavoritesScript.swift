@@ -188,7 +188,9 @@ enum FavoritesScript {
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
             '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 6px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
             '.sr-np-top{display:flex;align-items:center;gap:8px;flex:none}',
-            '.sr-np-from{flex:1;min-width:0;text-align:center}',
+            '.sr-np-from{flex:1;min-width:0;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-np-from:active .sr-np-show{color:' + ACCENT + '}',
+            '.sr-np-show{text-decoration:underline;text-decoration-color:' + MUTED + ';text-underline-offset:3px}',
             '.sr-np-from-label{font-size:11px;line-height:14px;letter-spacing:.08em;text-transform:uppercase;color:' + MUTED + '}',
             '.sr-np-show{font-size:13px;line-height:18px;font-weight:600;color:' + TEXT + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-icon{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:8px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;flex:none;font-size:26px;line-height:1}',
@@ -222,7 +224,8 @@ enum FavoritesScript {
             '.sr-np-sleep[aria-pressed="true"] .sr-z3{animation-delay:.6s}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
-            '.sr-grab::after{margin:5px auto 0}',
+            '.sr-grab::after{margin:5px auto 0;transition:background-color .15s ease}',
+            '.sr-touching .sr-grab::after,.sr-grab:active::after{background:' + TEXT + '}',
             '.sr-tab{position:fixed;left:50%;bottom:env(safe-area-inset-bottom);z-index:20;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 14px 3px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:9px;line-height:12px;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}',
             '.sr-tab[hidden]{display:none}',
             '.sr-backdrop{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .25s ease;-webkit-tap-highlight-color:transparent}',
@@ -1027,7 +1030,9 @@ enum FavoritesScript {
             sheet.clearBtn.hidden = !hist;
             var source = hist ? history : favorites;
             var sorted = source.slice().sort(function (a, b) { return b.favoritedAt - a.favoritedAt; });
-            var playingId = playlist && playlist.current && playlist.source === sheet.mode ? playlist.current.id : null;
+            // The song playing right now, however it was started (Likes, History, Mixtape, or a show).
+            var nowTrack = (playlist && playlist.current) || currentTrack();
+            var playingId = nowTrack ? nowTrack.id : null;
             // History rows show "2h ago", and hearts there follow favorites, so both go in the key.
             var key = JSON.stringify([sheet.mode, sorted.map(function (f) { return f.id + (hist ? ':' + ago(f.favoritedAt) + ':' + !!byId(f.id) : ''); }), playingId]);
             var count = sorted.length;
@@ -1863,6 +1868,7 @@ enum FavoritesScript {
               var player = miniPlayer();
               var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"], [role="slider"]'));
               if (!onPlayer) return;
+              player.classList.add('sr-touching');
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
               track = velocityTracker();
               track.add(y0);
@@ -1881,14 +1887,16 @@ enum FavoritesScript {
               if (mode !== 'open') return;
               e.preventDefault();
               track.add(y);
-              setProgress(Math.max(0, Math.min(1, -dy / window.innerHeight)));
+              setProgress(Math.max(0, Math.min(1, -dy / (fpTravel || window.innerHeight))));
             };
             var end = function () {
+              var mp = miniPlayer();
+              if (mp) setTimeout(function () { mp.classList.remove('sr-touching'); }, 120);
               if (y0 == null) return;
               y0 = null;
               if (mode !== 'open') return;
               mode = null;
-              settlePlayer(-track.velocity() / window.innerHeight);
+              settlePlayer(-track.velocity() / (fpTravel || window.innerHeight));
             };
             document.addEventListener('touchend', end, { passive: true, capture: true });
             // A touch taken over by iOS (a system swipe, leaving the app) must not leave the
@@ -2001,6 +2009,7 @@ enum FavoritesScript {
             document.body.appendChild(root);
             fp = {
               root: root, bg: root.querySelector('.sr-np-bg'), show: root.querySelector('.sr-np-show'),
+              from: root.querySelector('.sr-np-from'),
               cover: root.querySelector('.sr-np-cover'), title: root.querySelector('.sr-np-title'),
               artist: root.querySelector('.sr-np-artist'), meta: root.querySelector('.sr-np-meta'),
               track: root.querySelector('.sr-np-track'), fill: root.querySelector('.sr-np-fill'),
@@ -2010,6 +2019,17 @@ enum FavoritesScript {
             };
             fp.meta.appendChild(fp.heart);
             root.querySelector('.sr-np-close').addEventListener('click', closePlayer);
+            // "Playing from <show>": opens that show's tracklist at the playing song.
+            root.querySelector('.sr-np-from').addEventListener('click', function () {
+              var f = (playlist && playlist.current) || currentTrack();
+              if (!f || !f.episodeURL) {
+                var st = npState();
+                if (!st || !st.episodeURL) return;
+                f = { episodeURL: st.episodeURL, start: st.t || 0, show: st.show };
+              }
+              closePlayer();
+              showSongInShow(f);
+            });
             fp.play.addEventListener('click', togglePlay);
             root.querySelector('.sr-np-prev').addEventListener('click', previousSong);
             root.querySelector('.sr-np-next').addEventListener('click', nextSong);
@@ -2067,9 +2087,21 @@ enum FavoritesScript {
             morph = null;
             if (fp) fp.cover.style.visibility = '';
           }
+          // How far the player travels: from the mini player's top edge (so it grows out of the
+          // mini player instead of sliding in over it from the bottom of the screen).
+          function playerTravel() {
+            var mini = miniPlayer();
+            var top = mini ? mini.getBoundingClientRect().top : window.innerHeight;
+            return Math.max(120, Math.min(window.innerHeight, top));
+          }
+          var fpTravel = 0;
           function setProgress(p) {
             fpP = p;
-            fp.root.style.transform = 'translate3d(0,' + ((1 - p) * window.innerHeight).toFixed(1) + 'px,0)';
+            if (!fpTravel) fpTravel = playerTravel();
+            fp.root.style.transform = 'translate3d(0,' + ((1 - p) * fpTravel).toFixed(1) + 'px,0)';
+            // Fades in over the first stretch, so at the start it reads as the mini player growing.
+            var o = Math.max(0, Math.min(1, p / 0.12)).toFixed(3);
+            if (fp.root.style.opacity !== o) fp.root.style.opacity = o;
             if (!morph) return;
             var e = Math.max(0, Math.min(1, p)), f = morph.from, t = morph.to;
             var st = morph.img.style;
@@ -2108,6 +2140,7 @@ enum FavoritesScript {
             cancelAnimationFrame(fpAnim);
             if (!isPlayerOpen()) {
               closeSheet();
+              fpTravel = playerTravel();
               fp.root.hidden = false;
               fp.root.classList.add('sr-open');
               document.documentElement.classList.add('sr-lock');
@@ -2297,12 +2330,12 @@ enum FavoritesScript {
               if (mode !== 'drag') return;
               e.preventDefault();
               track.add(y);
-              setProgress(1 - Math.max(0, ddy) / window.innerHeight);
+              setProgress(1 - Math.max(0, ddy) / (fpTravel || window.innerHeight));
             }, { passive: false });
             fp.root.addEventListener('touchend', function () {
               if (mode !== 'drag') return;
               mode = null;
-              settlePlayer(-track.velocity() / window.innerHeight);
+              settlePlayer(-track.velocity() / (fpTravel || window.innerHeight));
             });
           }
 
@@ -2573,9 +2606,9 @@ enum FavoritesScript {
             }
           });
 
-          // Switches to a song in another show inside the app's own players. The old player is
-          // muted, not stopped (so iOS keeps the app running with the screen off and you hear
-          // nothing of the old show), until the new one is really playing; then they swap.
+          // Switches to a song in another show inside the app's own players. The new one is
+          // started at its song; the old one keeps playing until then, so there's never a silent
+          // moment (which makes iOS freeze the app with the screen off).
           function handoff(f) {
             var n = np();
             if (!n || !n.toFrame) return switchFailed(f);
@@ -2583,7 +2616,9 @@ enum FavoritesScript {
             var oldFrame = activeOurs();
             var site = soundcloudFrame();
             var oldWin = oldFrame ? oldFrame.contentWindow : (site ? site.contentWindow : null);
-            if (oldWin) n.toFrame(oldWin, { mute: true });
+            // The old player keeps playing until the new one starts (iOS stops it the moment the
+            // new one plays): a muted or silent moment makes iOS drop the Dynamic Island and
+            // freeze the app in the background.
             if (!standby || standby.f.id !== f.id) { discardStandby(); prepareStandby(f); }
             var h = handing = { f: f, oldWin: oldWin, oldFrame: oldFrame, win: null, frame: null, info: null, started: Date.now(), reloads: 0, timer: null, poke: null };
             arriving = { id: f.id, since: Date.now(), tries: 1 };
@@ -2807,6 +2842,7 @@ enum FavoritesScript {
             // After a background switch the site's mini player still shows the old show,
             // but the player is playing this one.
             var playingNumber = direct && direct.id === f.id ? direct.number : (st && st.number);
+            if (handing && handing.f === f) return; // the handoff decides
             if (arriving) {
               var at = arriving.at != null ? arriving.at : f.start;
               if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20 && st.paused !== true) {
