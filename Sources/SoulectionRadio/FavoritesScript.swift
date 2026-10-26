@@ -94,6 +94,9 @@ enum FavoritesScript {
             '.sr-x:active{opacity:.6}',
             '.sr-more{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:10px 6px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-more svg{width:22px;height:22px;display:block}',
+            '.sr-more,.sr-np-more{transition:color .15s ease}',
+            '.sr-more.sr-on,.sr-np-more.sr-on{color:#fff}',
+            '.sr-more:not(.sr-on),.sr-np-more:not(.sr-on){color:' + MUTED + '}',
             '.sr-search{display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:9px 12px;border:1px solid ' + BORDER + ';border-radius:9px;background:' + BG + ';color:#fff;font-family:' + FONT + ';font-size:16px;line-height:20px;-webkit-appearance:none;appearance:none}',
             '.sr-search::placeholder{color:' + MUTED + '}',
             '.sr-sleep-custom{display:flex;align-items:center;gap:10px;min-height:52px;border-bottom:1px solid ' + BORDER + '}',
@@ -482,7 +485,9 @@ enum FavoritesScript {
           function haptic(kind) { native({ op: 'haptic', kind: kind || 'light' }); }
 
           // Share, or find the song on Spotify / Apple Music.
-          function songActions(f, extra) {
+          var menuTrigger = null; // the ... button whose menu is open
+          function songActions(f, extra, trigger) {
+            if (trigger && menuTrigger === trigger && note) { hideNote(); return; } // tap again: close
             var q = (f.song || '') + ' ' + (f.artist || '');
             var buttons = [
               ['Share', function () {
@@ -494,8 +499,29 @@ enum FavoritesScript {
               ['Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Apple Music']
             ];
             (extra || []).forEach(function (b) { buttons.push(b); });
-            buttons.push(['Cancel', null]);
             noteWithButtons('<div class="sr-note-title">' + esc(f.song || '') + '</div><div>' + esc(f.artist || '') + '</div>', buttons);
+            if (!note) return;
+            var menu = note;
+            // The ... button stays lit while its menu is open; tapping it again, tapping
+            // anywhere else, or Escape closes the menu.
+            var outside = function (e) {
+              if (menu.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+              if (note === menu) hideNote();
+            };
+            if (trigger) {
+              menuTrigger = trigger;
+              trigger.classList.add('sr-on');
+              trigger.setAttribute('aria-expanded', 'true');
+            }
+            setTimeout(function () { document.addEventListener('click', outside, true); }, 0);
+            menu.__onHide = function () {
+              document.removeEventListener('click', outside, true);
+              if (trigger) {
+                trigger.classList.remove('sr-on');
+                trigger.setAttribute('aria-expanded', 'false');
+              }
+              if (menuTrigger === trigger) menuTrigger = null;
+            };
           }
 
           // ---------------------------------------------------------------------------
@@ -617,6 +643,7 @@ enum FavoritesScript {
             if (!note) return;
             var n = note;
             note = null;
+            if (n.__onHide) n.__onHide();
             n.classList.remove('sr-show');
             setTimeout(function () { n.remove(); }, 250);
             if (waitingToasts.length) {
@@ -1287,9 +1314,10 @@ enum FavoritesScript {
               var more = el('button', 'sr-more', MORE);
               more.type = 'button';
               more.setAttribute('aria-label', 'More for ' + f.song);
+              more.setAttribute('aria-expanded', 'false');
               more.addEventListener('click', function (e) {
                 e.stopPropagation();
-                songActions(f, [['Remove', function () { removeItem(item, f.id, sheet.mode); }, TRASH, hist ? 'Remove from History' : 'Remove from Likes']]);
+                songActions(f, [['Remove', function () { removeItem(item, f.id, sheet.mode); }, TRASH, hist ? 'Remove from History' : 'Remove from Likes']], more);
               });
               main.appendChild(more);
               main.appendChild(heart);
@@ -2341,7 +2369,7 @@ enum FavoritesScript {
                 '</div>' +
                 '<div class="sr-np-extras">' +
                   '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
-                  '<button type="button" class="sr-np-icon sr-np-more" aria-label="Share or find this song">' + MORE + '</button>' +
+                  '<button type="button" class="sr-np-icon sr-np-more" aria-label="Share or find this song" aria-expanded="false">' + MORE + '</button>' +
                   '<button type="button" class="sr-np-icon sr-np-airplay" aria-label="AirPlay">' + AIRPLAY + '</button>' +
                 '</div>' +
               '</div>';
@@ -2378,7 +2406,7 @@ enum FavoritesScript {
             root.querySelector('.sr-np-airplay').addEventListener('click', function () { native({ op: 'airplay' }); });
             root.querySelector('.sr-np-more').addEventListener('click', function () {
               var f = (playlist && playlist.current) || currentTrack();
-              if (f) songActions(f); else showToast('Play a song from a show first.');
+              if (f) songActions(f, null, this); else showToast('Play a song from a show first.');
             });
             fp.heart.addEventListener('click', function () {
               var t = currentTrack();
