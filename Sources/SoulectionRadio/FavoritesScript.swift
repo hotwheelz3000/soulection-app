@@ -696,6 +696,11 @@ enum FavoritesScript {
               player.appendChild(over);
             }
             var base = player.getBoundingClientRect();
+            // Measuring the site's layout is the costly part: only redo it when the card
+            // changed size or every few seconds, not on every update (keeps scrolling smooth).
+            var layoutKey = Math.round(base.width) + 'x' + Math.round(base.height);
+            var relayout = over.__key !== layoutKey || !over.__at || Date.now() - over.__at > 3000;
+            if (relayout) { over.__key = layoutKey; over.__at = Date.now(); }
             var st = npState() || {};
             var cur = playlist && playlist.current;
             var t = currentTrack();
@@ -706,7 +711,7 @@ enum FavoritesScript {
             // Artwork
             var siteImg = player.querySelector('img:not(.sr-mo-img)');
             var img = over.querySelector('.sr-mo-img');
-            if (siteImg) {
+            if (siteImg && relayout) {
               hideSite(siteImg);
               place(img, siteImg.getBoundingClientRect(), base);
               var r = getComputedStyle(siteImg).borderRadius;
@@ -717,7 +722,7 @@ enum FavoritesScript {
             // Show line and song
             var col = player.querySelector('.content-col');
             var textBox = over.querySelector('.sr-mo-text');
-            if (col) {
+            if (col && relayout) {
               hideSite(col);
               place(textBox, col.getBoundingClientRect(), base);
               var lines = col.querySelectorAll(':scope > div');
@@ -736,7 +741,7 @@ enum FavoritesScript {
             var thumb = player.querySelector('[role="slider"]');
             var root = thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement);
             var bar = over.querySelector('.sr-mo-bar');
-            if (root) {
+            if (root && relayout) {
               hideSite(root);
               place(bar, root.getBoundingClientRect(), base);
               var siteTrack = root.firstElementChild && root.firstElementChild !== thumb ? root.firstElementChild : null;
@@ -753,8 +758,8 @@ enum FavoritesScript {
               var ks = getComputedStyle(thumb);
               knob.style.width = ks.width; knob.style.height = ks.height;
               knob.style.background = ks.backgroundColor; knob.style.borderRadius = ks.borderRadius;
-              knob.style.left = (frac * 100) + '%';
             }
+            over.querySelector('.sr-mo-knob').style.left = (frac * 100) + '%';
             over.querySelector('.sr-mo-fill').style.width = (frac * 100) + '%';
 
             // Times, in the same spots and size as the site's (already enlarged 1.2x)
@@ -765,6 +770,8 @@ enum FavoritesScript {
               var siteT = times[i];
               if (!siteT) { mine[i].hidden = true; continue; }
               mine[i].hidden = false;
+              if (mine[i].textContent !== labels[i]) mine[i].textContent = labels[i];
+              if (!relayout) continue;
               hideSite(siteT);
               var tr = siteT.getBoundingClientRect();
               var tl = (tr.left - base.left) + 'px', tt = (tr.top - base.top) + 'px';
@@ -2486,17 +2493,6 @@ enum FavoritesScript {
               if (playlist && playlist.current === f) switchInPlayer(f);
             }, 6000);
           }
-          // Shows the playing song's show page, scrolled to the song, without touching playback.
-          function showPlaying(f) {
-            if (location.pathname.replace(/\/$/, '') === f.episodeURL) return revealSong(f.episodeURL, f.start, showNumber(f.show), null);
-            var oldHeading = episodeHeading();
-            if (window.next && window.next.router && window.next.router.push) {
-              window.next.router.push(f.episodeURL);
-              revealSong(f.episodeURL, f.start, showNumber(f.show), oldHeading);
-            }
-            // Without the site's router a page load would stop the music, so stay put.
-          }
-
           function finishHandoff() {
             var h = handing;
             handing = null;
@@ -2512,7 +2508,6 @@ enum FavoritesScript {
             direct = { number: directShown.number, id: h.f.id, heard: true };
             if (h.oldFrame) setTimeout(function () { removeFrame(h.oldFrame); }, 3000);
             renderMiniPlayer(miniPlayer());
-            if (!document.hidden) showPlaying(h.f);
           }
 
           // Fallback when no player was loaded ahead: load the show in a player of the app's
@@ -2533,7 +2528,6 @@ enum FavoritesScript {
               directShown = directInfo(f, info);
               n.setDirect(directShown);
               direct = { number: directShown.number, id: f.id, heard: false };
-              if (!document.hidden) showPlaying(f);
               arriving = { id: f.id, since: Date.now(), tries: 1 };
               if (oldFrame) setTimeout(function () { removeFrame(oldFrame); }, 1000);
               renderMiniPlayer(miniPlayer());
@@ -2551,8 +2545,8 @@ enum FavoritesScript {
             if (document.hidden || !direct || !playlist || !playlist.current) return;
             var f = playlist.current;
             // The app's own player is playing: leave the music alone (handing it back to the
-            // site's player would pause it for a second) and just show the song's page.
-            if (activeOurs()) return showPlaying(f);
+            // site's player would pause it for a second) and leave the page where it was.
+            if (activeOurs()) return;
             var st = npState();
             // Only trust the playing time once the new show has been heard, and only if it's
             // inside this song; otherwise it's left over from the previous show.
@@ -2750,7 +2744,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
