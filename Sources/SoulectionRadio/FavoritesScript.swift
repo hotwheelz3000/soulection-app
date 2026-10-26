@@ -68,6 +68,9 @@ enum FavoritesScript {
 
           var CLOUD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13 3 3 0 0 0 6 19z"/></svg>';
 
+          var HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.5-2.8 4.2"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/></svg>';
+          var EYE = '<svg viewBox="0 0 64 40" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20C11 7 21 2 32 2s21 5 29 18c-8 13-18 18-29 18S11 33 3 20z"/><path d="M38 12c-2-3-8-3-10 0-3 4 1 7 4 8s7 4 4 8c-2 3-8 3-10 0"/></svg>';
+
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
@@ -88,6 +91,30 @@ enum FavoritesScript {
             '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
             '.sr-auto .sr-btn{padding:7px 12px;font-size:13px;line-height:18px;gap:6px;flex:none}',
             '.sr-auto .sr-btn svg{width:15px;height:15px}',
+            '.sr-help-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
+            // Five icons on a phone: tighter spacing so the search box keeps its room.
+            '@media (max-width:480px){.sr-heart-top,.sr-dice-top,.sr-tape-top,.sr-moon-top,.sr-help-top{padding:7px 5px;margin:0;font-size:22px}}',
+            // Press-and-hold labels for the top bar icons.
+            '.sr-tip{position:fixed;z-index:70;padding:5px 9px;border-radius:6px;background:#fff;color:' + BG + ';font-family:' + FONT + ';font-size:12px;line-height:16px;font-weight:600;white-space:nowrap;pointer-events:none;box-shadow:0 6px 18px rgba(0,0,0,.4);opacity:0;transform:translateY(-4px);transition:opacity .12s,transform .12s}',
+            '.sr-tip.sr-show{opacity:1;transform:none}',
+            // "?" panel and the first-launch welcome screen.
+            '.sr-help .sr-sheet{min-height:0}',
+            '.sr-help-list{padding:4px 0 8px}',
+            '.sr-help-row{display:flex;align-items:flex-start;gap:14px;padding:12px 0;border-bottom:1px solid ' + BORDER + '}',
+            '.sr-help-row:last-child{border-bottom:0}',
+            '.sr-help-icon{flex:none;width:30px;height:30px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:24px}',
+            '.sr-help-icon svg{width:1em;height:1em;display:block}',
+            '.sr-help-title{font-size:15px;line-height:20px;font-weight:600;color:#fff}',
+            '.sr-help-desc{font-size:13px;line-height:18px;color:' + TEXT + ';margin-top:2px}',
+            '.sr-welcome{position:fixed;inset:0;z-index:65;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 20px);box-sizing:border-box;overflow-y:auto;opacity:0;transition:opacity .3s}',
+            '.sr-welcome.sr-show{opacity:1}',
+            '.sr-welcome-eye{width:84px;color:#fff;margin:8px 0 18px}',
+            '.sr-welcome-eye svg{width:100%;display:block}',
+            '.sr-welcome-title{font-size:28px;line-height:34px;font-weight:600;color:#fff;margin:0}',
+            '.sr-welcome-sub{font-size:15px;line-height:21px;color:' + TEXT + ';margin:8px 0 14px}',
+            '.sr-welcome .sr-help-list{flex:1}',
+            '.sr-welcome-go{-webkit-appearance:none;appearance:none;flex:none;margin-top:16px;width:100%;height:52px;border:0;border-radius:9999px;background:#fff;color:' + BG + ';font-family:' + FONT + ';font-size:17px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-welcome-go:active{transform:scale(.98)}',
             '.sr-tape-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-tape-top[aria-pressed="true"]{color:#fff}',
             '.sr-tape-top[aria-pressed="true"] svg{fill:none}',
@@ -209,6 +236,7 @@ enum FavoritesScript {
           var tab = null;
           var dice = null;
           var moon = null;
+          var help = null;
           var tape = null;
           var renderPending = false;
 
@@ -338,7 +366,10 @@ enum FavoritesScript {
               if (opts && Array.isArray(opts.history)) history = opts.history;
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
-                if (autoBackup.restoreOffer) offerRestore();
+                if (opts.welcome) showWelcome();
+                if (autoBackup.restoreOffer) {
+                  if (welcomeOpen) restoreAfterWelcome = true; else offerRestore();
+                }
               }
               // Back from "Export first": show the final warning again.
               if (clearAfterExport) { clearAfterExport = false; setTimeout(clearStepTwo, 400); }
@@ -400,6 +431,7 @@ enum FavoritesScript {
           var restoreShown = false;
           function offerRestore() {
             if (restoreShown) return;
+            if (welcomeOpen) { restoreAfterWelcome = true; return; }
             restoreShown = true;
             setTimeout(function () {
               var n = showNote(
@@ -926,8 +958,156 @@ enum FavoritesScript {
             }
             if (tape.previousElementSibling !== dice) box.parentElement.insertBefore(tape, dice.nextSibling);
             if (moon.previousElementSibling !== tape) box.parentElement.insertBefore(moon, tape.nextSibling);
+            if (!help) {
+              help = heartButton('sr-help-top');
+              help.innerHTML = HELP;
+              help.removeAttribute('aria-pressed');
+              help.setAttribute('aria-label', 'What these buttons do');
+              help.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openHelp(); });
+              attachLabel(tab, 'Likes');
+              attachLabel(dice, 'Random show');
+              attachLabel(tape, 'Mixtape');
+              attachLabel(moon, 'Sleep timer');
+              attachLabel(help, 'Help');
+            }
+            if (help.previousElementSibling !== moon) box.parentElement.insertBefore(help, moon.nextSibling);
             renderTape();
             renderMoon();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Press and hold a top bar icon to see its name.
+          // ---------------------------------------------------------------------------
+          var tip = null, tipTimer = null, tipShownFor = null;
+          function attachLabel(btn, label) {
+            btn.setAttribute('title', label);
+            btn.addEventListener('touchstart', function () {
+              clearTimeout(tipTimer);
+              tipTimer = setTimeout(function () { showTip(btn, label); }, 420);
+            }, { passive: true });
+            var cancel = function () { clearTimeout(tipTimer); setTimeout(hideTip, 900); };
+            btn.addEventListener('touchend', cancel);
+            btn.addEventListener('touchcancel', cancel);
+            btn.addEventListener('touchmove', function () { clearTimeout(tipTimer); }, { passive: true });
+            btn.addEventListener('contextmenu', function (e) { e.preventDefault(); });
+            // A long press only shows the label; it doesn't also press the button.
+            btn.addEventListener('click', function (e) {
+              if (tipShownFor === btn) { e.preventDefault(); e.stopImmediatePropagation(); tipShownFor = null; }
+            }, true);
+          }
+          function showTip(btn, label) {
+            hideTip(true);
+            tip = el('div', 'sr-tip', esc(label));
+            document.body.appendChild(tip);
+            var r = btn.getBoundingClientRect();
+            var w = tip.offsetWidth;
+            var left = Math.max(8, Math.min(window.innerWidth - w - 8, r.left + r.width / 2 - w / 2));
+            tip.style.left = left + 'px';
+            tip.style.top = (r.bottom + 6) + 'px';
+            void tip.offsetHeight;
+            tip.classList.add('sr-show');
+            tipShownFor = btn;
+            try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
+          }
+          function hideTip(now) {
+            if (!tip) return;
+            var t = tip;
+            tip = null;
+            t.classList.remove('sr-show');
+            setTimeout(function () { t.remove(); }, now ? 0 : 150);
+          }
+
+          // ---------------------------------------------------------------------------
+          // "?" panel and the first-launch welcome screen
+          // ---------------------------------------------------------------------------
+          function helpItems() {
+            return [
+              [HEART, 'Likes', 'Your saved songs and your listening History. Play them as a playlist, and back them up to iCloud Drive.'],
+              [DICE, 'Random show', 'Starts a random episode from the very beginning.'],
+              [CASSETTE, 'Mixtape', 'Endless random songs from random shows. Each one is added to your Likes.'],
+              [MOON, 'Sleep timer', 'Fades out and pauses after a set time, or at the end of a song or show.'],
+              [PLAYBIG, 'Full player', 'Tap or swipe up on the player at the bottom for big artwork and controls.'],
+              [HEART, 'Heart any song', 'Tap the heart next to a song in a show’s tracklist, or in the player.'],
+              [NEXT, 'Skip songs', 'Next and previous on your lock screen jump between songs in the show.']
+            ];
+          }
+          function helpListHTML() {
+            return '<div class="sr-help-list">' + helpItems().map(function (it) {
+              return '<div class="sr-help-row"><div class="sr-help-icon">' + it[0] + '</div><div>' +
+                '<div class="sr-help-title">' + esc(it[1]) + '</div><div class="sr-help-desc">' + esc(it[2]) + '</div></div></div>';
+            }).join('') + '</div>';
+          }
+          var helpPanel = null;
+          function openHelp() {
+            if (!helpPanel) {
+              var root = el('div', 'sr-fav-root sr-help');
+              var backdrop = el('div', 'sr-backdrop');
+              var panel = el('div', 'sr-sheet');
+              panel.setAttribute('role', 'dialog');
+              panel.setAttribute('aria-label', 'What the buttons do');
+              var head = el('div', 'sr-sheet-head');
+              head.appendChild(el('div', 'sr-sheet-grab'));
+              head.appendChild(el('h2', 'sr-sleep-title', 'How it works'));
+              var list = el('div', 'sr-list', helpListHTML());
+              panel.appendChild(head);
+              panel.appendChild(list);
+              root.appendChild(backdrop);
+              root.appendChild(panel);
+              document.body.appendChild(root);
+              backdrop.addEventListener('click', closeHelp);
+              var y0 = 0, dy = 0;
+              panel.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; dy = 0; }, { passive: true });
+              panel.addEventListener('touchmove', function (e) {
+                if (list.scrollTop > 0) return;
+                dy = Math.max(0, e.touches[0].clientY - y0);
+                if (dy > 0) { panel.style.transition = 'none'; panel.style.transform = 'translateY(' + dy + 'px)'; }
+              }, { passive: true });
+              panel.addEventListener('touchend', function () {
+                panel.style.transition = '';
+                if (dy > 90) closeHelp(); else panel.style.transform = '';
+              });
+              helpPanel = { root: root, backdrop: backdrop, panel: panel };
+            }
+            closeSheet();
+            helpPanel.backdrop.hidden = helpPanel.panel.hidden = false;
+            helpPanel.panel.style.transform = '';
+            document.documentElement.classList.add('sr-lock');
+            void helpPanel.panel.offsetHeight;
+            helpPanel.root.classList.add('sr-open');
+          }
+          function closeHelp() {
+            if (!helpPanel || !helpPanel.root.classList.contains('sr-open')) return;
+            helpPanel.root.classList.remove('sr-open');
+            helpPanel.panel.style.transform = '';
+            document.documentElement.classList.remove('sr-lock');
+            setTimeout(function () {
+              if (helpPanel.root.classList.contains('sr-open')) return;
+              helpPanel.backdrop.hidden = helpPanel.panel.hidden = true;
+            }, 300);
+          }
+
+          var welcomeOpen = false, welcomeShown = false, restoreAfterWelcome = false;
+          function showWelcome() {
+            if (welcomeShown || !document.body) return;
+            welcomeShown = welcomeOpen = true;
+            var w = el('div', 'sr-fav-root sr-welcome',
+              '<div class="sr-welcome-eye">' + EYE + '</div>' +
+              '<h1 class="sr-welcome-title">Welcome to Soulection Radio</h1>' +
+              '<div class="sr-welcome-sub">Every show, playing in the background, with a few extras:</div>' +
+              helpListHTML() +
+              '<button type="button" class="sr-welcome-go">Get started</button>');
+            w.setAttribute('role', 'dialog');
+            w.setAttribute('aria-label', 'Welcome');
+            document.body.appendChild(w);
+            void w.offsetHeight;
+            w.classList.add('sr-show');
+            w.querySelector('.sr-welcome-go').addEventListener('click', function () {
+              native({ op: 'welcomeSeen' });
+              welcomeOpen = false;
+              w.classList.remove('sr-show');
+              setTimeout(function () { w.remove(); }, 320);
+              if (restoreAfterWelcome) { restoreAfterWelcome = false; offerRestore(); }
+            });
           }
 
           // ---------------------------------------------------------------------------

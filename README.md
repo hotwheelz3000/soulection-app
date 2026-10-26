@@ -6,6 +6,7 @@ An iPhone app for [Soulection Radio](https://radio.soulection.com/). It's the sa
 
 ## What it does
 
+- **Easy to learn.** A welcome screen on first launch explains each button. Later, tap the **?** in the top bar to see it again, or press and hold any top bar icon to see its name.
 - **Keeps the music going.** Lock your phone or switch apps and the show keeps playing.
 - **Doesn't interrupt you.** Opening the app won't stop a podcast or music that's already playing. It only takes over when you press play on a show.
 - **Full-size player.** Tap or swipe up on the player at the bottom for a full-screen player like Spotify's. It follows your finger, and the cover art grows out of the mini player's thumbnail. Inside: big cover art, the song and artist, a progress bar you can drag, large previous, play/pause and next buttons (they jump between songs in the tracklist), a heart for the current song, the sleep timer and AirPlay. Swipe down to close.
