@@ -1,6 +1,12 @@
 import Foundation
 
-/// Favorites: hearts on songs, a Favorites sheet, and a favorites playlist.
+/// Favorites, listening history and a random-show button: hearts on songs, a sheet with
+/// Favorites and History tabs, playlists from either, and a dice in the top bar.
+///
+/// - History: a song is recorded after it has played for 2 seconds (like Spotify's
+///   Recently played), saved in the app, newest first, with replays moved to the top.
+/// - Dice: picks a random episode from the site's sitemap and home page and plays it
+///   from the start.
 ///
 /// - Hearts: a small heart after each song in an episode's tracklist, and one in the
 ///   site's mini player for the current song. Tapping saves or removes the song.
@@ -45,6 +51,8 @@ enum FavoritesScript {
           var EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
           var IMPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
 
+          var DICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/></svg>';
+
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
@@ -57,6 +65,14 @@ enum FavoritesScript {
             '.sr-heart-mini{font-size:23px;padding:9px;border-radius:9999px;flex:none;margin-left:auto;order:1}',
             '.sr-heart-mini[hidden]{display:none}',
             '.sr-heart-top{font-size:23px;padding:8px;margin:0 -4px 0 4px;flex:none;align-self:center}',
+            '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
+            '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
+            '@keyframes sr-spin{to{transform:rotate(360deg)}}',
+            // Favorites | History switch at the top of the sheet.
+            '.sr-tabs{display:flex;gap:18px;align-items:baseline}',
+            '.sr-tabbtn{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;margin:0;font-family:' + FONT + ';font-size:18px;line-height:24px;font-weight:600;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-tabbtn[aria-pressed="true"]{color:' + TEXT + '}',
+            '.sr-clear[hidden]{display:none}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
             '.sr-grab::after{margin:5px auto 0}',
@@ -100,9 +116,11 @@ enum FavoritesScript {
           ].join('\n');
 
           var favorites = [];
+          var history = [];   // songs listened to, oldest first (favoritedAt = when played)
           var resumeAfterLoad = null; // playlist to continue once the app has sent the favorites
           var sheet = null; // {root, backdrop, panel, list, sub, playBtn, shuffleBtn}
           var tab = null;
+          var dice = null;
           var renderPending = false;
 
           function np() { return window.__soulectionNowPlaying || null; }
@@ -121,6 +139,21 @@ enum FavoritesScript {
           function byId(id) {
             for (var i = 0; i < favorites.length; i++) if (favorites[i].id === id) return favorites[i];
             return null;
+          }
+          function historyById(id) {
+            for (var i = 0; i < history.length; i++) if (history[i].id === id) return history[i];
+            return null;
+          }
+          function sourceList(source) { return source === 'history' ? history : favorites; }
+          function lookup(source, id) { return source === 'history' ? historyById(id) : byId(id); }
+          function ago(ms) {
+            var s = Math.max(0, (Date.now() - ms) / 1000);
+            if (s < 60) return 'Just now';
+            if (s < 3600) return Math.floor(s / 60) + 'm ago';
+            if (s < 86400) return Math.floor(s / 3600) + 'h ago';
+            if (s < 172800) return 'Yesterday';
+            if (s < 604800) return Math.floor(s / 86400) + 'd ago';
+            return new Date(ms).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
           }
           function el(tag, cls, html) {
             var e = document.createElement(tag);
@@ -148,11 +181,42 @@ enum FavoritesScript {
             native({ op: 'remove', id: id });
             schedule();
           }
+          function removeHistory(id) {
+            history = history.filter(function (f) { return f.id !== id; });
+            native({ op: 'historyRemove', id: id });
+            schedule();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Listening history: a song counts once it has played for 2 seconds.
+          // ---------------------------------------------------------------------------
+          var listen = null; // {track, played: seconds heard so far, last: ms, done}
+          function followListening(st) {
+            var t = currentTrack();
+            if (!t || !st) { listen = null; return; }
+            var now = Date.now();
+            if (!listen || listen.track.id !== t.id) listen = { track: t, played: 0, last: now, lastT: st.t, done: false };
+            // Count time only while it's actually playing (the position must be moving too,
+            // in case the player hasn't reported paused/playing).
+            var moving = st.t != null && listen.lastT != null && st.t > listen.lastT;
+            if (st.paused === false || (st.paused == null && moving)) listen.played += Math.min(2, (now - listen.last) / 1000);
+            listen.last = now;
+            listen.lastT = st.t;
+            if (listen.done || listen.played < 2) return;
+            listen.done = true;
+            var entry = {};
+            for (var k in t) entry[k] = t[k];
+            entry.favoritedAt = now;
+            history = history.filter(function (h) { return h.id !== entry.id; }).concat([entry]);
+            native({ op: 'played', favorite: entry });
+            schedule();
+          }
 
           window.__soulectionFavorites = {
             toast: function (message) { showToast(message); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
+              if (opts && Array.isArray(opts.history)) history = opts.history;
               if (opts && opts.backupDue) maybeRemindBackup();
               if (resumeAfterLoad) {
                 playlist = resumeAfterLoad;
@@ -359,17 +423,29 @@ enum FavoritesScript {
             backdrop.hidden = panel.hidden = true;
             var head = el('div', 'sr-sheet-head');
             head.appendChild(el('div', 'sr-sheet-grab'));
-            head.appendChild(el('h2', 'sr-sheet-title', 'Favorites'));
+            var tabs = el('div', 'sr-tabs');
+            var favTab = el('button', 'sr-tabbtn', 'Favorites');
+            var histTab = el('button', 'sr-tabbtn', 'History');
+            favTab.type = histTab.type = 'button';
+            favTab.addEventListener('click', function () { setMode('favorites'); });
+            histTab.addEventListener('click', function () { setMode('history'); });
+            tabs.appendChild(favTab);
+            tabs.appendChild(histTab);
+            head.appendChild(tabs);
             var sub = el('div', 'sr-sheet-sub');
             head.appendChild(sub);
             var actions = el('div', 'sr-actions');
             var playBtn = el('button', 'sr-btn', PLAY + '<span>Play in order</span>');
             var shuffleBtn = el('button', 'sr-btn', SHUFFLE + '<span>Shuffle</span>');
             playBtn.type = shuffleBtn.type = 'button';
-            playBtn.addEventListener('click', function () { startPlaylist('order'); });
-            shuffleBtn.addEventListener('click', function () { startPlaylist('shuffle'); });
+            playBtn.addEventListener('click', function () { startPlaylist('order', null, sheet.mode); });
+            shuffleBtn.addEventListener('click', function () { startPlaylist('shuffle', null, sheet.mode); });
+            var clearBtn = el('button', 'sr-btn sr-clear', '<span>Clear</span>');
+            clearBtn.type = 'button';
+            clearBtn.addEventListener('click', confirmClearHistory);
             actions.appendChild(playBtn);
             actions.appendChild(shuffleBtn);
+            actions.appendChild(clearBtn);
             head.appendChild(actions);
             var backup = el('div', 'sr-backup', '<span>Back up</span>');
             var exportBtn = el('button', 'sr-btn', EXPORT + '<span>Export</span>');
@@ -387,7 +463,7 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, mode: 'favorites', key: '' };
             attachSheetDrag();
           }
 
@@ -418,50 +494,100 @@ enum FavoritesScript {
             }, 300);
           }
 
+          function setMode(mode) {
+            if (!sheet || sheet.mode === mode) return;
+            sheet.mode = mode;
+            sheet.key = '';
+            sheet.list.scrollTop = 0;
+            renderSheet();
+          }
+
+          function confirmClearHistory() {
+            if (!history.length || !sheet) return;
+            var btn = sheet.clearBtn;
+            if (btn.getAttribute('data-confirm')) {
+              btn.removeAttribute('data-confirm');
+              btn.querySelector('span').textContent = 'Clear';
+              history = [];
+              native({ op: 'historyClear' });
+              sheet.key = '';
+              renderSheet();
+              return;
+            }
+            btn.setAttribute('data-confirm', '1');
+            btn.querySelector('span').textContent = 'Tap again to clear';
+            setTimeout(function () {
+              if (!btn.getAttribute('data-confirm')) return;
+              btn.removeAttribute('data-confirm');
+              btn.querySelector('span').textContent = 'Clear';
+            }, 3000);
+          }
+
           function renderSheet() {
             if (!sheet) return;
-            var sorted = favorites.slice().sort(function (a, b) { return b.favoritedAt - a.favoritedAt; });
-            var playingId = playlist && playlist.current ? playlist.current.id : null;
-            var key = JSON.stringify([sorted.map(function (f) { return f.id; }), playingId]);
+            var hist = sheet.mode === 'history';
+            sheet.favTab.setAttribute('aria-pressed', hist ? 'false' : 'true');
+            sheet.histTab.setAttribute('aria-pressed', hist ? 'true' : 'false');
+            sheet.panel.setAttribute('aria-label', hist ? 'History' : 'Favorites');
+            sheet.clearBtn.hidden = !hist;
+            var source = hist ? history : favorites;
+            var sorted = source.slice().sort(function (a, b) { return b.favoritedAt - a.favoritedAt; });
+            var playingId = playlist && playlist.current && playlist.source === sheet.mode ? playlist.current.id : null;
+            // History rows show "2h ago", and hearts there follow favorites, so both go in the key.
+            var key = JSON.stringify([sheet.mode, sorted.map(function (f) { return f.id + (hist ? ':' + ago(f.favoritedAt) + ':' + !!byId(f.id) : ''); }), playingId]);
             var count = sorted.length;
             sheet.sub.textContent = count === 1 ? '1 song' : count + ' songs';
-            sheet.playBtn.disabled = sheet.shuffleBtn.disabled = !count;
+            sheet.playBtn.disabled = sheet.shuffleBtn.disabled = sheet.clearBtn.disabled = !count;
             if (key === sheet.key) return;
             sheet.key = key;
             sheet.list.textContent = '';
             if (!count) {
-              sheet.list.appendChild(el('div', 'sr-empty', 'No favorites yet. Tap the heart next to a song to save it.'));
+              sheet.list.appendChild(el('div', 'sr-empty', hist
+                ? 'Nothing here yet. Songs you listen to show up here.'
+                : 'No favorites yet. Tap the heart next to a song to save it.'));
               return;
             }
             sorted.forEach(function (f) {
               var item = el('div', 'sr-item' + (f.id === playingId ? ' sr-item-playing' : ''));
               item.setAttribute('data-id', f.id);
               item.appendChild(el('div', 'sr-item-remove', 'Remove'));
+              var showLine = esc(f.show) + (hist ? ' · ' + esc(ago(f.favoritedAt)) : '');
               var main = el('div', 'sr-item-main',
                 '<img alt="" src="' + esc(f.cover) + '">' +
-                '<div class="sr-item-text"><div class="sr-item-show">' + esc(f.show) + '</div>' +
+                '<div class="sr-item-text"><div class="sr-item-show">' + showLine + '</div>' +
                 '<div class="sr-item-line"><span class="sr-item-song">' + esc(f.song) + '</span>&nbsp;<span class="sr-item-artist">' + esc(f.artist) + '</span></div></div>');
               var heart = heartButton('');
-              setHeart(heart, true, f.song);
-              heart.addEventListener('click', function (e) { e.stopPropagation(); removeItem(item, f.id); });
+              if (hist) {
+                setHeart(heart, !!byId(f.id), f.song);
+                heart.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  var fav = {};
+                  for (var k in f) fav[k] = f[k];
+                  fav.favoritedAt = Date.now();
+                  toggle(fav);
+                });
+              } else {
+                setHeart(heart, true, f.song);
+                heart.addEventListener('click', function (e) { e.stopPropagation(); removeItem(item, f.id, 'favorites'); });
+              }
               main.appendChild(heart);
               main.addEventListener('click', function () {
                 if (main.getAttribute('data-swiped')) return;
-                startPlaylist('order', f.id);
+                startPlaylist('order', f.id, sheet.mode);
               });
               item.appendChild(main);
-              attachSwipeToRemove(item, main, f.id);
+              attachSwipeToRemove(item, main, f.id, sheet.mode);
               sheet.list.appendChild(item);
             });
           }
 
-          function removeItem(item, id) {
+          function removeItem(item, id, source) {
             item.style.transition = 'opacity .2s';
             item.style.opacity = '0';
-            setTimeout(function () { remove(id); }, 200);
+            setTimeout(function () { if (source === 'history') removeHistory(id); else remove(id); }, 200);
           }
 
-          function attachSwipeToRemove(item, main, id) {
+          function attachSwipeToRemove(item, main, id, source) {
             var x0 = 0, y0 = 0, dx = 0, mode = null;
             main.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1) return;
@@ -487,7 +613,7 @@ enum FavoritesScript {
               main.style.transition = 'transform .2s ease';
               if (dx < -main.offsetWidth * 0.35) {
                 main.style.transform = 'translateX(-100%)';
-                setTimeout(function () { removeItem(item, id); }, 150);
+                setTimeout(function () { removeItem(item, id, source); }, 150);
               } else {
                 main.style.transform = '';
               }
@@ -546,6 +672,85 @@ enum FavoritesScript {
               tab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(); });
             }
             if (tab.previousElementSibling !== box) box.parentElement.insertBefore(tab, box.nextSibling);
+            if (!dice) {
+              dice = heartButton('sr-dice-top');
+              dice.innerHTML = DICE;
+              dice.removeAttribute('aria-pressed');
+              dice.setAttribute('aria-label', 'Play a random show');
+              dice.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); playRandomShow(); });
+            }
+            if (dice.previousElementSibling !== tab) box.parentElement.insertBefore(dice, tab.nextSibling);
+          }
+
+          // ---------------------------------------------------------------------------
+          // Random show: the dice picks any episode the site lists and plays it from the start.
+          // ---------------------------------------------------------------------------
+          var RANDOM_KEY = 'sr-random-show';
+          var episodeList = null;
+          function episodePathsIn(html) {
+            var out = {}, re = /\/episodes\/[A-Za-z0-9_-]+/g, m;
+            while ((m = re.exec(html))) out[m[0]] = true;
+            return Object.keys(out);
+          }
+          function loadEpisodes() {
+            if (episodeList && episodeList.length) return Promise.resolve(episodeList);
+            var found = {};
+            function add(list) { list.forEach(function (p) { found[p] = true; }); }
+            add(episodePathsIn(document.documentElement.innerHTML));
+            function get(url) {
+              return fetch(url, { credentials: 'same-origin' })
+                .then(function (r) { return r.ok ? r.text() : ''; })
+                .then(function (t) { add(episodePathsIn(t)); })
+                .catch(function () {});
+            }
+            return Promise.all([get('/sitemap.xml'), get('/')]).then(function () {
+              episodeList = Object.keys(found);
+              return episodeList;
+            });
+          }
+          function playRandomShow() {
+            if (!dice || dice.getAttribute('aria-busy') === 'true') return;
+            dice.setAttribute('aria-busy', 'true');
+            loadEpisodes().then(function (paths) {
+              dice.removeAttribute('aria-busy');
+              var here = location.pathname.replace(/\/$/, '');
+              var choices = paths.filter(function (p) { return p !== here; });
+              if (!choices.length) choices = paths;
+              if (!choices.length) return showToast("Couldn't find any shows.");
+              var path = choices[Math.floor(Math.random() * choices.length)];
+              endPlaylist(false);
+              closeSheet();
+              if (here !== path) {
+                if (window.next && window.next.router && window.next.router.push) {
+                  window.next.router.push(path);
+                } else {
+                  try { sessionStorage.setItem(RANDOM_KEY, path); } catch (e) {}
+                  location.assign(path);
+                  return;
+                }
+              }
+              startShowFromTop(path);
+            });
+          }
+          // Waits for the episode page, then presses its Play button (or the first song).
+          function startShowFromTop(path) {
+            var deadline = Date.now() + 15000;
+            (function tryPlay() {
+              if (location.pathname.replace(/\/$/, '') === path) {
+                var main = document.querySelector('main') || document.body;
+                var btns = main.querySelectorAll('button');
+                for (var i = 0; i < btns.length; i++) {
+                  var b = btns[i];
+                  if (b.closest('.sr-fav-root, .col-span-full.grid') || b.classList.contains('sr-heart')) continue;
+                  if (/^\s*play\s*$/i.test(b.textContent || '') || /^play\b/i.test(b.getAttribute('aria-label') || '')) { b.click(); return; }
+                }
+                var rows = pageRows();
+                var first = rows.length && rows[0].row.querySelector(':scope > button');
+                if (first) { first.click(); return; }
+              }
+              if (Date.now() < deadline) setTimeout(tryPlay, 250);
+              else showToast("Couldn't start that show.");
+            })();
           }
 
           // Swipe up on the mini player (or the tab) to open the sheet.
@@ -586,10 +791,13 @@ enum FavoritesScript {
             return a;
           }
 
-          function startPlaylist(mode, firstId) {
-            if (!favorites.length) return;
-            var ids = favorites.slice()
-              .sort(function (a, b) { return a.favoritedAt - b.favoritedAt; })
+          // Plays favorites (oldest favorited first) or history (most recent first).
+          function startPlaylist(mode, firstId, source) {
+            source = source === 'history' ? 'history' : 'favorites';
+            var items = sourceList(source);
+            if (!items.length) return;
+            var ids = items.slice()
+              .sort(function (a, b) { return source === 'history' ? b.favoritedAt - a.favoritedAt : a.favoritedAt - b.favoritedAt; })
               .map(function (f) { return f.id; });
             var pos = 0;
             if (mode === 'shuffle') {
@@ -598,7 +806,7 @@ enum FavoritesScript {
             } else if (firstId) {
               pos = Math.max(0, ids.indexOf(firstId));
             }
-            playlist = { ids: ids, pos: pos, mode: mode, current: null };
+            playlist = { ids: ids, pos: pos, mode: mode, source: source, current: null };
             closeSheet();
             playCurrent();
           }
@@ -615,7 +823,7 @@ enum FavoritesScript {
 
           function playCurrent() {
             var f = null;
-            while (playlist && playlist.pos < playlist.ids.length && !(f = byId(playlist.ids[playlist.pos]))) {
+            while (playlist && playlist.pos < playlist.ids.length && !(f = lookup(playlist.source, playlist.ids[playlist.pos]))) {
               playlist.ids.splice(playlist.pos, 1); // removed since the playlist started
             }
             if (!f) return endPlaylist(true);
@@ -741,6 +949,7 @@ enum FavoritesScript {
 
           window.addEventListener('soulection-nowplaying', function (e) {
             followPlayback(e.detail);
+            followListening(e.detail);
             schedule();
           });
 
@@ -794,7 +1003,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
@@ -805,6 +1014,11 @@ enum FavoritesScript {
                 pending.current = null;
                 resumeAfterLoad = pending;
               }
+            } catch (e) {}
+            try {
+              var randomPath = sessionStorage.getItem(RANDOM_KEY);
+              sessionStorage.removeItem(RANDOM_KEY);
+              if (randomPath) startShowFromTop(randomPath);
             } catch (e) {}
             native({ op: 'get' });
             schedule();

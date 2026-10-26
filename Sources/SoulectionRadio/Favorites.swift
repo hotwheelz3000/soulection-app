@@ -28,6 +28,8 @@ struct FavoritesBackup: Codable {
     var version = 1
     var exportedAt: Date
     var favorites: [Favorite]
+    /// Listening history (newest last). Missing in backups made before history existed.
+    var history: [Favorite]?
 }
 
 /// Favorites live in the app's UserDefaults rather than the website's storage, so
@@ -36,11 +38,16 @@ struct FavoritesBackup: Codable {
 final class FavoritesStore {
     private static let key = "Favorites.v1"
     private static let sinceBackupKey = "Favorites.addedSinceBackup"
+    private static let historyKey = "History.v1"
+    /// Keep this many songs in the listening history.
+    static let historyLimit = 500
     /// Remind to back up after this many new favorites since the last export.
     static let backupReminderEvery = 4
 
     private let defaults: UserDefaults
     private(set) var favorites: [Favorite]
+    /// Songs listened to, oldest first. `favoritedAt` holds when it was played.
+    private(set) var history: [Favorite]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -50,6 +57,55 @@ final class FavoritesStore {
         } else {
             favorites = []
         }
+        if let data = defaults.data(forKey: Self.historyKey),
+           let saved = try? JSONDecoder().decode([Favorite].self, from: data) {
+            history = saved
+        } else {
+            history = []
+        }
+    }
+
+    /// Records a song as just played: moves it to the newest spot instead of duplicating it.
+    func recordPlay(_ entry: Favorite) {
+        var played = entry
+        played.favoritedAt = (Date().timeIntervalSince1970 * 1000).rounded()
+        history.removeAll { $0.id == played.id }
+        history.append(played)
+        if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
+        saveHistory()
+    }
+
+    func removeFromHistory(id: String) {
+        history.removeAll { $0.id == id }
+        saveHistory()
+    }
+
+    func clearHistory() {
+        history.removeAll()
+        saveHistory()
+    }
+
+    /// Adds history from a backup, keeping the latest play of each song. Returns how many songs were new.
+    func mergeHistory(_ incoming: [Favorite]) -> Int {
+        var byId = Dictionary(history.map { ($0.id, $0) }, uniquingKeysWith: { a, b in a.favoritedAt >= b.favoritedAt ? a : b })
+        var added = 0
+        for entry in incoming {
+            if let existing = byId[entry.id] {
+                if entry.favoritedAt > existing.favoritedAt { byId[entry.id] = entry }
+            } else {
+                byId[entry.id] = entry
+                added += 1
+            }
+        }
+        history = byId.values.sorted { $0.favoritedAt < $1.favoritedAt }
+        if history.count > Self.historyLimit { history.removeFirst(history.count - Self.historyLimit) }
+        saveHistory()
+        return added
+    }
+
+    func historyJSON() -> String {
+        guard let data = try? JSONEncoder().encode(history) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// New favorites since the last export (or since the last reminder was dismissed).
@@ -103,7 +159,7 @@ final class FavoritesStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites))
+        let data = try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history))
         let day = Date().formatted(.iso8601.year().month().day())
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("Soulection Favorites \(day).json")
@@ -112,11 +168,14 @@ final class FavoritesStore {
     }
 
     /// Reads a backup file: the Export format, or a plain list of favorites.
-    static func readBackup(_ data: Data) -> [Favorite]? {
+    static func readBackup(_ data: Data) -> (favorites: [Favorite], history: [Favorite])? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
-        if let backup = try? decoder.decode(FavoritesBackup.self, from: data) { return backup.favorites }
-        return try? decoder.decode([Favorite].self, from: data)
+        if let backup = try? decoder.decode(FavoritesBackup.self, from: data) {
+            return (backup.favorites, backup.history ?? [])
+        }
+        if let list = try? decoder.decode([Favorite].self, from: data) { return (list, []) }
+        return nil
     }
 
     private func save() {
@@ -124,14 +183,22 @@ final class FavoritesStore {
             defaults.set(data, forKey: Self.key)
         }
     }
+
+    private func saveHistory() {
+        if let data = try? JSONEncoder().encode(history) {
+            defaults.set(data, forKey: Self.historyKey)
+        }
+    }
 }
 
 /// Receives favorites messages from FavoritesScript and sends the updated list back.
 ///
 /// Page → app: `webkit.messageHandlers.soulectionFavorites.postMessage({op, ...})` with
-/// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import" or
-/// "backupLater" (dismiss the backup reminder until the next few favorites).
-/// App → page: `window.__soulectionFavorites.receive([...], {backupDue})` and
+/// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import",
+/// "backupLater" (dismiss the backup reminder until the next few favorites),
+/// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
+/// "historyClear".
+/// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
 final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerDelegate {
@@ -166,6 +233,18 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             store.remove(id: id)
         case "backupLater":
             store.addedSinceBackup = 0
+        case "played":
+            guard let raw = body["favorite"],
+                  JSONSerialization.isValidJSONObject(raw),
+                  let data = try? JSONSerialization.data(withJSONObject: raw),
+                  let entry = try? JSONDecoder().decode(Favorite.self, from: data)
+            else { return }
+            store.recordPlay(entry)
+        case "historyRemove":
+            guard let id = body["id"] as? String else { return }
+            store.removeFromHistory(id: id)
+        case "historyClear":
+            store.clearHistory()
         case "export":
             exportFavorites()
             return
@@ -181,7 +260,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func send() {
         let due = store.backupDue ? "true" : "false"
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due)});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON())});",
             completionHandler: nil
         )
     }
@@ -205,8 +284,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // MARK: Export
 
     private func exportFavorites() {
-        guard !store.favorites.isEmpty else {
-            toast("No favorites to export yet.")
+        guard !store.favorites.isEmpty || !store.history.isEmpty else {
+            toast("Nothing to export yet.")
             return
         }
         guard let url = try? store.writeBackup(), let presenter = presenter() else {
@@ -251,12 +330,12 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             toast("That file isn't a favorites backup.")
             return
         }
-        let added = store.merge(incoming)
+        let added = store.merge(incoming.favorites)
+        let addedHistory = incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history)
         send()
-        switch added {
-        case 0: toast("Those favorites are already saved.")
-        case 1: toast("Imported 1 favorite.")
-        default: toast("Imported \(added) favorites.")
-        }
+        var parts: [String] = []
+        if added > 0 { parts.append(added == 1 ? "1 favorite" : "\(added) favorites") }
+        if addedHistory > 0 { parts.append(addedHistory == 1 ? "1 history song" : "\(addedHistory) history songs") }
+        toast(parts.isEmpty ? "Everything in that backup is already saved." : "Imported " + parts.joined(separator: " and ") + ".")
     }
 }
