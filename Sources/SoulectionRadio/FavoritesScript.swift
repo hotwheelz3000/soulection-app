@@ -2127,7 +2127,18 @@ enum FavoritesScript {
               !!(sleepPanel && sleepPanel.root.classList.contains('sr-open'));
             if (!anyOpen && document.documentElement.classList.contains('sr-lock')) document.documentElement.classList.remove('sr-lock');
           }
+          // Leaving or coming back to the app always lands on the normal page, never the
+          // full-size player (closed instantly, no animation; the music isn't touched).
+          function closePlayerNow() {
+            if (!fp || !(isPlayerOpen() || !fp.root.hidden)) return;
+            cancelAnimationFrame(fpAnim);
+            fpAnim = null;
+            setProgress(0);
+            finishClose();
+          }
           document.addEventListener('visibilitychange', function () {
+            closePlayerNow();
+            setTimeout(closePlayerNow, 300); // in case a stray touch reopened it on the way back
             if (document.hidden) return;
             setTimeout(healScrollLock, 400);
             var over = document.querySelector('.sr-mini-over');
