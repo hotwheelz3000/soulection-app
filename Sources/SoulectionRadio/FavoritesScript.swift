@@ -8,7 +8,8 @@ import Foundation
 ///   website's storage. The page asks for it on load and gets it back after changes.
 /// - Sheet: swipe up on the mini player (it gets a grab handle), or on a small tab at
 ///   the bottom when nothing is playing. Lists favorites newest first, with swipe left
-///   to remove, "Play in order" and "Shuffle". Swipe down or tap outside to close.
+///   to remove, "Play in order" and "Shuffle", and Export/Import to back them up
+///   (every 4 new favorites a reminder suggests exporting). Swipe down or tap outside to close.
 ///   Styled with the site's own values (read from radio.soulection.com): background
 ///   rgb(26,26,26), border rgb(42,42,42), 9px corners like the mini player card, Bai
 ///   Jamjuree, rgb(138,138,138) text with semibold song names, rgb(90,90,90) for the
@@ -40,6 +41,9 @@ enum FavoritesScript {
           var HEART = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M19 14c1.49-1.46 3-3.21 3-5.5A5.5 5.5 0 0 0 16.5 3c-1.76 0-3 .5-4.5 2-1.5-1.5-2.74-2-4.5-2A5.5 5.5 0 0 0 2 8.5c0 2.3 1.5 4.05 3 5.5l7 7Z"/></svg>';
           var PLAY = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M7 5v14l12-7z"/></svg>';
           var SHUFFLE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 14 4 4-4 4"/><path d="m18 2 4 4-4 4"/><path d="M2 18h1.97a4 4 0 0 0 3.3-1.7l5.46-8.6a4 4 0 0 1 3.3-1.7H22"/><path d="M2 6h1.97a4 4 0 0 1 3.3 1.7l.53.83"/><path d="M22 18h-6.04a4 4 0 0 1-3.3-1.8l-.36-.55"/></svg>';
+
+          var EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
+          var IMPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
 
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
@@ -83,7 +87,15 @@ enum FavoritesScript {
             '.sr-item-playing .sr-item-show::before{content:"";display:inline-block;width:6px;height:6px;border-radius:9999px;background:' + ACCENT + ';margin-right:5px;vertical-align:1px}',
             '.sr-item .sr-heart{font-size:15px;padding:9px;margin-right:-9px}',
             '.sr-empty{padding:24px 12px;text-align:center;color:' + MUTED + '}',
-            'html.sr-lock,html.sr-lock body{overflow:hidden}'
+            'html.sr-lock,html.sr-lock body{overflow:hidden}',
+            // Backup: Export/Import row in the sheet, a reminder card and short messages.
+            '.sr-backup{display:flex;align-items:center;gap:8px;margin-top:8px;font-size:9px;line-height:12px;color:' + MUTED + '}',
+            '.sr-backup .sr-btn{padding:3px 8px;font-size:9px;line-height:12px;gap:4px}',
+            '.sr-backup .sr-btn svg{width:11px;height:11px}',
+            '.sr-note{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 72px);z-index:60;padding:10px 12px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;color:' + TEXT + ';opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}',
+            '.sr-note.sr-show{opacity:1;transform:none;pointer-events:auto}',
+            '.sr-note .sr-actions{margin-top:8px}',
+            '.sr-note-title{font-weight:600}'
           ].join('\n');
 
           var favorites = [];
@@ -137,8 +149,10 @@ enum FavoritesScript {
           }
 
           window.__soulectionFavorites = {
-            receive: function (list) {
+            toast: function (message) { showToast(message); },
+            receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
+              if (opts && opts.backupDue) maybeRemindBackup();
               if (resumeAfterLoad) {
                 playlist = resumeAfterLoad;
                 resumeAfterLoad = null;
@@ -147,6 +161,50 @@ enum FavoritesScript {
               schedule();
             }
           };
+
+          // ---------------------------------------------------------------------------
+          // Backup reminder and short messages
+          // ---------------------------------------------------------------------------
+          var note = null, noteTimer = null, reminded = false;
+          function showNote(html, ms) {
+            if (!document.body) return null;
+            if (note) note.remove();
+            clearTimeout(noteTimer);
+            note = el('div', 'sr-note', html);
+            note.setAttribute('role', 'status');
+            document.body.appendChild(note);
+            void note.offsetHeight;
+            note.classList.add('sr-show');
+            if (ms) noteTimer = setTimeout(hideNote, ms);
+            return note;
+          }
+          function hideNote() {
+            clearTimeout(noteTimer);
+            if (!note) return;
+            var n = note;
+            note = null;
+            n.classList.remove('sr-show');
+            setTimeout(function () { n.remove(); }, 250);
+          }
+          function showToast(message) { showNote('<div>' + esc(message) + '</div>', 2600); }
+          // Every few new favorites, suggest exporting a backup (once per page load).
+          function maybeRemindBackup() {
+            if (reminded) return;
+            reminded = true;
+            var n = showNote(
+              '<div class="sr-note-title">Back up your favorites?</div>' +
+              '<div>Save a copy so you keep them if the app is ever deleted.</div>' +
+              '<div class="sr-actions"></div>', 0);
+            if (!n) { reminded = false; return; }
+            var actions = n.querySelector('.sr-actions');
+            var exportBtn = el('button', 'sr-btn', EXPORT + '<span>Export</span>');
+            var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
+            exportBtn.type = laterBtn.type = 'button';
+            exportBtn.addEventListener('click', function () { hideNote(); native({ op: 'export' }); });
+            laterBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupLater' }); });
+            actions.appendChild(exportBtn);
+            actions.appendChild(laterBtn);
+          }
 
           // ---------------------------------------------------------------------------
           // Page structure (radio.soulection.com, as probed)
@@ -312,6 +370,15 @@ enum FavoritesScript {
             actions.appendChild(playBtn);
             actions.appendChild(shuffleBtn);
             head.appendChild(actions);
+            var backup = el('div', 'sr-backup', '<span>Back up</span>');
+            var exportBtn = el('button', 'sr-btn', EXPORT + '<span>Export</span>');
+            var importBtn = el('button', 'sr-btn', IMPORT + '<span>Import</span>');
+            exportBtn.type = importBtn.type = 'button';
+            exportBtn.addEventListener('click', function () { native({ op: 'export' }); });
+            importBtn.addEventListener('click', function () { native({ op: 'import' }); });
+            backup.appendChild(exportBtn);
+            backup.appendChild(importBtn);
+            head.appendChild(backup);
             var list = el('div', 'sr-list');
             panel.appendChild(head);
             panel.appendChild(list);
