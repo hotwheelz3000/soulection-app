@@ -41,6 +41,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Random show:** the dice starts a random episode from the very beginning.
 - **Mixtape:** the cassette plays endless random songs from random shows. Each song is added to your Likes as soon as it's picked (even if you skip it) and to History once it plays; remove any you don't want.
 - **Sleep timer:** the zZZ at the top (or in the full player). 5, 15 or 30 minutes, 1 hour, end of song, end of show, or your own time. While a timer runs, **Add 5 more minutes** extends it. The music fades out and pauses, even with the screen off.
+- **New show notifications:** when a new show is posted you get "New show: Soulection Radio #751 · Tap to listen", and the newest show gets a **NEW** label until you open it. The app asks once if it can send notifications. iOS decides when the background check runs (usually within a few hours of a new show), and it doesn't run if you swipe the app away.
 - **Pick up where you left off:** when you open the app, it offers to carry on from the show and spot you were last listening to.
 - **Help:** a welcome screen explains each button when you open the app (tick **Don't show again** to hide it). Tap **?** at the top any time, or press and hold a top-bar icon for its name. The bottom of the help window shows which build you have.
 

@@ -525,6 +525,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "airplay":
             showAirPlayPicker()
             return
+        case "notifyPermission":
+            NewShows.shared.askPermissionOnce()
+            return
         case "haptic":
             if (body["kind"] as? String) == "success" {
                 UINotificationFeedbackGenerator().notificationOccurred(.success)

@@ -70,7 +70,12 @@ struct WebView: UIViewRepresentable {
 
         context.coordinator.webView = webView
         context.coordinator.favorites.webView = webView
-        webView.load(URLRequest(url: url))
+        // Opened by tapping a new-show notification: start on that show.
+        var start = url
+        if let path = NewShows.shared.takePendingPath(), let show = URL(string: path, relativeTo: url)?.absoluteURL {
+            start = show
+        }
+        webView.load(URLRequest(url: start))
         return webView
     }
 
@@ -256,6 +261,26 @@ struct WebView: UIViewRepresentable {
         init(homeURL: URL, appearance: PageAppearance) {
             self.homeURL = homeURL
             self.appearance = appearance
+            super.init()
+            // A new-show notification tapped while the app is running: go to that show.
+            NotificationCenter.default.addObserver(forName: NewShows.openEpisode, object: nil, queue: .main) { [weak self] note in
+                let path = note.userInfo?["path"] as? String
+                MainActor.assumeIsolated { self?.openEpisode(path) }
+            }
+        }
+
+        /// Opens a show page: through the site's own router when it's loaded (smooth, keeps
+        /// playing), otherwise by loading the page.
+        func openEpisode(_ path: String?) {
+            _ = NewShows.shared.takePendingPath()
+            guard let path, path.hasPrefix("/episodes/"), let webView,
+                  let url = URL(string: path, relativeTo: homeURL)?.absoluteURL
+            else { return }
+            guard let literal = try? JSONEncoder().encode(path).base64EncodedString() else { return }
+            let js = "(function(p){p=atob(p);p=JSON.parse(p);if(window.next&&window.next.router&&window.next.router.push){window.next.router.push(p);return true;}return false;})('\(literal)')"
+            webView.evaluateJavaScript(js) { result, _ in
+                if (result as? Bool) != true { webView.load(URLRequest(url: url)) }
+            }
         }
 
         /// Returns the page background as "r,g,b": the body's computed background,

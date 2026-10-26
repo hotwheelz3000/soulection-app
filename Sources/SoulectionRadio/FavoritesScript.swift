@@ -85,6 +85,7 @@ enum FavoritesScript {
             '.sr-fav-root :focus-visible,.sr-np :focus-visible,.sr-note :focus-visible,.sr-welcome :focus-visible,[class*="sr-"]:focus-visible{outline:2px solid #fff;outline-offset:2px;border-radius:6px}',
             '.sr-live{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
             '.sr-sheet-head{position:relative}',
+            '.sr-new{display:inline-block;margin-left:8px;padding:2px 6px;border-radius:5px;background:#fff;color:' + BG + ';font-size:11px;line-height:14px;font-weight:700;letter-spacing:.06em;vertical-align:2px}',
             '.sr-x{position:absolute;top:4px;right:4px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;margin:0;color:' + TEXT + ';-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent;z-index:2}',
             '.sr-x svg{width:20px;height:20px;display:block}',
             '.sr-x:active{opacity:.6}',
@@ -567,6 +568,7 @@ enum FavoritesScript {
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
                 if (opts.welcome) showWelcome();
+                else if (!askedNotify) { askedNotify = true; setTimeout(function () { native({ op: 'notifyPermission' }); }, 3000); }
                 if (autoBackup.restoreOffer) {
                   if (welcomeOpen) restoreAfterWelcome = true; else offerRestore();
                 }
@@ -1499,6 +1501,7 @@ enum FavoritesScript {
             }).join('') + '</div>';
           }
           var helpPanel = null;
+          var askedNotify = false; // the app itself only ever shows iOS's prompt once
           var buildLabel = '';
           function openHelp() {
             if (!helpPanel) {
@@ -1600,6 +1603,7 @@ enum FavoritesScript {
               if (w.querySelector('.sr-welcome-check input').checked) native({ op: 'welcomeSeen' });
               welcomeOpen = false;
               dialogClosed(w);
+              setTimeout(function () { native({ op: 'notifyPermission' }); }, 800);
               w.classList.remove('sr-show');
               setTimeout(function () { w.remove(); }, 320);
               if (restoreAfterWelcome) { restoreAfterWelcome = false; offerRestore(); }
@@ -1958,6 +1962,43 @@ enum FavoritesScript {
               best.row.classList.add('sr-row-flash');
               setTimeout(function () { best.row.classList.remove('sr-row-flash'); }, 1900);
             })();
+          }
+
+          // "NEW" on the newest show until you've opened it. The first time, the newest show
+          // is just remembered (so nothing is marked new right after installing).
+          var SEEN_KEY = 'sr-seen-show';
+          function renderNewBadges() {
+            var seen = 0;
+            try { seen = parseInt(localStorage.getItem(SEEN_KEY) || '0', 10) || 0; } catch (e) {}
+            var opened = episodePath() ? showNumber(episodeHeading()) : null;
+            var titles = [];
+            var links = document.querySelectorAll('a[href*="/episodes/"]');
+            for (var i = 0; i < links.length; i++) {
+              var leaves = links[i].querySelectorAll('h1, h2, h3, h4, p, span, div');
+              for (var j = 0; j < leaves.length; j++) {
+                var t = leaves[j];
+                if (t.children.length && !t.querySelector(':scope > .sr-new')) continue;
+                var m = /^Soulection Radio #(\d+)/.exec(text(t).replace(/\s*NEW$/, ''));
+                if (m) titles.push({ el: t, number: parseInt(m[1], 10) });
+              }
+            }
+            var newest = 0;
+            titles.forEach(function (x) { if (x.number > newest) newest = x.number; });
+            var next = seen;
+            if (!seen && newest) next = newest;
+            if (opened) next = Math.max(next, parseInt(opened, 10));
+            if (next !== seen) { seen = next; try { localStorage.setItem(SEEN_KEY, String(seen)); } catch (e) {} }
+            titles.forEach(function (x) {
+              var badge = x.el.querySelector(':scope > .sr-new');
+              var isNew = x.number > seen;
+              if (isNew && !badge) {
+                badge = el('span', 'sr-new', 'NEW');
+                badge.setAttribute('aria-label', 'new show');
+                x.el.appendChild(badge);
+              } else if (!isNew && badge) {
+                badge.remove();
+              }
+            });
           }
 
           // Marks the tracklist row of the song that's playing, on that show's page.
@@ -3254,6 +3295,7 @@ enum FavoritesScript {
             }
             renderRowHearts();
             renderPlayingRow();
+            renderNewBadges();
             renderMiniPlayer(miniPlayer());
             announceSong();
             renderTab();
@@ -3272,7 +3314,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });

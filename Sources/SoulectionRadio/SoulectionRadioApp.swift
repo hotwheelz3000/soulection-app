@@ -29,6 +29,8 @@ final class AppDelegate: NSObject, UIApplicationDelegate {
         } catch {
             print("Failed to configure audio session: \(error)")
         }
+        // New-show notifications: background checks must be registered during launch.
+        NewShows.shared.register()
         return true
     }
 }
