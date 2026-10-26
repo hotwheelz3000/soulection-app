@@ -381,6 +381,7 @@ enum NowPlayingScript {
             // Set when the app switched shows inside the player (sr_start in the player's
             // address): jump to the song's start once the audio is ready.
             var pendingStart = null, startTries = 0, standby = false;
+            var lastMetaKey = '';
             try {
               var params = new URLSearchParams(location.search);
               var sp = params.get('sr_start');
@@ -489,6 +490,12 @@ enum NowPlayingScript {
               }
               if (!d || d.type !== MSG) return;
               state = d;
+              // Only replace the lock screen info when it actually changed: every new
+              // MediaMetadata makes iOS drop the cover and fetch it again, which in the
+              // background can leave the Dynamic Island without artwork for a while.
+              var metaKey = JSON.stringify([d.title || '', d.artist || '', d.album || '', d.artwork || '']);
+              if (metaKey === lastMetaKey) { handlers(); return; }
+              lastMetaKey = metaKey;
               try {
                 metaDesc.set.call(ms, new MediaMetadata({
                   title: d.title || '',
