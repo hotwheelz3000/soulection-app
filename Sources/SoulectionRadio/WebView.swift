@@ -26,6 +26,13 @@ struct WebView: UIViewRepresentable {
         )
         configuration.userContentController.addUserScript(
             WKUserScript(
+                source: Self.bottomBarInsetScript,
+                injectionTime: .atDocumentEnd,
+                forMainFrameOnly: true
+            )
+        )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
                 source: NowPlayingScript.source,
                 injectionTime: .atDocumentStart,
                 // Also the SoundCloud player iframe, which owns the audio.
@@ -99,6 +106,65 @@ struct WebView: UIViewRepresentable {
               document.head.appendChild(meta);
             }
           });
+        })();
+        """#
+
+    /// Keeps fixed bars at the bottom of the page (the site's mini player) clear of
+    /// the home indicator and the screen's rounded corners. With viewport-fit=cover
+    /// the page runs to the screen edge, but the site doesn't pad its bottom bar with
+    /// env(safe-area-inset-bottom), so the playback times got cut off in the corners.
+    /// This finds fixed elements touching the bottom edge and adds the inset to their
+    /// own bottom padding.
+    private static let bottomBarInsetScript = #"""
+        (function () {
+          var MARK = 'data-sr-inset';
+          function bottomInset() {
+            var probe = document.createElement('div');
+            probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)';
+            document.documentElement.appendChild(probe);
+            var px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+            probe.remove();
+            return px;
+          }
+          function fixedAncestor(el) {
+            for (; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
+              var pos = getComputedStyle(el).position;
+              if (pos === 'fixed' || pos === 'sticky') return el;
+            }
+            return null;
+          }
+          function apply() {
+            var inset = bottomInset();
+            if (!inset) return;
+            var w = window.innerWidth, h = window.innerHeight;
+            [w / 2, 24, w - 24].forEach(function (x) {
+              var stack = document.elementsFromPoint ? document.elementsFromPoint(x, h - 2) : [];
+              for (var i = 0; i < stack.length; i++) {
+                var bar = fixedAncestor(stack[i]);
+                if (!bar) continue;
+                var r = bar.getBoundingClientRect();
+                if (r.bottom < h - 2 || r.height > h / 2) continue;
+                if (bar.getAttribute(MARK) === String(inset)) return;
+                var base = bar.hasAttribute(MARK + '-base')
+                  ? parseFloat(bar.getAttribute(MARK + '-base'))
+                  : (parseFloat(getComputedStyle(bar).paddingBottom) || 0);
+                bar.setAttribute(MARK + '-base', String(base));
+                bar.setAttribute(MARK, String(inset));
+                bar.style.setProperty('padding-bottom', (base + inset) + 'px', 'important');
+                return;
+              }
+            });
+          }
+          var pending = false;
+          function schedule() {
+            if (pending) return;
+            pending = true;
+            setTimeout(function () { pending = false; apply(); }, 300);
+          }
+          new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
+          window.addEventListener('resize', schedule);
+          window.addEventListener('orientationchange', schedule);
+          apply();
         })();
         """#
 
