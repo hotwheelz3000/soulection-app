@@ -285,8 +285,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         defer { if accessing { file.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var writeError: Error?
-        NSFileCoordinator().coordinate(writingItemAt: file, options: .forReplacing, error: &coordinationError) { url in
-            do { try payload.write(to: url, options: .atomic) } catch { writeError = error }
+        // Write into the file itself: iOS grants access to this one file, not its folder, so
+        // an atomic write (temporary file next to it, then swap) isn't allowed.
+        NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
+            do { try payload.write(to: url) } catch { writeError = error }
         }
         let ok = coordinationError == nil && writeError == nil
         autoBackupError = !ok
