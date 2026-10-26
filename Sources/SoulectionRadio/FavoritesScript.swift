@@ -2034,6 +2034,7 @@ enum FavoritesScript {
             document.body.appendChild(root);
             fp = {
               root: root, bg: root.querySelector('.sr-np-bg'), show: root.querySelector('.sr-np-show'),
+              inner: root.querySelector('.sr-np-inner'),
               from: root.querySelector('.sr-np-from'),
               cover: root.querySelector('.sr-np-cover'), title: root.querySelector('.sr-np-title'),
               artist: root.querySelector('.sr-np-artist'), meta: root.querySelector('.sr-np-meta'),
@@ -2112,21 +2113,41 @@ enum FavoritesScript {
             morph = null;
             if (fp) fp.cover.style.visibility = '';
           }
-          // How far the player travels: from the mini player's top edge (so it grows out of the
-          // mini player instead of sliding in over it from the bottom of the screen).
-          function playerTravel() {
+          // The full player grows out of the mini player card: it's clipped to the card's exact
+          // shape at the start and the clip opens up to the whole screen as it rises. The card
+          // turns solid over the first stretch (so the mini player's text fades away under it),
+          // and the full player's text and controls fade in over the last stretch.
+          var fpFrom = null; // the mini player card: {top, left, right, bottom, radius}
+          function miniCard() {
             var mini = miniPlayer();
-            var top = mini ? mini.getBoundingClientRect().top : window.innerHeight;
-            return Math.max(120, Math.min(window.innerHeight, top));
+            var W = window.innerWidth, H = window.innerHeight;
+            if (!mini) return { top: H - 120, left: 0, right: 0, bottom: 0, radius: 0 };
+            var r = mini.getBoundingClientRect();
+            var radius = parseFloat(getComputedStyle(mini).borderTopLeftRadius) || 0;
+            return { top: Math.max(0, r.top), left: Math.max(0, r.left), right: Math.max(0, W - r.right), bottom: Math.max(0, H - r.bottom), radius: radius };
           }
+          // How far a drag has to travel to fully open: the card's top edge.
+          function playerTravel() { return Math.max(120, (fpFrom || miniCard()).top); }
           var fpTravel = 0;
+          var BG_RGB = BG.replace(/^rgb\(|\)$/g, '');
           function setProgress(p) {
             fpP = p;
+            if (!fpFrom) fpFrom = miniCard();
             if (!fpTravel) fpTravel = playerTravel();
-            fp.root.style.transform = 'translate3d(0,' + ((1 - p) * fpTravel).toFixed(1) + 'px,0)';
-            // Fades in over the first stretch, so at the start it reads as the mini player growing.
-            var o = Math.max(0, Math.min(1, p / 0.12)).toFixed(3);
-            if (fp.root.style.opacity !== o) fp.root.style.opacity = o;
+            var e = Math.max(0, Math.min(1, p)), k = 1 - e, c = fpFrom;
+            var root = fp.root.style;
+            if (root.transform !== 'none') root.transform = 'none';
+            if (root.opacity !== '1') root.opacity = '1';
+            var clip = 'inset(' + (c.top * k).toFixed(1) + 'px ' + (c.right * k).toFixed(1) + 'px ' +
+              (c.bottom * k).toFixed(1) + 'px ' + (c.left * k).toFixed(1) + 'px round ' + (c.radius * k).toFixed(1) + 'px)';
+            root.clipPath = clip;
+            root.webkitClipPath = clip;
+            var solid = Math.min(1, e / 0.25);
+            root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
+            fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
+            var show = Math.max(0, Math.min(1, (e - 0.45) / 0.45));
+            fp.inner.style.opacity = show.toFixed(3);
+            fp.inner.style.transform = 'translate3d(0,' + (k * 40).toFixed(1) + 'px,0)';
             if (!morph) return;
             var e = Math.max(0, Math.min(1, p)), f = morph.from, t = morph.to;
             var st = morph.img.style;
@@ -2165,6 +2186,7 @@ enum FavoritesScript {
             cancelAnimationFrame(fpAnim);
             if (!isPlayerOpen()) {
               closeSheet();
+              fpFrom = miniCard();
               fpTravel = playerTravel();
               fp.root.hidden = false;
               fp.root.classList.add('sr-open');
@@ -2190,6 +2212,8 @@ enum FavoritesScript {
           }
           function closePlayer() {
             if (!isPlayerOpen()) return;
+            fpFrom = miniCard();
+            fpTravel = playerTravel();
             startMorph();
             setProgress(fpP);
             animateTo(0, 0, finishClose);
