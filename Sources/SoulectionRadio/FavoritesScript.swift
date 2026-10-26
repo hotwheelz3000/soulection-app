@@ -50,7 +50,7 @@ enum FavoritesScript {
             '.sr-heart svg{width:1em;height:1em;display:block}',
             '.sr-heart[aria-pressed="true"]{color:' + ACCENT + '}',
             '.sr-heart[aria-pressed="true"] svg{fill:currentColor}',
-            '.sr-heart-row{font-size:17px;padding:5px;margin:-5px -5px -5px auto;flex:none}',
+            '.sr-heart-row{font-size:22px;padding:6px;margin:-8px -6px -6px auto;flex:none}',
             // Hearts line up at the right of the song column, level with the first line of
             // the song name (instead of wrapping under long names).
             '.sr-song-cell{display:flex;align-items:flex-start;gap:6px}',
@@ -85,7 +85,7 @@ enum FavoritesScript {
             '.sr-item-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-item-song{font-weight:600}',
             '.sr-item-playing .sr-item-show::before{content:"";display:inline-block;width:6px;height:6px;border-radius:9999px;background:' + ACCENT + ';margin-right:5px;vertical-align:1px}',
-            '.sr-item .sr-heart{font-size:21px;padding:10px;margin-right:-10px}',
+            '.sr-item .sr-heart{font-size:23px;padding:10px;margin-right:-10px}',
             '.sr-empty{padding:24px 12px;text-align:center;color:' + MUTED + '}',
             'html.sr-lock,html.sr-lock body{overflow:hidden}',
             // Backup: Export/Import row in the sheet, a reminder card and short messages.
