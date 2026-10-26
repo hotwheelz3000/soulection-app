@@ -368,6 +368,10 @@ enum NowPlayingScript {
               return nativePlay.apply(this, arguments);
             };
             document.addEventListener('play', function (e) { track(e.target); }, true);
+            // Each time playback starts (a switch, or you pressing play), tell iOS again what's
+            // playing, so it shows in the Dynamic Island and on the lock screen.
+            document.addEventListener('play', function () { setTimeout(function () { announce(true); }, 50); }, true);
+            document.addEventListener('pause', function () { try { ms.playbackState = 'paused'; } catch (e) {} }, true);
 
             function track(el) {
               if (!(el instanceof HTMLMediaElement) || media === el) return;
@@ -484,28 +488,36 @@ enum NowPlayingScript {
                 if (d.pause && media) media.pause();
                 // Play straight from the page (faster than going through the widget API).
                 if (d.play && media) { var p = media.play(); if (p && p.catch) p.catch(function () {}); }
-                if (d.unmute && media) { media.muted = false; standby = false; }
+                if (d.unmute && media) { media.muted = false; standby = false; announce(true); }
                 if (d.mute && media) media.muted = true;
                 return;
               }
               if (!d || d.type !== MSG) return;
               state = d;
-              // Only replace the lock screen info when it actually changed: every new
-              // MediaMetadata makes iOS drop the cover and fetch it again, which in the
-              // background can leave the Dynamic Island without artwork for a while.
-              var metaKey = JSON.stringify([d.title || '', d.artist || '', d.album || '', d.artwork || '']);
-              if (metaKey === lastMetaKey) { handlers(); return; }
-              lastMetaKey = metaKey;
-              try {
-                metaDesc.set.call(ms, new MediaMetadata({
-                  title: d.title || '',
-                  artist: d.artist || '',
-                  album: d.album || '',
-                  artwork: d.artwork ? [{ src: d.artwork, sizes: '500x500', type: 'image/jpeg' }] : []
-                }));
-              } catch (err) {}
-              handlers();
+              announce(false);
             });
+
+            // Sets the lock screen info. Only when it changed, unless forced: every new
+            // MediaMetadata makes iOS drop the cover and fetch it again, which in the
+            // background can leave the Dynamic Island without artwork for a while.
+            function announce(force) {
+              if (!state) return;
+              var d = state;
+              var metaKey = JSON.stringify([d.title || '', d.artist || '', d.album || '', d.artwork || '']);
+              if (force || metaKey !== lastMetaKey) {
+                lastMetaKey = metaKey;
+                try {
+                  metaDesc.set.call(ms, new MediaMetadata({
+                    title: d.title || '',
+                    artist: d.artist || '',
+                    album: d.album || '',
+                    artwork: d.artwork ? [{ src: d.artwork, sizes: '500x500', type: 'image/jpeg' }] : []
+                  }));
+                } catch (err) {}
+              }
+              if (force && media && !media.paused && !media.muted) { try { ms.playbackState = 'playing'; } catch (e) {} }
+              handlers();
+            }
 
             post({ hello: true });
           }
