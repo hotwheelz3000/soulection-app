@@ -131,6 +131,16 @@ struct WebView: UIViewRepresentable {
           }
           function bottomInset() { return safeInset('bottom'); }
           var TOP_MARK = 'data-sr-top-inset';
+          function shiftBody(inset) {
+            var body = document.body;
+            if (!body || body.getAttribute(TOP_MARK) === String(inset)) return;
+            var base = body.hasAttribute(TOP_MARK + '-base')
+              ? parseFloat(body.getAttribute(TOP_MARK + '-base'))
+              : (parseFloat(getComputedStyle(body).paddingTop) || 0);
+            body.setAttribute(TOP_MARK + '-base', String(base));
+            body.setAttribute(TOP_MARK, String(inset));
+            body.style.setProperty('padding-top', Math.round(base + inset) + 'px', 'important');
+          }
           function applyTop() {
             var inset = safeInset('top');
             if (!inset) return;
@@ -149,6 +159,10 @@ struct WebView: UIViewRepresentable {
               bar.setAttribute(TOP_MARK + '-base', String(base));
               bar.setAttribute(TOP_MARK, String(inset));
               bar.style.setProperty('padding-top', Math.round(base + inset) + 'px', 'important');
+              // A fixed bar doesn't push the page down, and the page only leaves room
+              // for the bar's original height, so the taller bar would hide the top of
+              // the page. Shift the page content down by the same amount.
+              if (getComputedStyle(bar).position === 'fixed') shiftBody(inset);
               return;
             }
           }
