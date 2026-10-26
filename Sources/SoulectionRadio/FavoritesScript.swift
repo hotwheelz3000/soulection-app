@@ -1392,7 +1392,7 @@ enum FavoritesScript {
               return episodeList;
             });
           }
-          function episodeHeading() { return text(document.querySelector('#episode-card-header h1')); }
+          function episodeHeading() { return text(document.querySelector('#episode-card-header h1, main h1')); }
           function goTo(path, storeKey, storeValue) {
             if (location.pathname.replace(/\/$/, '') === path) return true;
             if (window.next && window.next.router && window.next.router.push) {
@@ -2072,29 +2072,42 @@ enum FavoritesScript {
           function soundcloudFrame() {
             return document.querySelector('iframe[src*="w.soundcloud.com"]');
           }
+          // Points the site's SoundCloud player straight at the show's audio. The script
+          // inside the player (NowPlayingScript) reads sr_start and jumps to the song, so
+          // this doesn't depend on the site's SoundCloud helper or on the page being drawn.
+          function switchFailed(f) {
+            if (!playlist || playlist.current !== f) return;
+            showToast("Couldn't switch to the next song. Tap Next to try another.");
+            endPlaylist(false);
+          }
           function switchInPlayer(f) {
             var frame = soundcloudFrame();
-            if (!frame || !window.SC || !SC.Widget) return openEpisodeAndPlay(f);
+            if (!frame) return switchFailed(f);
             audioLink(f.episodeURL).then(function (link) {
               if (!playlist || playlist.current !== f) return;
-              if (!link) return openEpisodeAndPlay(f);
-              var widget = SC.Widget(frame);
-              var ms = Math.max(0, f.start) * 1000;
+              if (!link) return switchFailed(f);
+              var src;
+              try {
+                var u = new URL(frame.src);
+                u.searchParams.set('url', link);
+                u.searchParams.set('auto_play', 'true');
+                u.searchParams.set('sr_start', String(Math.max(0, f.start)));
+                u.searchParams.set('sr_id', String(Date.now()));
+                src = u.toString();
+              } catch (e) {
+                src = 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(link) +
+                  '&auto_play=true&sr_start=' + Math.max(0, f.start) + '&sr_id=' + Date.now();
+              }
               direct = { number: showNumber(f.show), id: f.id };
               arriving = { id: f.id, since: Date.now(), tries: 1 };
-              var onPlay = function () {
-                widget.unbind(SC.Widget.Events.PLAY);
-                widget.seekTo(ms);
-              };
-              widget.load(link, {
-                auto_play: true,
-                callback: function () {
-                  widget.bind(SC.Widget.Events.PLAY, onPlay);
-                  widget.play();
-                  widget.seekTo(ms);
-                }
-              });
-            }).catch(function () { if (playlist && playlist.current === f) openEpisodeAndPlay(f); });
+              frame.src = src;
+              // If iOS held back autoplay, nudge it once the player has loaded.
+              setTimeout(function () {
+                if (!playlist || playlist.current !== f) return;
+                var st = npState();
+                if (!st || st.paused !== false) { var n = np(); n && n.play(); }
+              }, 4000);
+            }).catch(function () { switchFailed(f); });
           }
           // Back in the app after a background switch: show the playing show's page and let
           // the site take over from the same spot.
@@ -2120,10 +2133,12 @@ enum FavoritesScript {
                 return;
               }
             }
-            var deadline = Date.now() + 15000;
+            var deadline = Date.now() + 5000;
             var wantNumber = showNumber(f.show);
             (function tryClick() {
               if (!playlist || !arriving || arriving.id !== f.id) return;
+              // The page isn't being drawn (app in the background): switch in the player.
+              if (document.hidden && resumeAt == null) return switchInPlayer(f);
               var onPage = location.pathname.replace(/\/$/, '') === f.episodeURL &&
                 (!wantNumber || showNumber(episodeHeading()) === wantNumber);
               if (onPage) {
@@ -2143,7 +2158,13 @@ enum FavoritesScript {
                 }
               }
               if (Date.now() < deadline) setTimeout(tryClick, 250);
-              else endPlaylist(false);
+              else if (resumeAt == null) switchInPlayer(f); // page never got ready
+              else {
+                // Couldn't catch the page up after a background switch. The music is
+                // already right, so leave it playing and keep following it.
+                direct = { number: wantNumber, id: f.id };
+                arriving = null;
+              }
             })();
           }
 
@@ -2191,7 +2212,7 @@ enum FavoritesScript {
                   var n = np();
                   n && n.seek(at);
                 } else if (arriving.tries >= 3 || Date.now() - arriving.since > 20000) {
-                  endPlaylist(false);
+                  switchFailed(f);
                 }
               }
               return;

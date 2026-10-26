@@ -306,14 +306,31 @@ enum NowPlayingScript {
             function track(el) {
               if (!(el instanceof HTMLMediaElement) || media === el) return;
               media = el;
-              ['timeupdate', 'seeked', 'play', 'pause'].forEach(function (name) {
+              ['timeupdate', 'seeked', 'play', 'pause', 'loadedmetadata', 'canplay'].forEach(function (name) {
                 el.addEventListener(name, reportTime);
               });
+            }
+
+            // Set when the app switched shows inside the player (sr_start in the player's
+            // address): jump to the song's start once the audio is ready.
+            var pendingStart = null, startTries = 0;
+            try {
+              var sp = new URLSearchParams(location.search).get('sr_start');
+              if (sp != null && !isNaN(parseFloat(sp))) pendingStart = parseFloat(sp);
+            } catch (e) {}
+            function applyStart() {
+              if (pendingStart == null || !media || media.readyState < 1) return;
+              if (Math.abs(media.currentTime - pendingStart) < 2 && !media.paused) { pendingStart = null; return; }
+              if (++startTries > 20) { pendingStart = null; return; }
+              if (Math.abs(media.currentTime - pendingStart) >= 2) {
+                try { media.currentTime = pendingStart; } catch (e) {}
+              }
             }
 
             var lastReport = 0;
             function reportTime(e) {
               if (!media) return;
+              applyStart();
               var now = Date.now();
               if (e && e.type === 'timeupdate' && now - lastReport < 900) return;
               lastReport = now;
