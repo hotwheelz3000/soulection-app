@@ -5,7 +5,7 @@ import Foundation
 ///
 /// - History: a song is recorded as soon as it starts playing (like Spotify's
 ///   Recently played), saved in the app, newest first, with replays moved to the top.
-/// - Sleep timer: a moon in the top bar. Fixed times run in the app (so they keep
+/// - Sleep timer: a zZZ icon in the top bar that pulses while a timer runs. Fixed times run in the app (so they keep
 ///   going while locked); "End of song" and "End of show" follow playback here.
 /// - Dice: picks a random episode from the site's sitemap and home page and plays it
 ///   from the start.
@@ -55,7 +55,8 @@ enum FavoritesScript {
 
           var DICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/></svg>';
 
-          var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+          // Sleep timer icon: three Z's, small to big, that light up in a wave while it's on.
+          var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(-10 12 12)"><path class="sr-z sr-z1" d="M1.6 15.4h3.6l-3.6 4.2h3.6"/><path class="sr-z sr-z2" d="M7.4 11.6h4.6l-4.6 5.6h4.6"/><path class="sr-z sr-z3" d="M14.2 7h6.6l-6.6 7.6h6.6"/></g></svg>';
 
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
@@ -78,10 +79,13 @@ enum FavoritesScript {
             '.sr-tabbtn[aria-pressed="true"]{color:' + TEXT + '}',
             '.sr-clear[hidden]{display:none}',
             // Sleep timer: moon in the top bar (with time left) and its panel.
-            '.sr-moon-top{font-size:21px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center;gap:4px}',
-            '.sr-moon-top[aria-pressed="true"]{color:' + ACCENT + '}',
-            '.sr-moon-left{font-family:' + FONT + ';font-size:11px;line-height:1;font-variant-numeric:tabular-nums}',
-            '.sr-moon-left:empty{display:none}',
+            '.sr-moon-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center;gap:4px}',
+            '.sr-moon-top[aria-pressed="true"]{color:#fff}',
+            '.sr-moon-top[aria-pressed="true"] svg{fill:none}',
+            '.sr-moon-top[aria-pressed="true"] .sr-z{animation:sr-zz 1.8s ease-in-out infinite}',
+            '.sr-moon-top[aria-pressed="true"] .sr-z2{animation-delay:.3s}',
+            '.sr-moon-top[aria-pressed="true"] .sr-z3{animation-delay:.6s}',
+            '@keyframes sr-zz{0%,100%{opacity:.4}45%{opacity:1}}',
             '.sr-sleep .sr-sheet{min-height:0}',
             '.sr-sleep-title{font-size:13px;line-height:18px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';margin:0}',
             '.sr-sleep-status{font-size:12px;line-height:16px;color:' + MUTED + ';margin-top:3px}',
@@ -729,7 +733,7 @@ enum FavoritesScript {
             if (dice.previousElementSibling !== tab) box.parentElement.insertBefore(dice, tab.nextSibling);
             if (!moon) {
               moon = heartButton('sr-moon-top');
-              moon.innerHTML = MOON + '<span class="sr-moon-left"></span>';
+              moon.innerHTML = MOON;
               moon.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSleep(); });
             }
             if (moon.previousElementSibling !== dice) box.parentElement.insertBefore(moon, dice.nextSibling);
@@ -776,9 +780,6 @@ enum FavoritesScript {
             if (moon.getAttribute('aria-pressed') !== String(on)) moon.setAttribute('aria-pressed', String(on));
             var label = on ? 'Sleep timer on, ' + (sleep.type === 'time' ? sleepText() + ' left' : 'stops at the end of the ' + (sleep.type === 'song' ? 'song' : 'show')) : 'Sleep timer';
             if (moon.getAttribute('aria-label') !== label) moon.setAttribute('aria-label', label);
-            var left = moon.querySelector('.sr-moon-left');
-            var t = sleepText();
-            if (left && left.textContent !== t) left.textContent = t;
             if (sleepPanel && sleepPanel.root.classList.contains('sr-open')) renderSleepStatus();
           }
           function startTick() {
