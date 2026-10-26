@@ -334,6 +334,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     }
 
     /// "Turn on": Save to Files with the current backup; the saved file is then kept up to date.
+    /// The file is moved (not copied) to where the user saves it, which lets the app keep
+    /// writing to it without a second "pick the file" step.
     private func saveBackupToFiles() {
         guard let presenter = presenter() else { return }
         let temp = FileManager.default.temporaryDirectory.appendingPathComponent(Self.autoBackupFileName)
@@ -344,20 +346,20 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return
         }
         pickerPurpose = .saveBackup
-        let picker = UIDocumentPickerViewController(forExporting: [temp], asCopy: true)
+        let picker = UIDocumentPickerViewController(forExporting: [temp], asCopy: false)
         picker.delegate = self
         presenter.present(picker, animated: true)
     }
 
-    /// Pick an existing backup file. Opening a file this way (not saving it) is what gives
-    /// the app permission to keep writing to it. Its songs are merged in first.
-    private func restoreBackupFile(startingIn folder: URL? = nil) {
+    /// Pick an existing backup file and bring its songs in. The file is copied in (opening
+    /// it in place doesn't respond on some installs), then Save to Files opens so the
+    /// backup can be saved back and kept up to date.
+    private func restoreBackupFile() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .restoreBackup
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = false
-        if let folder { picker.directoryURL = folder }
         presenter.present(picker, animated: true)
     }
 
@@ -603,9 +605,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         )
     }
 
-    private func notePickSavedFile() {
+    private func noteSaveBackBackup(restored: Int) {
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.pickSavedFile && window.__soulectionFavorites.pickSavedFile();",
+            "window.__soulectionFavorites && window.__soulectionFavorites.pickSavedFile && window.__soulectionFavorites.pickSavedFile(\(restored));",
             completionHandler: nil
         )
     }
@@ -670,13 +672,19 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         guard let url = urls.first else { return }
         switch pickerPurpose {
         case .saveBackup:
-            // Saved. iOS only lets the app read a file it saved out, so ask the user to tap
-            // the file they just saved; picking it grants permission to keep it updated.
-            let folder = url.deletingLastPathComponent()
-            notePickSavedFile()
-            Task { @MainActor [weak self] in
-                try? await Task.sleep(for: .milliseconds(700)) // let the Save sheet close first
-                self?.restoreBackupFile(startingIn: folder)
+            // Saved (moved) to the user's chosen spot: remember it and keep it up to date.
+            guard rememberBackupFile(url) else {
+                send()
+                toast("Saved, but iOS won't let the app keep that file updated.")
+                return
+            }
+            let ok = writeAutoBackup()
+            send()
+            let place = url.deletingLastPathComponent().lastPathComponent
+            if ok {
+                toast("Auto-backup on: saving to \(place).")
+            } else {
+                toast("Auto-backup couldn't write to that file: " + (lastWriteFailure ?? "unknown reason") + ".")
             }
             return
         case .restoreBackup:
@@ -686,18 +694,11 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             }
             let restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
-            guard rememberBackupFile(url) else {
-                send()
-                toast((restored > 0 ? "Restored \(restored) songs, but " : "") + "iOS won't let the app keep that file updated.")
-                return
-            }
-            let ok = writeAutoBackup()
             send()
-            let place = url.deletingLastPathComponent().lastPathComponent
-            if ok {
-                toast((restored > 0 ? "Restored \(restored) songs. " : "") + "Auto-backup on: saving to \(place).")
-            } else {
-                toast("Auto-backup couldn't write to that file: " + (lastWriteFailure ?? "unknown reason") + ".")
+            noteSaveBackBackup(restored: restored)
+            Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .milliseconds(1500)) // let the picker close first
+                self?.saveBackupToFiles()
             }
             return
         case .importFile:

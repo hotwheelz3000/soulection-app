@@ -365,7 +365,7 @@ enum FavoritesScript {
 
           window.__soulectionFavorites = {
             toast: function (message) { showToast(message); },
-            pickSavedFile: function () { pickSavedFileNote(); },
+            pickSavedFile: function (restored) { pickSavedFileNote(restored); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -442,7 +442,7 @@ enum FavoritesScript {
             setTimeout(function () {
               var n = showNote(
                 '<div class="sr-note-title">Restore your Likes and History?</div>' +
-                '<div>If you had auto-backup on, pick your backup file (Soulection Radio Backup.json, e.g. in iCloud Drive). Everything comes back and auto-backup keeps going.</div>' +
+                '<div>If you had auto-backup on, pick your backup file (Soulection Radio Backup.json, e.g. in iCloud Drive). Everything comes back, then save it once to keep auto-backup going.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) return;
               var actions = n.querySelector('.sr-actions');
@@ -465,9 +465,9 @@ enum FavoritesScript {
                ['Create one', function () { native({ op: 'backupCreate' }); }],
                ['Cancel', null]]);
           }
-          function pickSavedFileNote() {
-            showNote('<div class="sr-note-title">One more tap</div>' +
-              '<div>Tap the Soulection Radio Backup.json you just saved, so the app can keep it up to date.</div>', 6000);
+          function pickSavedFileNote(restored) {
+            showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + ' songs' : 'Backup read') + '</div>' +
+              '<div>Now save it back to keep auto-backup going: pick the same folder, tap Save, then Replace.</div>', 8000);
           }
 
           function renderAutoBackup() {

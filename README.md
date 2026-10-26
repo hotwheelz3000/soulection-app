@@ -22,10 +22,10 @@ An iPhone app for [Soulection Radio](https://radio.soulection.com/). It's the sa
 - **Random show.** Tap the dice next to the search box to start a random episode from the very beginning.
 - **Mixtape.** Tap the cassette for endless random songs from random shows. Each song is added to your Likes and History, even if you skip it. Remove any you don't want. Next skips to another song, and it keeps going with your phone locked. Tap the cassette again to stop.
 - **Automatic backup to iCloud Drive.** In the Favorites or History panel, tap **Turn on** next to Auto-backup:
-  - **Use my backup file** if you already have `Soulection Radio Backup.json`: pick it, and the app keeps it up to date.
-  - **Create one** if you don't: "Save to Files" opens, pick a folder in iCloud Drive (for example "Soulection") and tap **Save**, then tap the file you just saved. That second tap is what lets the app keep updating it.
+  - **Create one:** "Save to Files" opens. Pick a folder in iCloud Drive (for example "Soulection") and tap **Save**. That's it.
+  - **Use my backup file** if you already have `Soulection Radio Backup.json`: pick it to bring its songs in, then save it back to the same folder (tap **Save**, then **Replace**).
   From then on the file is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or losing your phone.
-- **Restoring after a reinstall.** When you open a fresh install, the app offers to restore: tap **Pick backup file** and choose `Soulection Radio Backup.json`. Everything comes back and auto-backup keeps going with that same file.
+- **Restoring after a reinstall.** When you open a fresh install, the app offers to restore: tap **Pick backup file** and choose `Soulection Radio Backup.json`. Everything comes back. Then save it back to the same folder (**Save**, then **Replace**) and auto-backup keeps going.
 - **Manual backups.** **Export** saves a one-off backup file anywhere you like, and **Import** brings one back. Imported songs are added to the ones you already have. If auto-backup is off, the app reminds you every 4 new favorites.
 - **Feels like the website.** Full screen, edge to edge, same look, same episodes and search. Everything the app adds uses the site's own colors and fonts.
 - **Works with your speakers.** AirPlay to your TV or speakers is supported.
