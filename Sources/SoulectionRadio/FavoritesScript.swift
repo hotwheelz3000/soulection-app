@@ -2160,6 +2160,7 @@ enum FavoritesScript {
               if (!paths.length) throw new Error('no shows');
               var others = avoid ? paths.filter(function (p) { return p !== avoid.episodeURL; }) : paths;
               if (others.length) paths = others;
+              else avoidNumber = null; // only one show: it has to be that one
               var path = paths[Math.floor(Math.random() * paths.length)];
               return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
                 var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -2823,6 +2824,7 @@ enum FavoritesScript {
             mixNext = null;
             mixNextItem = null;
             direct = null;
+            blendIn();
             retireOurs();
             renderTape();
             schedule();
@@ -3124,6 +3126,7 @@ enum FavoritesScript {
             direct = { number: directShown.number, id: h.f.id, heard: true };
             if (h.oldFrame) setTimeout(function () { removeFrame(h.oldFrame); }, 3000);
             renderMiniPlayer(miniPlayer());
+            blendIn();
           }
           function switchInPlayer(f) { return handoff(f); }
 
@@ -3286,6 +3289,17 @@ enum FavoritesScript {
             playCurrent();
           }
 
+          // Blend: with the app open, a switch to another show dips the volume over the old
+          // song's last seconds and brings it back once the new song plays (done natively;
+          // with the app in the background iOS would show its volume bar, so no blend then).
+          var blending = false;
+          function blendIn() {
+            if (!blending) return;
+            blending = false;
+            native({ op: 'blendIn' });
+          }
+          document.addEventListener('visibilitychange', function () { if (document.hidden) blending = false; });
+
           // Follows playback: confirms the switch to a favorite, moves on at its end, and
           // ends playlist mode when a different show starts playing.
           function followPlayback(st) {
@@ -3301,6 +3315,8 @@ enum FavoritesScript {
               if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20 && st.paused !== true) {
                 arriving = null;
                 if (direct && direct.id === f.id) direct.heard = true;
+                if (pageFallbackFor === f.id) pageFallbackFor = null; // it arrived; next time is a fresh try
+                blendIn();
               } else if (Date.now() - arriving.since > 7000) {
                 if (st && playingNumber === number && arriving.tries < 3) {
                   arriving.tries++;
@@ -3319,6 +3335,10 @@ enum FavoritesScript {
             if (playingNumber !== number) return endPlaylist(false);
             var end = f.end != null ? f.end : (st.duration || Infinity);
             var left = end - st.t;
+            if (left < 3.2 && left > 0.4 && !st.paused && !blending && !document.hidden && upcoming()) {
+              blending = true;
+              native({ op: 'blendOut', seconds: Math.max(0.5, left - 0.4) });
+            }
             if (left <= 0.4) return nextFavorite();
             if (left < 30 && !st.paused) { prepareStandby(upcoming()); ensureStandbyLoaded(); }
             // Playback updates arrive about once a second; check again right at the end.

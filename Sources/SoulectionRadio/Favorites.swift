@@ -229,7 +229,11 @@ final class FavoritesStore {
 /// `seconds`), "sleepNow" or
 /// "airplay" (show the AirPlay picker), "backupFolder" (pick the auto-backup folder),
 /// "backupCreate" / "backupUseFile" (set up auto-backup), "backupFolderOff",
-/// "restoreDismissed" or "welcomeSeen".
+/// "restoreBackup" (pick a backup to restore), "restoreDismissed", "welcomeSeen",
+/// "notifyPermission" (ask once for new-show notifications), "haptic" (with `kind`),
+/// "share" (with `text`, `url`), "openURL" (Spotify / Apple Music search links only),
+/// "blendOut" (with `seconds`: dip the volume before a switch to another show) or
+/// "blendIn" (bring it back up). Anything else ("get") just sends the list back.
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
@@ -556,6 +560,14 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
             startFade(over: seconds)
             return
+        case "blendOut":
+            // A switch to another show is coming: dip the volume over its last seconds.
+            let seconds = (body["seconds"] as? Double) ?? 3
+            blendOut(over: min(max(seconds, 0.5), 4))
+            return
+        case "blendIn":
+            blendIn()
+            return
         case "sleepNow":
             // "End of song" / "End of show" are watched by the page; it asks us to stop.
             sleepTimer?.invalidate()
@@ -659,6 +671,115 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         if restore, let volume = volumeBeforeFade {
             setSystemVolume(volume)
             volumeBeforeFade = nil
+        }
+    }
+
+    // MARK: Blend between shows
+    //
+    // Only one player can play at a time, so two songs can't overlap. Instead, a switch to
+    // another show dips the phone's volume over the old song's last seconds, the new song
+    // starts while it's low, and the volume comes back up. Only while the app is open on
+    // screen: there the hidden volume slider keeps iOS's volume bar from showing (with the
+    // app in the background, iOS would show the bar over whatever app is open).
+    private static let blendFloor: Float = 0.15  // dips to 15% of your volume, never silent
+    private static let blendInLength: Double = 3
+    private static let blendHoldLimit: Double = 12 // brought back up anyway after this
+    private var blendTask: Task<Void, Never>?
+    private var volumeBeforeBlend: Float?
+    private var blendObserverAdded = false
+
+    private func blendOut(over seconds: Double) {
+        guard UIApplication.shared.applicationState == .active,
+              fadeTask == nil, volumeBeforeFade == nil, // the sleep timer's fade comes first
+              volumeBeforeBlend == nil
+        else { return }
+        addBlendObserver()
+        let start = AVAudioSession.sharedInstance().outputVolume
+        guard start > 0.02, volumeSlider() != nil else { return }
+        volumeBeforeBlend = start
+        let floor = start * Self.blendFloor
+        runBlend(from: start, to: floor, over: seconds) { [weak self] in
+            // Hold it low until the new song is playing (the page says so), but not forever.
+            guard let self else { return }
+            self.blendTask = Task { @MainActor [weak self] in
+                try? await Task.sleep(for: .seconds(Self.blendHoldLimit))
+                guard let self, !Task.isCancelled else { return }
+                self.blendTask = nil
+                self.blendIn()
+            }
+        }
+    }
+
+    private func blendIn() {
+        guard let target = volumeBeforeBlend else { return }
+        blendTask?.cancel()
+        blendTask = nil
+        guard UIApplication.shared.applicationState == .active else {
+            volumeBeforeBlend = nil
+            return
+        }
+        let from = AVAudioSession.sharedInstance().outputVolume
+        runBlend(from: from, to: target, over: Self.blendInLength) { [weak self] in
+            self?.volumeBeforeBlend = nil
+        }
+    }
+
+    /// Slides the volume between two levels. If you change the volume yourself meanwhile,
+    /// it stops and keeps yours.
+    private func runBlend(from: Float, to: Float, over seconds: Double, then done: @escaping @MainActor () -> Void) {
+        blendTask?.cancel()
+        let began = Date()
+        let goingUp = to > from
+        blendTask = Task { @MainActor [weak self] in
+            var lastSet = from
+            var recent: [Float] = [from] // the last few levels set (iOS reports the volume a bit late)
+            while !Task.isCancelled {
+                try? await Task.sleep(for: .milliseconds(100))
+                guard let self, !Task.isCancelled else { return }
+                let now = AVAudioSession.sharedInstance().outputVolume
+                // Moving against the fade by more than a little = your volume buttons.
+                let userMoved = goingUp ? now < (recent.min() ?? lastSet) - 0.05 : now > (recent.max() ?? lastSet) + 0.05
+                if userMoved {
+                    self.blendTask = nil
+                    self.volumeBeforeBlend = nil // keep yours
+                    return
+                }
+                if UIApplication.shared.applicationState != .active {
+                    // Leaving the app: straight back to your volume while still on screen.
+                    if let volume = self.volumeBeforeBlend { self.setSystemVolume(volume) }
+                    self.blendTask = nil
+                    self.volumeBeforeBlend = nil
+                    return
+                }
+                let progress = Float(min(1, Date().timeIntervalSince(began) / max(seconds, 0.1)))
+                // Ease in-out so the change feels even to the ear.
+                let eased = progress * progress * (3 - 2 * progress)
+                lastSet = from + (to - from) * eased
+                recent.append(lastSet)
+                if recent.count > 5 { recent.removeFirst() }
+                self.setSystemVolume(lastSet)
+                if progress >= 1 {
+                    self.blendTask = nil
+                    done()
+                    return
+                }
+            }
+        }
+    }
+
+    /// Leaving the app mid-blend: put the volume straight back while the app is still on
+    /// screen (so iOS shows no volume bar).
+    private func addBlendObserver() {
+        guard !blendObserverAdded else { return }
+        blendObserverAdded = true
+        NotificationCenter.default.addObserver(forName: UIApplication.willResignActiveNotification, object: nil, queue: .main) { [weak self] _ in
+            MainActor.assumeIsolated {
+                guard let self, let volume = self.volumeBeforeBlend else { return }
+                self.blendTask?.cancel()
+                self.blendTask = nil
+                self.volumeBeforeBlend = nil
+                self.setSystemVolume(volume)
+            }
         }
     }
 
