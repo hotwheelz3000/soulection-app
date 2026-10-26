@@ -2432,6 +2432,13 @@ enum FavoritesScript {
               mine.win = mine.frame.contentWindow;
               var n = np();
               if (n && n.setStandby) n.setStandby(mine.win, true);
+              // Download the cover now and hand the player its song info, so at the switch
+              // the lock screen doesn't wait for the image.
+              var cover = g.cover || info.cover;
+              if (cover) { var pre = new Image(); pre.src = cover; mine.coverImage = pre; }
+              var meta = { title: g.song, artist: g.artist, album: g.show, artwork: cover };
+              var send = function () { if (standby === mine && n && n.preview) n.preview(mine.frame.contentWindow, meta); };
+              mine.frame.addEventListener('load', function () { send(); setTimeout(send, 1000); });
             }).catch(function () { if (standby === mine) standby = null; });
           }
 

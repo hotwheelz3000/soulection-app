@@ -72,6 +72,8 @@ enum NowPlayingScript {
             var standbys = [];        // contentWindows of players loaded ahead (not in charge yet)
             var frameTimes = [];      // [{win, t, paused, duration, at}]
             var direct = null;        // {number, show, cover, episodeURL, tracks}
+            // Cover addresses must be absolute: the player frame is on another site.
+            function abs(u) { try { return u ? new URL(u, location.href).href : ''; } catch (e) { return u || ''; } }
             function timeOf(win) {
               for (var i = 0; i < frameTimes.length; i++) if (frameTimes[i].win === win) return frameTimes[i];
               return null;
@@ -177,7 +179,7 @@ enum NowPlayingScript {
                 title = override.title;
                 artist = override.artist;
                 album = override.album;
-                artwork = override.artwork || artwork;
+                artwork = abs(override.artwork) || artwork;
               }
               var slider2 = player.querySelector('[role="slider"][aria-valuemax]');
               var duration = slider2 ? parseFloat(slider2.getAttribute('aria-valuemax')) : NaN;
@@ -237,6 +239,8 @@ enum NowPlayingScript {
               lastSentAt = now;
               setMetadata(state);
               playerFrames().forEach(function (f) {
+                // A player loaded ahead already has the next song's info (see preview).
+                if (standbys.indexOf(f.contentWindow) >= 0) return;
                 try { f.contentWindow.postMessage(state, '*'); } catch (e) {}
               });
             }
@@ -330,6 +334,16 @@ enum NowPlayingScript {
               },
               setDirect: function (info) { direct = info || null; lastSent = ''; schedule(); },
               toFrame: toFrame,
+              // Gives a player loaded ahead its song's lock screen info before it plays, so the
+              // name and cover change together at the switch.
+              preview: function (win, meta) {
+                try {
+                  win.postMessage({
+                    type: MSG, title: meta.title || '', artist: meta.artist || '', album: meta.album || '',
+                    artwork: abs(meta.artwork), starts: [], index: -1, playlist: !!playlist
+                  }, '*');
+                } catch (e) {}
+              },
               timeOf: function (win) { return timeOf(win); }
             };
           }
