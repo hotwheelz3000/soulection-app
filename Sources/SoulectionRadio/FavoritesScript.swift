@@ -299,6 +299,10 @@ enum FavoritesScript {
             // Message buttons: compact (still at least 30px tall to tap).
             '.sr-note .sr-btn{padding:5px 10px;font-size:13px;line-height:18px;gap:6px;border-radius:7px}',
             '.sr-note .sr-btn svg{width:15px;height:15px;color:inherit}',
+            // Song menu: equal tiles, icon above a small label.
+            '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
+            '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
+            '.sr-note.sr-tiles .sr-btn svg{width:18px;height:18px}',
             '.sr-note-title{font-weight:600}'
           ].join('\n');
 
@@ -502,6 +506,7 @@ enum FavoritesScript {
             noteWithButtons('<div class="sr-note-title">' + esc(f.song || '') + '</div><div>' + esc(f.artist || '') + '</div>', buttons);
             if (!note) return;
             var menu = note;
+            menu.classList.add('sr-tiles');
             // The ... button stays lit while its menu is open; tapping it again, tapping
             // anywhere else, or Escape closes the menu.
             var outside = function (e) {
@@ -2406,7 +2411,15 @@ enum FavoritesScript {
             root.querySelector('.sr-np-airplay').addEventListener('click', function () { native({ op: 'airplay' }); });
             root.querySelector('.sr-np-more').addEventListener('click', function () {
               var f = (playlist && playlist.current) || currentTrack();
-              if (f) songActions(f, null, this); else showToast('Play a song from a show first.');
+              if (!f) {
+                // Between songs (the intro or the host talking): share or find the show itself.
+                var st = npState();
+                if (st && st.episodeURL) {
+                  var showName = (st.show || ('Show #' + st.number)).split(' | ')[0];
+                  f = { song: 'Soulection Radio ' + showName.replace(/^Show /, ''), artist: 'Soulection', show: st.show, episodeURL: st.episodeURL, start: st.t != null ? Math.floor(st.t) : null };
+                }
+              }
+              if (f) songActions(f, null, this); else showToast('Play a show first.');
             });
             fp.heart.addEventListener('click', function () {
               var t = currentTrack();
