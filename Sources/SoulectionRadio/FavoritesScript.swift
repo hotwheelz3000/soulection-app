@@ -6,8 +6,8 @@ import Foundation
 ///   site's mini player for the current song. Tapping saves or removes the song.
 /// - Storage: the list lives in the app (FavoritesBridge, UserDefaults), not in the
 ///   website's storage. The page asks for it on load and gets it back after changes.
-/// - Sheet: swipe up on the mini player (it gets a grab handle), or on a small tab at
-///   the bottom when nothing is playing. Lists favorites newest first, with swipe left
+/// - Sheet: swipe up on the mini player (it gets a grab handle), or tap the heart
+///   button in the top bar, next to search. Lists favorites newest first, with swipe left
 ///   to remove, "Play in order" and "Shuffle", and Export/Import to back them up
 ///   (every 4 new favorites a reminder suggests exporting). Swipe down or tap outside to close.
 ///   Styled with the site's own values (read from radio.soulection.com): background
@@ -56,6 +56,7 @@ enum FavoritesScript {
             '.sr-song-cell{display:flex;align-items:flex-start;gap:6px}',
             '.sr-heart-mini{font-size:23px;padding:9px;border-radius:9999px;flex:none;margin-left:auto;order:1}',
             '.sr-heart-mini[hidden]{display:none}',
+            '.sr-heart-top{font-size:23px;padding:8px;margin:0 -4px 0 4px;flex:none;align-self:center}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
             '.sr-grab::after{margin:5px auto 0}',
@@ -525,17 +526,26 @@ enum FavoritesScript {
           }
 
           // The tab at the bottom of the screen when no show is playing.
-          function renderTab() {
-            if (!document.body) return;
-            if (!tab) {
-              tab = el('div', 'sr-tab', '<div class="sr-tab-bar"></div><div>Favorites</div>');
-              tab.setAttribute('role', 'button');
-              tab.setAttribute('aria-label', 'Show favorites');
-              tab.addEventListener('click', openSheet);
-              document.body.appendChild(tab);
+          // A heart button in the site's top bar, next to the search box, opens the
+          // Favorites sheet (it replaces the old floating tab).
+          function searchBox() {
+            var input = document.querySelector('input[placeholder*="Search" i]');
+            if (!input) return null;
+            // Climb to the box that sits beside the logo / back link in the top bar row.
+            for (var e = input; e && e.parentElement && e.parentElement !== document.body; e = e.parentElement) {
+              if (e.parentElement.children.length > 1) return e;
             }
-            var hide = !!miniPlayer() || isOpen();
-            if (tab.hidden !== hide) tab.hidden = hide;
+            return null;
+          }
+          function renderTab() {
+            var box = searchBox();
+            if (!box || !box.parentElement) return;
+            if (!tab) {
+              tab = heartButton('sr-heart-top');
+              tab.setAttribute('aria-label', 'Show favorites');
+              tab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(); });
+            }
+            if (tab.previousElementSibling !== box) box.parentElement.insertBefore(tab, box.nextSibling);
           }
 
           // Swipe up on the mini player (or the tab) to open the sheet.
