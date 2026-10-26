@@ -300,6 +300,9 @@ enum FavoritesScript {
             '.sr-note .sr-btn{padding:5px 10px;font-size:13px;line-height:18px;gap:6px;border-radius:7px}',
             '.sr-note .sr-btn svg{width:15px;height:15px;color:inherit}',
             // Song menu: equal tiles, icon above a small label.
+            // ...and it pops out from the left, like a word bubble (same place and shape).
+            '.sr-note.sr-tiles{transform-origin:left center;animation:sr-pop .26s cubic-bezier(.2,.9,.3,1.2)}',
+            '@keyframes sr-pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
             '.sr-note.sr-tiles .sr-btn svg{width:18px;height:18px}',
