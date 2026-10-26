@@ -365,6 +365,7 @@ enum FavoritesScript {
 
           window.__soulectionFavorites = {
             toast: function (message) { showToast(message); },
+            pickSavedFile: function () { pickSavedFileNote(); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -426,7 +427,7 @@ enum FavoritesScript {
             var onBtn = el('button', 'sr-btn', CLOUD + '<span>Turn on</span>');
             var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
             onBtn.type = laterBtn.type = 'button';
-            onBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupFolder' }); });
+            onBtn.addEventListener('click', function () { hideNote(); chooseAutoBackup(); });
             laterBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupLater' }); });
             actions.appendChild(onBtn);
             actions.appendChild(laterBtn);
@@ -453,6 +454,20 @@ enum FavoritesScript {
               actions.appendChild(pickBtn);
               actions.appendChild(noBtn);
             }, 1500);
+          }
+
+          // Turn on / Change: use a backup file you already have, or create one.
+          function chooseAutoBackup() {
+            noteWithButtons(
+              '<div class="sr-note-title">Auto-backup</div>' +
+              '<div>Pick your Soulection Radio Backup.json if you have one, or create a new one (for example in iCloud Drive).</div>',
+              [['Use my backup file', function () { native({ op: 'backupUseFile' }); }],
+               ['Create one', function () { native({ op: 'backupCreate' }); }],
+               ['Cancel', null]]);
+          }
+          function pickSavedFileNote() {
+            showNote('<div class="sr-note-title">One more tap</div>' +
+              '<div>Tap the Soulection Radio Backup.json you just saved, so the app can keep it up to date.</div>', 6000);
           }
 
           function renderAutoBackup() {
@@ -701,7 +716,7 @@ enum FavoritesScript {
             var auto = el('div', 'sr-auto', '<span class="sr-auto-text"></span>');
             var autoBtn = el('button', 'sr-btn', CLOUD + '<span></span>');
             autoBtn.type = 'button';
-            autoBtn.addEventListener('click', function () { native({ op: 'backupFolder' }); });
+            autoBtn.addEventListener('click', chooseAutoBackup);
             auto.appendChild(autoBtn);
             head.appendChild(auto);
             var list = el('div', 'sr-list');
@@ -1117,7 +1132,14 @@ enum FavoritesScript {
             w.setAttribute('role', 'dialog');
             w.setAttribute('aria-label', 'Welcome');
             document.body.appendChild(w);
-            fitOneLine(w.querySelector('.sr-welcome-title'), 28, 16);
+            var title = w.querySelector('.sr-welcome-title');
+            var refit = function () { if (w.isConnected) fitOneLine(title, 28, 14); };
+            refit();
+            // The site's font is wider than the fallback; fit again once it has loaded.
+            try { document.fonts && document.fonts.ready.then(refit); } catch (e) {}
+            setTimeout(refit, 300);
+            setTimeout(refit, 1200);
+            window.addEventListener('resize', refit);
             void w.offsetHeight;
             w.classList.add('sr-show');
             w.querySelector('.sr-welcome-go').addEventListener('click', function () {
