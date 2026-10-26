@@ -1,56 +1,54 @@
 # Soulection Radio
 
-A full-screen iOS wrapper around [radio.soulection.com](https://radio.soulection.com/), built with [xtool](https://xtool.sh).
+A full-screen iOS app for [radio.soulection.com](https://radio.soulection.com/), built Xcode-free with [xtool](https://xtool.sh). It looks and behaves like the Safari home-screen web app, plus reliable background audio and a lock screen that follows each song.
 
-- Audio keeps playing with the screen locked or the app in the background (`UIBackgroundModes: audio` in `SoulectionRadio-Info.plist`, `AVAudioSession` `.playback` category in `SoulectionRadioApp.swift`).
-- Inline media playback with no user-gesture requirement, AirPlay and Picture in Picture enabled.
-- Lock screen / Now Playing follows the current song from the episode tracklist; next/previous track jump between tracklist timestamps (`Sources/SoulectionRadio/NowPlayingScript.swift`).
-- Edge to edge like a Safari home-screen web app: the web view fills the screen and the page handles safe areas with CSS `env(safe-area-inset-*)` (`viewport-fit=cover` is injected if missing). Pull-to-refresh, swipe back/forward, and links leaving `soulection.com` open in Safari (`Sources/SoulectionRadio/WebView.swift`).
-- App icon: `Resources/AppIcon.png` (`iconPath` in `xtool.yml`), produced by `scripts/fetch-app-icon.py` from the site's largest icon. The Build IPA workflow runs the script and commits the result if the icon is missing.
+## Features
 
----
+- **Background audio:** keeps playing with the screen locked or the app in the background (`UIBackgroundModes: audio` in `SoulectionRadio-Info.plist`, `AVAudioSession` `.playback` category in `SoulectionRadioApp.swift`).
+- **Edge to edge:** the web view fills the whole screen and the page handles safe areas with CSS `env(safe-area-inset-*)`. `viewport-fit=cover` is injected if the page lacks it.
+- **Lock screen / Now Playing follows the current song:** title, artist, show name and episode cover update as the tracklist moves. Next/previous track jump between tracklist timestamps (previous restarts the current song unless you're under 3 seconds in). Playback runs inside an embedded SoundCloud player, so the script runs in both the Soulection page and that player.
+- **Browsing:** pull to refresh, swipe back/forward, and links that leave `soulection.com` open in Safari.
+- **Playback extras:** inline media playback with no tap required, AirPlay and Picture in Picture.
 
-## Template notes (xtool)
+## Files
 
-A starting point for SwiftUI iOS apps built with [xtool](https://xtool.sh): SwiftPM instead of an Xcode project, and a GitHub Actions workflow that builds an unsigned `.ipa` on every push to `main`.
+| Path | What it does |
+| --- | --- |
+| `Sources/SoulectionRadio/SoulectionRadioApp.swift` | App entry point, audio session setup |
+| `Sources/SoulectionRadio/ContentView.swift` | Root view |
+| `Sources/SoulectionRadio/WebView.swift` | WKWebView wrapper: edge to edge, refresh, gestures, external links |
+| `Sources/SoulectionRadio/NowPlayingScript.swift` | Injected script that drives lock-screen song info and track buttons |
+| `Sources/SoulectionRadio/PageAppearance.swift` | Remembers the page background color between launches |
+| `SoulectionRadio-Info.plist` | Background audio mode (`infoPath` in `xtool.yml`) |
+| `xtool.yml` | App name, bundle ID, icon and Info.plist paths |
+| `Resources/AppIcon.png` | App icon |
+| `scripts/fetch-app-icon.py` | Fallback: builds an icon from the site's favicon if `AppIcon.png` is missing |
+| `.github/workflows/build-ipa.yml` | Builds the unsigned IPA on every push to `main` |
 
-What's here:
+## App icon
 
-- `Package.swift`, `xtool.yml`, `Sources/MyApp/`: a placeholder "Hello, world!" SwiftUI app, so the template builds as-is.
-- `rename-app.sh`: renames the placeholder to your app.
-- `.github/workflows/build-ipa.yml`: builds the `.ipa` on macOS and uploads it.
-- `.claude/skills/using-xtool/`: a Claude Code skill with xtool reference notes.
+The icon is the chrome Soulection eye on black, at `Resources/AppIcon.png` (1024×1024 PNG, no transparency). To change it, replace that file and push. If the file is ever deleted, the build workflow runs `scripts/fetch-app-icon.py` to generate one from the site's favicon and commits it.
 
-## Start a new app
-
-1. On GitHub, click **Use this template → Create a new repository** (or clone this repo and push it to a new one).
-2. Clone your new repo and rename the app (below).
-3. Commit and push to `main`. The workflow builds your IPA.
-
-## Rename the app
-
-```bash
-./rename-app.sh CoffeeLog com.yourname.CoffeeLog
-```
-
-The first argument is the app name. It becomes a Swift module and type name, so use letters, digits and `_` only (no spaces or hyphens). The second is the bundle ID.
-
-The script updates the names in `Package.swift`, sets `product:` and `bundleID:` in `xtool.yml`, renames `Sources/MyApp/` and `MyAppApp.swift`, and renames the `MyAppApp` struct. Run it again any time to rename once more.
+After installing a build with a new icon, delete the old app first so iOS doesn't keep the cached icon.
 
 ## Download the IPA
 
 1. Open the repo's **Actions** tab and pick the latest **Build IPA** run. To build without pushing, choose **Build IPA → Run workflow**.
-2. At the bottom of the run page, under **Artifacts**, download **`<AppName>-ipa`**. It's a zip containing `<AppName>.ipa`.
+2. At the bottom of the run page, under **Artifacts**, download **SoulectionRadio-ipa**. It's a zip containing `SoulectionRadio.ipa`.
 
-The workflow reads the app name from `product:` in `xtool.yml`, so the file is named after your app. GitHub keeps artifacts for 90 days by default.
-
-The IPA is **unsigned**, so an iPhone won't install it directly. Sign it when installing, for example with `xtool install` after `xtool auth login`, or with a sideloading tool such as Sideloadly or AltStore.
+The IPA is **unsigned**. Sign it when installing, for example with `xtool install` after `xtool auth login`, or with Sideloadly or AltStore. GitHub keeps artifacts for 90 days.
 
 ## Build locally
 
 With xtool installed ([macOS](https://xtool.sh/documentation/xtooldocs/installation-macos), [Linux/Windows](https://xtool.sh/documentation/xtooldocs/installation-linux)):
 
 ```bash
-xtool dev build --ipa   # unsigned IPA at xtool/<AppName>.ipa
+xtool dev build --ipa   # unsigned IPA at xtool/SoulectionRadio.ipa
 xtool dev               # build, sign and run on a connected device
 ```
+
+## Notes
+
+- Made from the `my-ios-app` template, renamed with `./rename-app.sh SoulectionRadio com.hotwheelz3000.SoulectionRadio`.
+- The Now Playing script depends on the site's current markup (tracklist rows and the bottom player). If Soulection redesigns the site, the lock-screen song info may stop updating while playback keeps working.
+- `.claude/skills/using-xtool/` holds xtool reference notes for Claude Code sessions.
