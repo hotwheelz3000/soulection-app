@@ -443,11 +443,17 @@ enum FavoritesScript {
           // Backup reminder and short messages
           // ---------------------------------------------------------------------------
           var note = null, noteTimer = null, reminded = false;
+          var waitingToasts = [];
           function showNote(html, ms) {
             if (!document.body) return null;
+            // A message that waits for an answer (like the backup reminder) isn't pushed away
+            // by a short one; the short one shows after it closes.
+            if (note && note.__sticky && ms) { waitingToasts.push([html, ms]); return null; }
+            if (note && note.__sticky && note.__onReplaced) note.__onReplaced();
             if (note) note.remove();
             clearTimeout(noteTimer);
             note = el('div', 'sr-note', html);
+            note.__sticky = !ms;
             note.setAttribute('role', 'status');
             document.body.appendChild(note);
             void note.offsetHeight;
@@ -462,19 +468,30 @@ enum FavoritesScript {
             note = null;
             n.classList.remove('sr-show');
             setTimeout(function () { n.remove(); }, 250);
+            if (waitingToasts.length) {
+              var next = waitingToasts.shift();
+              setTimeout(function () { showNote(next[0], next[1]); }, 300);
+            }
           }
           function showToast(message) { showNote('<div>' + esc(message) + '</div>', 2600); }
           // Every few new favorites, suggest exporting a backup (once per page load).
           function maybeRemindBackup() {
-            if (reminded || autoBackup.on) return;
+            // Also when auto-backup is on but failing: nothing is being saved then.
+            if (reminded || welcomeOpen || (autoBackup.on && !autoBackup.error)) return;
             reminded = true;
-            var n = showNote(
-              '<div class="sr-note-title">Back up your favorites?</div>' +
-              '<div>Turn on auto-backup to iCloud Drive and your Likes and History are kept even if the app is deleted.</div>' +
-              '<div class="sr-actions"></div>', 0);
+            var failing = autoBackup.on && autoBackup.error;
+            var n = showNote(failing
+              ? '<div class="sr-note-title">Auto-backup isn\'t saving</div>' +
+                '<div>Your newest Likes aren\'t in your backup file yet. Set auto-backup up again to keep them safe.</div>' +
+                '<div class="sr-actions"></div>'
+              : '<div class="sr-note-title">Back up your favorites?</div>' +
+                '<div>Turn on auto-backup to iCloud Drive and your Likes and History are kept even if the app is deleted.</div>' +
+                '<div class="sr-actions"></div>', 0);
             if (!n) { reminded = false; return; }
+            // Pushed away by another message before you answered: it can come back.
+            n.__onReplaced = function () { reminded = false; };
             var actions = n.querySelector('.sr-actions');
-            var onBtn = el('button', 'sr-btn', CLOUD + '<span>Turn on</span>');
+            var onBtn = el('button', 'sr-btn', CLOUD + '<span>' + (failing ? 'Set up again' : 'Turn on') + '</span>');
             var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
             onBtn.type = laterBtn.type = 'button';
             onBtn.addEventListener('click', function () { hideNote(); chooseAutoBackup(); });
