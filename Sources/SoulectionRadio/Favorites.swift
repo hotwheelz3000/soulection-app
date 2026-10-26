@@ -173,12 +173,19 @@ final class FavoritesStore {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// Writes a backup file to the temporary folder for sharing.
-    func writeBackup() throws -> URL {
+    /// The backup file's contents: favorites and history.
+    func backupData() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        let data = try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history))
+        return try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history))
+    }
+
+    var isEmpty: Bool { favorites.isEmpty && history.isEmpty }
+
+    /// Writes a backup file to the temporary folder for sharing.
+    func writeBackup() throws -> URL {
+        let data = try backupData()
         let day = Date().formatted(.iso8601.year().month().day())
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("Soulection Favorites \(day).json")
@@ -217,7 +224,8 @@ final class FavoritesStore {
 /// "backupLater" (dismiss the backup reminder until the next few favorites),
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
 /// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepNow" or
-/// "airplay" (show the AirPlay picker).
+/// "airplay" (show the AirPlay picker), "backupFolder" (pick the auto-backup folder),
+/// "backupFolderOff" or "restoreDismissed".
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
@@ -229,6 +237,106 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     /// Sleep timer for fixed durations. It runs in the app (not the web page), so it
     /// keeps counting while the screen is locked and audio plays in the background.
     private var sleepTimer: Timer?
+
+    // MARK: Auto-backup
+    //
+    // The user picks a folder once (ideally in iCloud Drive). After every change the app
+    // rewrites "Soulection Radio Backup.json" there. The folder lives outside the app, so
+    // deleting the app doesn't touch it; after a reinstall the page offers to restore.
+    private static let folderKey = "Backup.folderBookmark"
+    private static let lastSavedKey = "Backup.lastSaved"
+    private static let restoreOfferedKey = "Backup.restoreOffered"
+    static let autoBackupFileName = "Soulection Radio Backup.json"
+    private var autoBackupWork: DispatchWorkItem?
+    private var autoBackupError = false
+    private enum PickerPurpose { case importFile, folder }
+    private var pickerPurpose: PickerPurpose = .importFile
+
+    private func backupFolder() -> URL? {
+        guard let data = UserDefaults.standard.data(forKey: Self.folderKey) else { return nil }
+        var stale = false
+        guard let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) else { return nil }
+        if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.folderKey) }
+        return url
+    }
+
+    /// Rewrites the backup file a moment after the last change.
+    private func scheduleAutoBackup() {
+        guard UserDefaults.standard.data(forKey: Self.folderKey) != nil else { return }
+        autoBackupWork?.cancel()
+        let work = DispatchWorkItem { [weak self] in
+            MainActor.assumeIsolated { self?.writeAutoBackup() }
+        }
+        autoBackupWork = work
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2, execute: work)
+    }
+
+    @discardableResult
+    private func writeAutoBackup() -> Bool {
+        guard let folder = backupFolder(), let payload = try? store.backupData() else {
+            autoBackupError = UserDefaults.standard.data(forKey: Self.folderKey) != nil
+            return false
+        }
+        let accessing = folder.startAccessingSecurityScopedResource()
+        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
+        let file = folder.appendingPathComponent(Self.autoBackupFileName)
+        var coordinationError: NSError?
+        var writeError: Error?
+        NSFileCoordinator().coordinate(writingItemAt: file, options: .forReplacing, error: &coordinationError) { url in
+            do { try payload.write(to: url, options: .atomic) } catch { writeError = error }
+        }
+        let ok = coordinationError == nil && writeError == nil
+        autoBackupError = !ok
+        if ok {
+            UserDefaults.standard.set(Date().timeIntervalSince1970 * 1000, forKey: Self.lastSavedKey)
+            store.addedSinceBackup = 0
+        }
+        return ok
+    }
+
+    private func autoBackupStatusJSON() -> String {
+        let folder = backupFolder()
+        var status: [String: Any] = ["on": folder != nil, "error": autoBackupError]
+        if let folder { status["folder"] = folder.lastPathComponent }
+        let last = UserDefaults.standard.double(forKey: Self.lastSavedKey)
+        if last > 0 { status["lastSaved"] = last }
+        let offer = store.isEmpty && !UserDefaults.standard.bool(forKey: Self.restoreOfferedKey)
+        status["restoreOffer"] = offer
+        guard let data = try? JSONSerialization.data(withJSONObject: status) else { return "{}" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func pickBackupFolder() {
+        guard let presenter = presenter() else { return }
+        pickerPurpose = .folder
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        presenter.present(picker, animated: true)
+    }
+
+    private func useBackupFolder(_ folder: URL) {
+        let accessing = folder.startAccessingSecurityScopedResource()
+        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
+        guard let bookmark = try? folder.bookmarkData() else {
+            toast("Couldn't use that folder.")
+            return
+        }
+        UserDefaults.standard.set(bookmark, forKey: Self.folderKey)
+        UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
+        // A backup already in the folder (from before a reinstall) is merged in first, so
+        // turning auto-backup back on never overwrites it with an empty list.
+        let file = folder.appendingPathComponent(Self.autoBackupFileName)
+        var restored = 0
+        if let data = try? Data(contentsOf: file), let incoming = FavoritesStore.readBackup(data) {
+            restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
+        }
+        let ok = writeAutoBackup()
+        send()
+        if !ok { toast("Auto-backup couldn't write to that folder.") }
+        else if restored > 0 { toast("Auto-backup on. Restored \(restored) songs from the backup there.") }
+        else { toast("Auto-backup on: saving to \(folder.lastPathComponent).") }
+    }
 
     func userContentController(
         _ userContentController: WKUserContentController,
@@ -274,6 +382,14 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
             startSleepTimer(seconds: seconds)
             return
+        case "backupFolder":
+            pickBackupFolder()
+            return
+        case "backupFolderOff":
+            UserDefaults.standard.removeObject(forKey: Self.folderKey)
+            autoBackupError = false
+        case "restoreDismissed":
+            UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         case "airplay":
             showAirPlayPicker()
             return
@@ -296,6 +412,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         default:
             break
         }
+        if ["toggle", "remove", "played", "historyRemove", "historyClear"].contains(op) { scheduleAutoBackup() }
         send()
     }
 
@@ -334,7 +451,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func send() {
         let due = store.backupDue ? "true" : "false"
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON())});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON())});",
             completionHandler: nil
         )
     }
@@ -388,6 +505,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     private func importFavorites() {
         guard let presenter = presenter() else { return }
+        pickerPurpose = .importFile
         let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = false
@@ -396,6 +514,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
+        if pickerPurpose == .folder {
+            useBackupFolder(url)
+            return
+        }
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         guard let data = try? Data(contentsOf: url),
@@ -406,6 +528,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         }
         let added = store.merge(incoming.favorites)
         let addedHistory = incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history)
+        UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
+        scheduleAutoBackup()
         send()
         var parts: [String] = []
         if added > 0 { parts.append(added == 1 ? "1 favorite" : "\(added) favorites") }

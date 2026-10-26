@@ -19,7 +19,9 @@ An iPhone app for [Soulection Radio](https://radio.soulection.com/). It's the sa
 - **Sleep timer.** Tap the zZZ in the top bar (or in the full-size player) and pick 5, 15 or 30 minutes, 1 hour, **End of song**, **End of show**, or your own time with the − and + buttons. While it's on, the zZZ lights up in a slow wave (tap it to see the time left), and the music pauses when it's up, even with your phone locked. Tap the zZZ again to turn it off. It also works in Mixtape and playlists: End of song and End of show stop after the current song.
 - **Random show.** Tap the dice next to the search box to start a random episode from the very beginning.
 - **Mixtape.** Tap the cassette for an endless mix: a random song from a random show, then another, and another. Every Mixtape song goes straight into your Likes and History, so you can find the good ones later (remove any you don't want). Next skips to another random song. The cassette's reels turn while it plays; tap it again to stop. There's a short pause between songs while the next show loads.
-- **Back up your songs.** In the Favorites or History panel, tap **Export** to save a backup file (to Files, iCloud Drive, AirDrop or anywhere you like) and **Import** to bring it back, for example after reinstalling the app. One file holds both your favorites and your listening history. Imported songs are added to the ones you already have. Every 4 new favorites, the app reminds you to make a fresh backup.
+- **Automatic backup to iCloud Drive.** In the Favorites or History panel, tap **Turn on** next to Auto-backup and pick a folder (for example, make a "Soulection" folder in iCloud Drive). From then on the app keeps a file called `Soulection Radio Backup.json` there up to date every time your Likes or History change. It lives outside the app, so it survives deleting the app or losing your phone.
+- **Restoring after a reinstall.** When you open a fresh install, the app offers to restore: tap **Pick folder** and choose the same folder. Everything comes back and auto-backup keeps going. You can also restore from any backup file with **A file**.
+- **Manual backups.** **Export** saves a one-off backup file anywhere you like, and **Import** brings one back. Imported songs are added to the ones you already have. If auto-backup is off, the app reminds you every 4 new favorites.
 - **Feels like the website.** Full screen, edge to edge, same look, same episodes and search. Everything the app adds uses the site's own colors and fonts.
 - **Works with your speakers.** AirPlay to your TV or speakers is supported.
 
@@ -36,7 +38,7 @@ With a free Apple ID, the app stops opening after 7 days. Just install it again 
 ## Tips
 
 - **Updating:** download the newest file and install it over the old one. Your favorites and history stay.
-- **New icon not showing?** Delete the app first (export a backup first so you keep your songs), then install the new version.
+- **New icon not showing?** Delete the app first, then install the new version. With auto-backup on, pick the same folder when the app offers to restore and everything comes back.
 - **Song name not changing on the lock screen?** Playback still works. Soulection may have changed their site, so the song info needs an update.
 
 ## How it was made
@@ -58,7 +60,7 @@ I'm a beginner developer, and this was built in one night by describing what I w
   - `WebView.swift`: the web view, edge-to-edge layout and safe-area fixes for the site's top bar and bottom player.
   - `NowPlayingScript.swift`: lock-screen song info and next/previous track buttons.
   - `FavoritesScript.swift`: hearts, the Favorites/History panel, playlists, listening history, the full-size player, quick play/pause, the sleep timer, the dice, Mixtape and the backup reminder.
-  - `Favorites.swift`: saves favorites and history in the app, Export/Import, the sleep timer's countdown and the AirPlay picker.
+  - `Favorites.swift`: saves favorites and history in the app, auto-backup to a chosen folder and restore, Export/Import, the sleep timer's countdown and the AirPlay picker.
   - `SoulectionRadioApp.swift`: background audio setup, without interrupting other apps at launch.
 - **Icon:** `Resources/AppIcon.png`. Replace it and push to change it.
 - **App settings** (name, bundle ID, icon, Info.plist): `xtool.yml`.

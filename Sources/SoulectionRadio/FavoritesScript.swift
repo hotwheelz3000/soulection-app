@@ -66,6 +66,8 @@ enum FavoritesScript {
           // Mixtape: a cassette whose reels turn while it plays.
           var CASSETTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M6.5 19l1.4-3.2h8.2l1.4 3.2"/><g class="sr-reel sr-reel1"><circle cx="8" cy="11" r="2.1"/><path d="M8 9.4v3.2M6.6 11h2.8"/></g><g class="sr-reel sr-reel2"><circle cx="16" cy="11" r="2.1"/><path d="M16 9.4v3.2M14.6 11h2.8"/></g><path d="M10.1 11h3.8"/></svg>';
 
+          var CLOUD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13 3 3 0 0 0 6 19z"/></svg>';
+
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
@@ -81,6 +83,11 @@ enum FavoritesScript {
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
+            '.sr-auto{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
+            '.sr-auto .sr-auto-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
+            '.sr-auto .sr-btn{padding:7px 12px;font-size:13px;line-height:18px;gap:6px;flex:none}',
+            '.sr-auto .sr-btn svg{width:15px;height:15px}',
             '.sr-tape-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-tape-top[aria-pressed="true"]{color:#fff}',
             '.sr-tape-top[aria-pressed="true"] svg{fill:none}',
@@ -194,7 +201,8 @@ enum FavoritesScript {
           ].join('\n');
 
           var favorites = [];
-          var history = [];   // songs listened to, oldest first (favoritedAt = when played)
+          var history = [];
+          var autoBackup = { on: false }; // from the app: {on, folder, lastSaved, error, restoreOffer}   // songs listened to, oldest first (favoritedAt = when played)
           var resumeAfterLoad = null; // playlist to continue once the app has sent the favorites
           var sheet = null; // {root, backdrop, panel, list, sub, playBtn, shuffleBtn}
           var tab = null;
@@ -309,6 +317,10 @@ enum FavoritesScript {
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
               if (opts && Array.isArray(opts.history)) history = opts.history;
+              if (opts && opts.autoBackup) {
+                autoBackup = opts.autoBackup;
+                if (autoBackup.restoreOffer) offerRestore();
+              }
               // Back from "Export first": show the final warning again.
               if (clearAfterExport) { clearAfterExport = false; setTimeout(clearStepTwo, 400); }
               if (opts && opts.backupDue) maybeRemindBackup();
@@ -348,21 +360,64 @@ enum FavoritesScript {
           function showToast(message) { showNote('<div>' + esc(message) + '</div>', 2600); }
           // Every few new favorites, suggest exporting a backup (once per page load).
           function maybeRemindBackup() {
-            if (reminded) return;
+            if (reminded || autoBackup.on) return;
             reminded = true;
             var n = showNote(
               '<div class="sr-note-title">Back up your favorites?</div>' +
-              '<div>Save a copy so you keep them if the app is ever deleted.</div>' +
+              '<div>Turn on auto-backup to iCloud Drive and your Likes and History are kept even if the app is deleted.</div>' +
               '<div class="sr-actions"></div>', 0);
             if (!n) { reminded = false; return; }
             var actions = n.querySelector('.sr-actions');
-            var exportBtn = el('button', 'sr-btn', EXPORT + '<span>Export</span>');
+            var onBtn = el('button', 'sr-btn', CLOUD + '<span>Turn on</span>');
             var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
-            exportBtn.type = laterBtn.type = 'button';
-            exportBtn.addEventListener('click', function () { hideNote(); native({ op: 'export' }); });
+            onBtn.type = laterBtn.type = 'button';
+            onBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupFolder' }); });
             laterBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupLater' }); });
-            actions.appendChild(exportBtn);
+            actions.appendChild(onBtn);
             actions.appendChild(laterBtn);
+          }
+
+          // After a reinstall (nothing saved yet), offer to bring a backup back.
+          var restoreShown = false;
+          function offerRestore() {
+            if (restoreShown) return;
+            restoreShown = true;
+            setTimeout(function () {
+              var n = showNote(
+                '<div class="sr-note-title">Restore your Likes and History?</div>' +
+                '<div>If you had auto-backup on, pick the folder you used (like iCloud Drive › Soulection). It restores everything and keeps backing up there.</div>' +
+                '<div class="sr-actions"></div>', 0);
+              if (!n) return;
+              var actions = n.querySelector('.sr-actions');
+              var pickBtn = el('button', 'sr-btn', CLOUD + '<span>Pick folder</span>');
+              var fileBtn = el('button', 'sr-btn', IMPORT + '<span>A file</span>');
+              var noBtn = el('button', 'sr-btn', '<span>Not now</span>');
+              pickBtn.type = fileBtn.type = noBtn.type = 'button';
+              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupFolder' }); });
+              fileBtn.addEventListener('click', function () { hideNote(); native({ op: 'import' }); });
+              noBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreDismissed' }); });
+              actions.appendChild(pickBtn);
+              actions.appendChild(fileBtn);
+              actions.appendChild(noBtn);
+            }, 1500);
+          }
+
+          function renderAutoBackup() {
+            if (!sheet || !sheet.autoText) return;
+            var html, btn;
+            if (autoBackup.on) {
+              var when = autoBackup.lastSaved ? ' · saved ' + ago(autoBackup.lastSaved).toLowerCase() : '';
+              html = autoBackup.error
+                ? 'Auto-backup: <b>can\'t reach ' + esc(autoBackup.folder || 'folder') + '</b>'
+                : 'Auto-backup: <b>on</b> · ' + esc(autoBackup.folder || '') + esc(when);
+              btn = 'Change';
+            } else {
+              html = 'Auto-backup: <b>off</b>';
+              btn = 'Turn on';
+            }
+            if (sheet.autoText.innerHTML !== html) sheet.autoText.innerHTML = html;
+            var span = sheet.autoBtn.querySelector('span');
+            if (span.textContent !== btn) span.textContent = btn;
           }
 
           // ---------------------------------------------------------------------------
@@ -550,6 +605,12 @@ enum FavoritesScript {
             backup.appendChild(exportBtn);
             backup.appendChild(importBtn);
             head.appendChild(backup);
+            var auto = el('div', 'sr-auto', '<span class="sr-auto-text"></span>');
+            var autoBtn = el('button', 'sr-btn', CLOUD + '<span></span>');
+            autoBtn.type = 'button';
+            autoBtn.addEventListener('click', function () { native({ op: 'backupFolder' }); });
+            auto.appendChild(autoBtn);
+            head.appendChild(auto);
             var list = el('div', 'sr-list');
             panel.appendChild(head);
             panel.appendChild(list);
@@ -557,7 +618,7 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, mode: 'favorites', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, mode: 'favorites', key: '' };
             attachSheetDrag();
           }
 
@@ -642,6 +703,7 @@ enum FavoritesScript {
           function renderSheet() {
             if (!sheet) return;
             var hist = sheet.mode === 'history';
+            renderAutoBackup();
             sheet.favTab.setAttribute('aria-pressed', hist ? 'false' : 'true');
             sheet.histTab.setAttribute('aria-pressed', hist ? 'true' : 'false');
             sheet.panel.setAttribute('aria-label', hist ? 'History' : 'Favorites');
