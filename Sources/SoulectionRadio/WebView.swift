@@ -113,8 +113,8 @@ struct WebView: UIViewRepresentable {
     /// the home indicator and the screen's rounded corners. With viewport-fit=cover
     /// the page runs to the screen edge, but the site doesn't pad its bottom bar with
     /// env(safe-area-inset-bottom), so the playback times got cut off in the corners.
-    /// This finds fixed elements touching the bottom edge and adds the inset to their
-    /// own bottom padding.
+    /// This finds fixed elements touching the bottom edge and adds half the inset to
+    /// their own bottom padding.
     private static let bottomBarInsetScript = #"""
         (function () {
           var MARK = 'data-sr-inset';
@@ -150,7 +150,9 @@ struct WebView: UIViewRepresentable {
                   : (parseFloat(getComputedStyle(bar).paddingBottom) || 0);
                 bar.setAttribute(MARK + '-base', String(base));
                 bar.setAttribute(MARK, String(inset));
-                bar.style.setProperty('padding-bottom', (base + inset) + 'px', 'important');
+                // Half the inset is enough to lift the content above the rounded corners
+                // without leaving a tall empty band under it.
+                bar.style.setProperty('padding-bottom', Math.round(base + inset / 2) + 'px', 'important');
                 return;
               }
             });
