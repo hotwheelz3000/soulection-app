@@ -2198,7 +2198,8 @@ enum FavoritesScript {
             arriving = { id: f.id, since: Date.now(), tries: 0 };
             if (standby && standby.f.id === f.id && (document.hidden || activeOurs())) return handoff(f);
             discardStandby();
-            if (document.hidden) switchInPlayer(f);
+            // Keep using the app's own player while it's in charge (no stop on screen).
+            if (document.hidden || activeOurs()) switchInPlayer(f);
             else openEpisodeAndPlay(f);
           }
 
@@ -2393,6 +2394,17 @@ enum FavoritesScript {
               if (playlist && playlist.current === f) switchInPlayer(f);
             }, 6000);
           }
+          // Shows the playing song's show page, scrolled to the song, without touching playback.
+          function showPlaying(f) {
+            if (location.pathname.replace(/\/$/, '') === f.episodeURL) return revealSong(f.episodeURL, f.start, showNumber(f.show), null);
+            var oldHeading = episodeHeading();
+            if (window.next && window.next.router && window.next.router.push) {
+              window.next.router.push(f.episodeURL);
+              revealSong(f.episodeURL, f.start, showNumber(f.show), oldHeading);
+            }
+            // Without the site's router a page load would stop the music, so stay put.
+          }
+
           function finishHandoff() {
             var h = handing;
             handing = null;
@@ -2408,6 +2420,7 @@ enum FavoritesScript {
             direct = { number: directShown.number, id: h.f.id, heard: true };
             if (h.oldFrame) setTimeout(function () { removeFrame(h.oldFrame); }, 3000);
             renderMiniPlayer(miniPlayer());
+            if (!document.hidden) showPlaying(h.f);
           }
 
           // Fallback when no player was loaded ahead: load the show in a player of the app's
@@ -2428,6 +2441,7 @@ enum FavoritesScript {
               directShown = directInfo(f, info);
               n.setDirect(directShown);
               direct = { number: directShown.number, id: f.id, heard: false };
+              if (!document.hidden) showPlaying(f);
               arriving = { id: f.id, since: Date.now(), tries: 1 };
               if (oldFrame) setTimeout(function () { removeFrame(oldFrame); }, 1000);
               renderMiniPlayer(miniPlayer());
@@ -2444,6 +2458,9 @@ enum FavoritesScript {
           document.addEventListener('visibilitychange', function () {
             if (document.hidden || !direct || !playlist || !playlist.current) return;
             var f = playlist.current;
+            // The app's own player is playing: leave the music alone (handing it back to the
+            // site's player would pause it for a second) and just show the song's page.
+            if (activeOurs()) return showPlaying(f);
             var st = npState();
             // Only trust the playing time once the new show has been heard, and only if it's
             // inside this song; otherwise it's left over from the previous show.
@@ -2576,7 +2593,10 @@ enum FavoritesScript {
           document.addEventListener('click', function (e) {
             if (!e.isTrusted || !playlist) return;
             var t = e.target;
-            if (t && t.closest && t.closest('.col-span-full.grid > button')) endPlaylist(false);
+            if (t && t.closest && t.closest('.col-span-full.grid > button')) return endPlaylist(false);
+            // The show's own Play button also starts the site's player.
+            var b = t && t.closest && t.closest('main button');
+            if (b && activeOurs() && !/\bsr-/.test(b.className || '') && /^\s*play\b/i.test((b.getAttribute('aria-label') || b.textContent || ''))) endPlaylist(false);
           }, true);
 
           window.addEventListener('soulection-nowplaying', function (e) {
