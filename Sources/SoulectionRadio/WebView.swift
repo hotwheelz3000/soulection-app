@@ -4,9 +4,10 @@ import WebKit
 
 struct WebView: UIViewRepresentable {
     let url: URL
+    let appearance: PageAppearance
 
     func makeCoordinator() -> Coordinator {
-        Coordinator(homeURL: url)
+        Coordinator(homeURL: url, appearance: appearance)
     }
 
     func makeUIView(context: Context) -> WKWebView {
@@ -22,8 +23,7 @@ struct WebView: UIViewRepresentable {
         webView.uiDelegate = context.coordinator
         webView.allowsBackForwardNavigationGestures = true
         webView.isOpaque = false
-        webView.backgroundColor = .black
-        webView.scrollView.backgroundColor = .black
+        context.coordinator.applyBackground(to: webView)
         // SwiftUI already keeps the view inside the safe area; don't inset twice.
         webView.scrollView.contentInsetAdjustmentBehavior = .never
 
@@ -42,15 +42,72 @@ struct WebView: UIViewRepresentable {
         return webView
     }
 
-    func updateUIView(_ webView: WKWebView, context: Context) {}
+    func updateUIView(_ webView: WKWebView, context: Context) {
+        context.coordinator.applyBackground(to: webView)
+    }
 
     @MainActor
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let homeURL: URL
+        let appearance: PageAppearance
         weak var webView: WKWebView?
 
-        init(homeURL: URL) {
+        init(homeURL: URL, appearance: PageAppearance) {
             self.homeURL = homeURL
+            self.appearance = appearance
+        }
+
+        /// Returns the page background as "r,g,b": the body's computed background,
+        /// then the html element's, then the theme-color meta tag, then the first
+        /// opaque background behind the top of the viewport. Transparent values are
+        /// skipped. Returns null if nothing opaque is found.
+        private static let backgroundColorScript = #"""
+            (function () {
+              function rgb(value) {
+                if (!value) return null;
+                var m = value.match(/rgba?\(([^)]+)\)/);
+                if (!m) return null;
+                var p = m[1].split(/[\s,\/]+/).filter(Boolean).map(parseFloat);
+                if (p.length < 3 || p.slice(0, 3).some(isNaN)) return null;
+                if (p.length > 3 && p[3] < 0.99) return null;
+                return p.slice(0, 3).map(Math.round).join(',');
+              }
+              function bg(el) { return el ? rgb(getComputedStyle(el).backgroundColor) : null; }
+              var found = bg(document.body) || bg(document.documentElement);
+              if (!found) {
+                var meta = document.querySelector('meta[name="theme-color"]');
+                if (meta && meta.content && document.body) {
+                  var probe = document.createElement('div');
+                  probe.style.color = meta.content;
+                  document.body.appendChild(probe);
+                  found = rgb(getComputedStyle(probe).color);
+                  probe.remove();
+                }
+              }
+              for (var el = document.elementFromPoint(innerWidth / 2, 1); !found && el; el = el.parentElement) {
+                found = bg(el);
+              }
+              return found;
+            })();
+            """#
+
+        func applyBackground(to webView: WKWebView) {
+            let color = appearance.backgroundColor
+            guard webView.backgroundColor != color else { return }
+            webView.backgroundColor = color
+            webView.scrollView.backgroundColor = color
+            webView.underPageBackgroundColor = color
+        }
+
+        private func sampleBackground(of webView: WKWebView) {
+            webView.evaluateJavaScript(Self.backgroundColorScript) { [weak self] result, _ in
+                let rgb = result as? String
+                MainActor.assumeIsolated {
+                    guard let self, let rgb else { return }
+                    self.appearance.update(fromRGBString: rgb)
+                    self.applyBackground(to: webView)
+                }
+            }
         }
 
         @objc func handleRefresh(_ sender: UIRefreshControl) {
@@ -125,6 +182,14 @@ struct WebView: UIViewRepresentable {
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             webView.scrollView.refreshControl?.endRefreshing()
+            sampleBackground(of: webView)
+            // Client-rendered pages may restyle after load; sample once more.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak webView] in
+                MainActor.assumeIsolated {
+                    guard let self, let webView else { return }
+                    self.sampleBackground(of: webView)
+                }
+            }
         }
 
         func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
