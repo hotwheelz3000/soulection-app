@@ -66,6 +66,16 @@ enum NowPlayingScript {
             var lastState = null;
             var override = null; // metadata FavoritesScript shows while its playlist plays
             var playlist = null; // {next, previous} handlers while the favorites playlist plays
+            // While a playlist plays a show in the app's own (hidden) player, that player is
+            // the one to follow and control, and `direct` describes the show it plays.
+            var activeFrame = null;   // contentWindow of the player in charge, or null for the site's
+            var standbys = [];        // contentWindows of players loaded ahead (not in charge yet)
+            var frameTimes = [];      // [{win, t, paused, duration, at}]
+            var direct = null;        // {number, show, cover, episodeURL, tracks}
+            function timeOf(win) {
+              for (var i = 0; i < frameTimes.length; i++) if (frameTimes[i].win === win) return frameTimes[i];
+              return null;
+            }
 
             function miniPlayer() {
               var slider = document.querySelector('[role="slider"][aria-valuenow]');
@@ -106,7 +116,13 @@ enum NowPlayingScript {
               var lines = player.querySelectorAll('.content-col > div');
               if (lines.length) showLine = text(lines[0]);
               var playerSong = lines.length > 1 ? text(lines[1]) : '';
-              var number = showNumber(showLine);
+              if (direct) { showLine = direct.show || ('Show #' + direct.number); playerSong = ''; }
+              var number = direct ? direct.number : showNumber(showLine);
+              if (direct && direct.tracks && direct.tracks.length && !tracklists[number]) {
+                var dt = direct.tracks.slice();
+                dt.url = direct.episodeURL;
+                tracklists[number] = dt;
+              }
 
               // Cache the tracklist when the page shows the episode that is playing.
               var pageEpisode = episodeOnPage();
@@ -120,7 +136,10 @@ enum NowPlayingScript {
               var tracks = (number && tracklists[number]) || [];
 
               var t = null;
-              if (frameTime && Date.now() - frameTime.at < 3000) {
+              if (activeFrame) {
+                var ft = timeOf(activeFrame);
+                if (ft) t = ft.t + (ft.paused ? 0 : (Date.now() - ft.at) / 1000);
+              } else if (frameTime && Date.now() - frameTime.at < 3000) {
                 t = frameTime.t + (frameTime.paused ? 0 : (Date.now() - frameTime.at) / 1000);
               } else {
                 var slider = player.querySelector('[role="slider"][aria-valuenow]');
@@ -130,7 +149,7 @@ enum NowPlayingScript {
 
               var album = showLine.split(' | ')[0].trim() || (number ? 'Show #' + number : 'Soulection Radio');
               var img = player.querySelector('img');
-              var artwork = img && img.src ? img.src : '';
+              var artwork = direct ? (direct.cover || '') : (img && img.src ? img.src : '');
               var title = '';
               var artist = '';
 
@@ -162,6 +181,8 @@ enum NowPlayingScript {
               }
               var slider2 = player.querySelector('[role="slider"][aria-valuemax]');
               var duration = slider2 ? parseFloat(slider2.getAttribute('aria-valuemax')) : NaN;
+              var activeTime = activeFrame ? timeOf(activeFrame) : null;
+              if (activeFrame) duration = activeTime && activeTime.duration ? activeTime.duration : NaN;
 
               return {
                 type: MSG,
@@ -175,11 +196,11 @@ enum NowPlayingScript {
                 // Used by FavoritesScript (not by the player frame).
                 number: number,
                 show: showLine.split(' | ')[0].trim(),
-                cover: img && img.src ? img.src : '',
+                cover: direct ? (direct.cover || '') : (img && img.src ? img.src : ''),
                 episodeURL: tracks.url || '',
                 tracks: tracks.map(function (x) { return { start: x.start, artist: x.artist, title: x.title }; }),
                 duration: isNaN(duration) ? null : duration,
-                paused: frameTime ? !!frameTime.paused : null,
+                paused: activeFrame ? (activeTime ? !!activeTime.paused : null) : (frameTime ? !!frameTime.paused : null),
                 playlist: !!playlist
               };
             }
@@ -231,7 +252,19 @@ enum NowPlayingScript {
               if (!d || d.type !== MSG + '-time') return;
               var fromPlayer = playerFrames().some(function (f) { return f.contentWindow === e.source; });
               if (!fromPlayer) return;
-              if (typeof d.t === 'number') frameTime = { t: d.t, paused: !!d.paused, at: Date.now() };
+              if (typeof d.t === 'number') {
+                var rec = timeOf(e.source);
+                if (!rec) { rec = { win: e.source }; frameTimes.push(rec); }
+                rec.t = d.t; rec.paused = !!d.paused; rec.at = Date.now();
+                if (typeof d.duration === 'number' && isFinite(d.duration)) rec.duration = d.duration;
+                frameTimes = frameTimes.filter(function (r) { return Date.now() - r.at < 600000; });
+                try { window.dispatchEvent(new CustomEvent('soulection-frametime', { detail: { win: e.source, t: rec.t, paused: rec.paused, ready: !!d.standbyReady } })); } catch (err) {}
+                // A player loaded ahead reports here too; only the one in charge counts.
+                var inCharge = activeFrame ? e.source === activeFrame : standbys.indexOf(e.source) < 0;
+                if (!inCharge) return;
+                frameTime = { t: d.t, paused: !!d.paused, at: Date.now() };
+              }
+              if (standbys.indexOf(e.source) >= 0 || (activeFrame && e.source !== activeFrame)) return;
               if (d.hello) lastSent = '';
               if (d.command && playlist) {
                 // Lock screen next/previous while the favorites playlist plays.
@@ -265,9 +298,18 @@ enum NowPlayingScript {
 
             function toPlayer(msg) {
               msg.type = MSG + '-control';
+              if (activeFrame) {
+                try { activeFrame.postMessage(msg, '*'); } catch (e) {}
+                return;
+              }
               playerFrames().forEach(function (f) {
+                if (standbys.indexOf(f.contentWindow) >= 0) return;
                 try { f.contentWindow.postMessage(msg, '*'); } catch (e) {}
               });
+            }
+            function toFrame(win, msg) {
+              msg.type = MSG + '-control';
+              try { win.postMessage(msg, '*'); } catch (e) {}
             }
 
             // Used by FavoritesScript to follow playback and drive the favorites playlist.
@@ -278,7 +320,17 @@ enum NowPlayingScript {
               pause: function () { toPlayer({ pause: true }); },
               play: function () { toPlayer({ play: true }); },
               setOverride: function (meta) { override = meta; lastSent = ''; schedule(); },
-              setPlaylist: function (handlers) { playlist = handlers; lastSent = ''; schedule(); }
+              setPlaylist: function (handlers) { playlist = handlers; lastSent = ''; schedule(); },
+              // The app's own players (see FavoritesScript's handoff).
+              setActiveFrame: function (win) { activeFrame = win || null; frameTime = null; lastSent = ''; schedule(); },
+              activeFrame: function () { return activeFrame; },
+              setStandby: function (win, on) {
+                standbys = standbys.filter(function (w) { return w !== win; });
+                if (on) standbys.push(win);
+              },
+              setDirect: function (info) { direct = info || null; lastSent = ''; schedule(); },
+              toFrame: toFrame,
+              timeOf: function (win) { return timeOf(win); }
             };
           }
 
@@ -306,6 +358,7 @@ enum NowPlayingScript {
             function track(el) {
               if (!(el instanceof HTMLMediaElement) || media === el) return;
               media = el;
+              if (standby) el.muted = true; // loaded ahead: silent until handed over
               ['timeupdate', 'seeked', 'play', 'pause', 'loadedmetadata', 'canplay'].forEach(function (name) {
                 el.addEventListener(name, reportTime);
               });
@@ -313,14 +366,21 @@ enum NowPlayingScript {
 
             // Set when the app switched shows inside the player (sr_start in the player's
             // address): jump to the song's start once the audio is ready.
-            var pendingStart = null, startTries = 0;
+            var pendingStart = null, startTries = 0, standby = false;
             try {
-              var sp = new URLSearchParams(location.search).get('sr_start');
+              var params = new URLSearchParams(location.search);
+              var sp = params.get('sr_start');
               if (sp != null && !isNaN(parseFloat(sp))) pendingStart = parseFloat(sp);
+              standby = params.get('sr_standby') === '1';
             } catch (e) {}
             function applyStart() {
               if (pendingStart == null || !media || media.readyState < 1) return;
-              if (Math.abs(media.currentTime - pendingStart) < 2 && !media.paused) { pendingStart = null; return; }
+              if (Math.abs(media.currentTime - pendingStart) < 2 && !media.paused) {
+                pendingStart = null;
+                // Loaded ahead: wait at the song's start until the app hands over.
+                if (standby && media.muted) { media.pause(); post({ standbyReady: true, t: media.currentTime, paused: true }); }
+                return;
+              }
               if (++startTries > 20) { pendingStart = null; return; }
               if (Math.abs(media.currentTime - pendingStart) >= 2) {
                 try { media.currentTime = pendingStart; } catch (e) {}
@@ -334,7 +394,7 @@ enum NowPlayingScript {
               var now = Date.now();
               if (e && e.type === 'timeupdate' && now - lastReport < 900) return;
               lastReport = now;
-              post({ t: media.currentTime, paused: media.paused });
+              post({ t: media.currentTime, paused: media.paused, duration: media.duration });
             }
 
             function post(extra) {
@@ -411,6 +471,8 @@ enum NowPlayingScript {
                 if (d.pause && media) media.pause();
                 // Play straight from the page (faster than going through the widget API).
                 if (d.play && media) { var p = media.play(); if (p && p.catch) p.catch(function () {}); }
+                if (d.unmute && media) { media.muted = false; standby = false; }
+                if (d.mute && media) media.muted = true;
                 return;
               }
               if (!d || d.type !== MSG) return;

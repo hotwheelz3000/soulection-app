@@ -90,6 +90,18 @@ enum FavoritesScript {
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
             // The song playing in a show's tracklist: a light background and moving bars.
             '.sr-row-playing{background:rgba(255,255,255,.06);border-radius:8px}',
+            '.sr-mini-over{position:absolute;inset:0;z-index:3;background:' + BG + ';display:grid;grid-template-columns:auto 1fr;grid-template-rows:1fr auto auto;column-gap:12px;padding:12px 116px 10px 12px;cursor:pointer;border-radius:inherit}',
+            '.sr-mini-over img{width:48px;height:48px;border-radius:2px;object-fit:cover;grid-row:1;align-self:center;background:' + TRACK + '}',
+            '.sr-mo-text{grid-row:1;align-self:center;min-width:0;font-size:13px;line-height:18px}',
+            '.sr-mo-show{color:' + MUTED + ';font-size:11px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-mo-line{white-space:nowrap;overflow:hidden;text-overflow:ellipsis;color:' + TEXT + '}',
+            '.sr-mo-song{font-weight:700;color:' + ACCENT + '}',
+            '.sr-mo-bar{grid-column:1/3;grid-row:2;height:3px;background:' + TRACK + ';border-radius:2px;margin:10px -104px 0 0;overflow:hidden}',
+            '.sr-mo-fill{height:100%;background:' + ACCENT + ';width:0}',
+            '.sr-mo-times{grid-column:1/3;grid-row:3;display:flex;justify-content:space-between;margin:4px -104px 0 0;font-size:14px;color:' + TEXT + '}',
+            '.sr-mini-direct .sr-heart-mini, .sr-mini-direct .sr-site-play{position:relative;z-index:4}',
+            '.sr-mini-direct .sr-grab{z-index:4}',
+            '.sr-player-frame{position:fixed;left:-10px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0}',
             '.sr-song-cell > .sr-bars{margin:5px 0 0 auto}',
             '.sr-row-playing .sr-heart-row{margin-left:0}',
             '.sr-row-flash{animation:sr-flash 1.8s ease}',
@@ -646,6 +658,39 @@ enum FavoritesScript {
             set('max-width', 'none'); set('border-radius', '0'); set('margin', '0'); set('transform', 'none');
           }
 
+          // While the app's own player plays a show the site's mini player doesn't know about,
+          // cover the mini player's artwork, text and progress with the right song. Its heart
+          // and play button stay on top and work as usual; tapping the rest opens the full player.
+          function renderMiniOverlay(player) {
+            var over = player.querySelector(':scope > .sr-mini-over');
+            var on = !!(directShown && activeOurs());
+            if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
+            var playBtn = sitePlayButton();
+            if (playBtn && on && !playBtn.classList.contains('sr-site-play')) playBtn.classList.add('sr-site-play');
+            if (!on) { if (over) over.remove(); return; }
+            if (!over) {
+              over = el('div', 'sr-mini-over',
+                '<img alt=""><div class="sr-mo-text"><div class="sr-mo-show"></div><div class="sr-mo-line"><span class="sr-mo-song"></span> <span class="sr-mo-artist"></span></div></div>' +
+                '<div class="sr-mo-bar"><div class="sr-mo-fill"></div></div><div class="sr-mo-times"><span class="sr-mo-el"></span><span class="sr-mo-dur"></span></div>');
+              over.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
+              player.appendChild(over);
+            }
+            var st = npState() || {};
+            var t = currentTrack();
+            var song = playlist && playlist.current ? playlist.current.song : (t ? t.song : '');
+            var artist = playlist && playlist.current ? playlist.current.artist : (t ? t.artist : '');
+            var img = over.querySelector('img');
+            if (directShown.cover && img.getAttribute('src') !== directShown.cover) img.src = directShown.cover;
+            var set = function (sel, v) { var n = over.querySelector(sel); if (n.textContent !== v) n.textContent = v; };
+            set('.sr-mo-show', directShown.show || '');
+            set('.sr-mo-song', song || '');
+            set('.sr-mo-artist', artist || '');
+            var dur = st.duration || 0, pos = st.t || 0;
+            over.querySelector('.sr-mo-fill').style.width = (dur ? Math.min(100, Math.max(0, pos / dur * 100)) : 0) + '%';
+            set('.sr-mo-el', clock(pos).replace(/^0(\d:)/, '$1'));
+            set('.sr-mo-dur', dur ? clock(dur).replace(/^0(\d:)/, '$1') : '');
+          }
+
           function renderMiniPlayer(player) {
             if (!player) return;
             hideMiniClose(player);
@@ -657,6 +702,7 @@ enum FavoritesScript {
               g.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               player.appendChild(g);
             }
+            renderMiniOverlay(player);
             var row = player.querySelector('.content-col');
             row = row && row.parentElement && row.parentElement.parentElement; // the top row (artwork, text, play button)
             if (!row) return;
@@ -1607,7 +1653,12 @@ enum FavoritesScript {
               throw err;
             });
           }
-          function prefetchMix() { mixNext = randomSong(); mixNext.catch(function () {}); }
+          var mixNextItem = null; // the prefetched song, once it's known
+          function prefetchMix() {
+            mixNextItem = null;
+            var p = mixNext = randomSong();
+            p.then(function (item) { if (mixNext === p) mixNextItem = item; }).catch(function () {});
+          }
           function toggleMixtape() {
             if (isMixtape()) { endPlaylist(true); showToast('Mixtape off.'); return; }
             if (tape.getAttribute('aria-busy') === 'true') return;
@@ -1631,6 +1682,7 @@ enum FavoritesScript {
             var list = playlist;
             var pending = mixNext || randomSong();
             mixNext = null;
+            mixNextItem = null;
             pending.then(function (item) {
               if (playlist !== list) return; // stopped meanwhile
               list.items.push(item);
@@ -1972,7 +2024,7 @@ enum FavoritesScript {
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
             if (fp.title.textContent !== song) fp.title.textContent = song;
             if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
-            var show = miniShowLine() || st.show || '';
+            var show = (directShown && activeOurs() ? directShown.show : miniShowLine()) || st.show || '';
             if (fp.show.textContent !== show) fp.show.textContent = show;
             var cover = bigCover(st.cover || '');
             if (cover && fp.cover.getAttribute('src') !== cover) {
@@ -2111,8 +2163,9 @@ enum FavoritesScript {
             var n = np();
             if (n) { n.setPlaylist(null); n.setOverride(null); if (pause) n.pause(); }
             mixNext = null;
+            mixNextItem = null;
             direct = null;
-            keepAwake(false);
+            retireOurs();
             renderTape();
             schedule();
           }
@@ -2143,6 +2196,8 @@ enum FavoritesScript {
               return;
             }
             arriving = { id: f.id, since: Date.now(), tries: 0 };
+            if (standby && standby.f.id === f.id && (document.hidden || activeOurs())) return handoff(f);
+            discardStandby();
             if (document.hidden) switchInPlayer(f);
             else openEpisodeAndPlay(f);
           }
@@ -2168,50 +2223,206 @@ enum FavoritesScript {
             });
           }
           function soundcloudFrame() {
-            return document.querySelector('iframe[src*="w.soundcloud.com"]');
-          }
-          // Points the site's SoundCloud player straight at the show's audio. The script
-          // inside the player (NowPlayingScript) reads sr_start and jumps to the song, so
-          // this doesn't depend on the site's SoundCloud helper or on the page being drawn.
-          // Silence from the app while the player loads, so iOS doesn't freeze it.
-          var awake = false;
-          function keepAwake(on) {
-            if (awake === on) return;
-            awake = on;
-            native({ op: 'keepAwake', on: on });
+            return document.querySelector('iframe[src*="w.soundcloud.com"]:not(.sr-player-frame)');
           }
           function switchFailed(f) {
             if (!playlist || playlist.current !== f) return;
             showToast("Couldn't switch to the next song. Tap Next to try another.");
             endPlaylist(false);
           }
+
+          // Everything the app needs about a show, from its page: the SoundCloud link, the
+          // tracklist (for song names, hearts and history) and the cover.
+          var episodeInfos = {};
+          function episodeInfo(path) {
+            if (episodeInfos[path]) return Promise.resolve(episodeInfos[path]);
+            return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+              var doc = new DOMParser().parseFromString(html, 'text/html');
+              var link = soundcloudLink(doc);
+              if (link) episodeAudio[path] = link;
+              var h1 = doc.querySelector('#episode-card-header h1, main h1');
+              var img = doc.querySelector('#episode-card-header img');
+              var info = {
+                link: link,
+                number: showNumber(text(h1)),
+                cover: img ? (img.getAttribute('src') ? new URL(img.getAttribute('src'), location.href).href : '') : '',
+                tracks: pageRows(doc).map(function (r) {
+                  return { start: r.start, artist: r.vo ? (r.artist || r.song) : r.artist, title: r.vo ? '' : r.song };
+                })
+              };
+              if (link) episodeInfos[path] = info;
+              return info;
+            });
+          }
+          function directInfo(f, info) {
+            return { number: showNumber(f.show) || info.number, show: f.show, cover: f.cover || info.cover, episodeURL: f.episodeURL, tracks: info.tracks };
+          }
+          function playerURL(link, start, isStandby) {
+            return 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(link) +
+              '&auto_play=true&visual=false&show_comments=false&sr_start=' + Math.max(0, start) +
+              (isStandby ? '&sr_standby=1' : '') + '&sr_id=' + Date.now();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Two players, handing off like a relay. A few seconds before a song ends, the
+          // next song's show is loaded into a hidden player of the app's own, muted and
+          // waiting at the song's start. At the end it starts, and only once it's really
+          // playing is it unmuted while the old player pauses. The sound never stops, so iOS
+          // keeps the app running with the screen off and the lock screen just moves on.
+          // ---------------------------------------------------------------------------
+          var standby = null;  // {f, frame, win, ready, info}
+          var ours = [];       // the app's own player frames (the site's stays as it is)
+          var handing = null;  // {f, win, timer} while a handoff is in progress
+          var directShown = null; // what the mini player shows while the app's player plays
+
+          function makeFrame(src) {
+            var frame = document.createElement('iframe');
+            frame.className = 'sr-player-frame';
+            frame.setAttribute('allow', 'autoplay; encrypted-media');
+            frame.setAttribute('aria-hidden', 'true');
+            frame.setAttribute('tabindex', '-1');
+            frame.src = src;
+            document.body.appendChild(frame);
+            ours.push(frame);
+            return frame;
+          }
+          function removeFrame(frame) {
+            ours = ours.filter(function (x) { return x !== frame; });
+            var n = np();
+            if (n && n.setStandby && frame.contentWindow) n.setStandby(frame.contentWindow, false);
+            try { frame.remove(); } catch (e) {}
+          }
+          function activeOurs() {
+            var n = np();
+            var win = n && n.activeFrame ? n.activeFrame() : null;
+            for (var i = 0; i < ours.length; i++) if (ours[i].contentWindow === win) return ours[i];
+            return null;
+          }
+          function discardStandby() {
+            if (!standby) return;
+            var frame = standby.frame;
+            standby = null;
+            if (frame && frame !== activeOurs()) removeFrame(frame);
+          }
+          // Hands playback back to the site's own player and clears the app's players.
+          function retireOurs(pause) {
+            discardStandby();
+            var n = np();
+            var mine = activeOurs();
+            if (n && n.setActiveFrame) n.setActiveFrame(null);
+            if (n && n.setDirect) n.setDirect(null);
+            directShown = null;
+            if (mine && n && n.toFrame) n.toFrame(mine.contentWindow, { pause: true });
+            ours.slice().forEach(removeFrame);
+            if (handing) { clearTimeout(handing.timer); handing = null; }
+            renderMiniPlayer(miniPlayer());
+          }
+
+          // What plays after the current song, if it's in another show (else nothing to load).
+          function upcoming() {
+            if (!playlist || !playlist.current) return null;
+            if (sleep && sleep.type !== 'time') return null;
+            var g = null;
+            if (playlist.source === 'mixtape' && playlist.pos >= playlist.ids.length - 1) g = mixNextItem;
+            else if (playlist.pos + 1 < playlist.ids.length) g = lookup(playlist.source, playlist.ids[playlist.pos + 1]);
+            if (!g) return null;
+            var st = npState();
+            var playingNow = st && st.number;
+            return showNumber(g.show) === playingNow ? null : g;
+          }
+
+          function prepareStandby(g) {
+            if (!g || (standby && standby.f.id === g.id)) return;
+            discardStandby();
+            var mine = { f: g, frame: null, win: null, ready: false, info: null };
+            standby = mine;
+            episodeInfo(g.episodeURL).then(function (info) {
+              if (standby !== mine) return;
+              if (!info.link) { standby = null; return; }
+              mine.info = info;
+              mine.frame = makeFrame(playerURL(info.link, g.start, true));
+              mine.win = mine.frame.contentWindow;
+              var n = np();
+              if (n && n.setStandby) n.setStandby(mine.win, true);
+            }).catch(function () { if (standby === mine) standby = null; });
+          }
+
+          window.addEventListener('soulection-frametime', function (e) {
+            var d = e.detail || {};
+            if (standby && d.win === standby.win && !standby.ready) {
+              if (d.ready || (d.paused && d.t != null && Math.abs(d.t - standby.f.start) < 3)) standby.ready = true;
+            }
+            if (handing && d.win === handing.win && d.paused === false) finishHandoff();
+          });
+
+          function handoff(f) {
+            var sb = standby;
+            standby = null;
+            if (!sb || !sb.win || !sb.info) {
+              if (sb && sb.frame) removeFrame(sb.frame);
+              return document.hidden ? switchInPlayer(f) : openEpisodeAndPlay(f);
+            }
+            var n = np();
+            if (!n || !n.toFrame) return switchInPlayer(f);
+            var oldFrame = activeOurs();
+            var site = soundcloudFrame();
+            var oldWin = oldFrame ? oldFrame.contentWindow : (site ? site.contentWindow : null);
+            handing = { f: f, win: sb.win, frame: sb.frame, oldWin: oldWin, oldFrame: oldFrame, info: sb.info, timer: null };
+            arriving = { id: f.id, since: Date.now(), tries: 1 };
+            n.toFrame(sb.win, { play: true, seek: f.start }); // still muted
+            // If it hasn't started after a few seconds, iOS held it back: fall back.
+            handing.timer = setTimeout(function () {
+              if (!handing || handing.f !== f) return;
+              var h = handing;
+              handing = null;
+              removeFrame(h.frame);
+              if (document.hidden) showToast("Couldn't continue with the screen off. Open the app to keep going.");
+              if (playlist && playlist.current === f) switchInPlayer(f);
+            }, 6000);
+          }
+          function finishHandoff() {
+            var h = handing;
+            handing = null;
+            clearTimeout(h.timer);
+            var n = np();
+            // Swap in the same instant: the new player is heard, the old one pauses.
+            n.toFrame(h.win, { unmute: true });
+            if (h.oldWin) n.toFrame(h.oldWin, { pause: true });
+            n.setStandby(h.win, false);
+            n.setActiveFrame(h.win);
+            directShown = directInfo(h.f, h.info);
+            n.setDirect(directShown);
+            direct = { number: directShown.number, id: h.f.id, heard: true };
+            if (h.oldFrame) setTimeout(function () { removeFrame(h.oldFrame); }, 3000);
+            renderMiniPlayer(miniPlayer());
+          }
+
+          // Fallback when no player was loaded ahead: load the show in a player of the app's
+          // own (the site's stays paused) and jump to the song.
           function switchInPlayer(f) {
-            var frame = soundcloudFrame();
-            if (!frame) return switchFailed(f);
-            audioLink(f.episodeURL).then(function (link) {
+            discardStandby();
+            episodeInfo(f.episodeURL).then(function (info) {
               if (!playlist || playlist.current !== f) return;
-              if (!link) return switchFailed(f);
-              var src;
-              try {
-                var u = new URL(frame.src);
-                u.searchParams.set('url', link);
-                u.searchParams.set('auto_play', 'true');
-                u.searchParams.set('sr_start', String(Math.max(0, f.start)));
-                u.searchParams.set('sr_id', String(Date.now()));
-                src = u.toString();
-              } catch (e) {
-                src = 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(link) +
-                  '&auto_play=true&sr_start=' + Math.max(0, f.start) + '&sr_id=' + Date.now();
-              }
-              direct = { number: showNumber(f.show), id: f.id, heard: false };
+              if (!info.link) return switchFailed(f);
+              var n = np();
+              if (!n || !n.setActiveFrame) return switchFailed(f);
+              var oldFrame = activeOurs();
+              var site = soundcloudFrame();
+              var frame = makeFrame(playerURL(info.link, f.start, false));
+              if (oldFrame) n.toFrame(oldFrame.contentWindow, { pause: true });
+              else if (site) n.toFrame(site.contentWindow, { pause: true });
+              n.setActiveFrame(frame.contentWindow);
+              directShown = directInfo(f, info);
+              n.setDirect(directShown);
+              direct = { number: directShown.number, id: f.id, heard: false };
               arriving = { id: f.id, since: Date.now(), tries: 1 };
-              keepAwake(true);
-              frame.src = src;
+              if (oldFrame) setTimeout(function () { removeFrame(oldFrame); }, 1000);
+              renderMiniPlayer(miniPlayer());
               // If iOS held back autoplay, nudge it once the player has loaded.
               setTimeout(function () {
                 if (!playlist || playlist.current !== f) return;
                 var st = npState();
-                if (!st || st.paused !== false) { var n = np(); n && n.play(); }
+                if (!st || st.paused !== false) { var m = np(); m && m.play(); }
               }, 4000);
             }).catch(function () { switchFailed(f); });
           }
@@ -2244,7 +2455,10 @@ enum FavoritesScript {
             var deadline = Date.now() + 5000;
             var wantNumber = showNumber(f.show);
             (function tryClick() {
-              if (!playlist || !arriving || arriving.id !== f.id) return;
+              if (!playlist || playlist.current !== f) return;
+              // A normal switch is abandoned once something else took over; catching the
+              // page up (resumeAt) carries on even after the music has settled.
+              if (resumeAt == null && (!arriving || arriving.id !== f.id)) return;
               // The page isn't being drawn (app in the background): switch in the player.
               if (document.hidden && resumeAt == null) return switchInPlayer(f);
               var onPage = location.pathname.replace(/\/$/, '') === f.episodeURL &&
@@ -2256,8 +2470,10 @@ enum FavoritesScript {
                 if (best) {
                   var btn = best.row.querySelector(':scope > button');
                   if (btn) {
+                    if (!arriving || arriving.id !== f.id) arriving = { id: f.id, since: Date.now(), tries: 0, at: resumeAt };
                     arriving.tries++;
                     arriving.since = Date.now();
+                    if (ours.length) retireOurs(); // the site's player takes over again
                     btn.click();
                     var target = resumeAt != null ? resumeAt : f.start;
                     if (Math.abs(best.start - target) > 1) setTimeout(function () { var n = np(); n && n.seek(target); }, 1500);
@@ -2270,7 +2486,7 @@ enum FavoritesScript {
               else {
                 // Couldn't catch the page up after a background switch. The music is
                 // already right, so leave it playing and keep following it.
-                direct = { number: wantNumber, id: f.id };
+                direct = { number: wantNumber, id: f.id, heard: true };
                 arriving = null;
               }
             })();
@@ -2314,7 +2530,6 @@ enum FavoritesScript {
               if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20 && st.paused !== true) {
                 arriving = null;
                 if (direct && direct.id === f.id) direct.heard = true;
-                keepAwake(false);
               } else if (Date.now() - arriving.since > 7000) {
                 if (st && playingNumber === number && arriving.tries < 3) {
                   arriving.tries++;
@@ -2334,6 +2549,7 @@ enum FavoritesScript {
             var end = f.end != null ? f.end : (st.duration || Infinity);
             var left = end - st.t;
             if (left <= 0.4) return nextFavorite();
+            if (left < 15 && !st.paused) prepareStandby(upcoming());
             // Playback updates arrive about once a second; check again right at the end.
             if (left < 2.5 && !endTimer && !st.paused) {
               endTimer = setTimeout(function () {
