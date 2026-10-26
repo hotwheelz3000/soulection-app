@@ -87,19 +87,20 @@ jobs:
           fi
           ls -la xtool
 
-      # Stamp the IPA with the real build time. Zip files store times without a
-      # time zone, so the upload runs in Los Angeles time to show correctly there.
+      # Stamp the IPA with the build time as Los Angeles wall-clock time. Zip
+      # files store a time with no time zone, and the artifact upload writes it
+      # in UTC, which then shows 7-8 hours ahead on a phone in LA. Setting the
+      # file's time to "LA time, labelled as UTC" cancels that out (daylight
+      # saving is handled by the date command).
       - name: Stamp IPA with build time
         env:
           APP_NAME: ${{ steps.app.outputs.name }}
-          TZ: America/Los_Angeles
         run: |
-          touch "xtool/$APP_NAME.ipa"
-          ls -la "xtool/$APP_NAME.ipa"
+          la_now=$(TZ=America/Los_Angeles date +%Y%m%d%H%M.%S)
+          TZ=UTC touch -t "$la_now" "xtool/$APP_NAME.ipa"
+          echo "Stamped with LA time $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M %Z')"
 
       - uses: actions/upload-artifact@v4
-        env:
-          TZ: America/Los_Angeles
         with:
           name: ${{ steps.app.outputs.name }}-ipa
           path: xtool/${{ steps.app.outputs.name }}.ipa
