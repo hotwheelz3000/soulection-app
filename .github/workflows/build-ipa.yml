@@ -87,7 +87,19 @@ jobs:
           fi
           ls -la xtool
 
+      # Stamp the IPA with the real build time. Zip files store times without a
+      # time zone, so the upload runs in Los Angeles time to show correctly there.
+      - name: Stamp IPA with build time
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
+          TZ: America/Los_Angeles
+        run: |
+          touch "xtool/$APP_NAME.ipa"
+          ls -la "xtool/$APP_NAME.ipa"
+
       - uses: actions/upload-artifact@v4
+        env:
+          TZ: America/Los_Angeles
         with:
           name: ${{ steps.app.outputs.name }}-ipa
           path: xtool/${{ steps.app.outputs.name }}.ipa
