@@ -12,7 +12,7 @@ import Foundation
 ///   Styled with the site's own values (read from radio.soulection.com): background
 ///   rgb(26,26,26), border rgb(42,42,42), 9px corners like the mini player card, Bai
 ///   Jamjuree, rgb(138,138,138) text with semibold song names, rgb(90,90,90) for the
-///   show line, and the text grey as the accent (filled hearts, button icons).
+///   show line, and white as the accent (filled hearts, button icons).
 /// - Playlist: playing a favorite opens its episode and taps its tracklist row (the
 ///   site's own way to start an episode at a song). When playback reaches the
 ///   favorite's end (the next song's timestamp) it moves to the next favorite,
@@ -33,7 +33,7 @@ enum FavoritesScript {
           var TEXT = 'rgb(138, 138, 138)';    // body text, song and artist
           var MUTED = 'rgb(90, 90, 90)';      // mini player show line, column headings
           var TRACK = 'rgb(58, 58, 58)';      // progress track
-          var ACCENT = TEXT;                  // filled hearts and icons match the text
+          var ACCENT = 'rgb(255, 255, 255)';  // filled hearts and icons
           var HOVER = 'rgba(51, 65, 85, 0.7)'; // tracklist row hover
           var SHADOW = 'rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px';
 
