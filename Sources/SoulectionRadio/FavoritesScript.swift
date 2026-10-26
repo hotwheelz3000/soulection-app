@@ -73,6 +73,9 @@ enum FavoritesScript {
 
           var CLOUD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13 3 3 0 0 0 6 19z"/></svg>';
 
+          var SHARE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m8 7 4-4 4 4"/><path d="M6 11H5a1 1 0 0 0-1 1v8a1 1 0 0 0 1 1h14a1 1 0 0 0 1-1v-8a1 1 0 0 0-1-1h-1"/></svg>';
+          var NOTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M9 18V5l12-2v13"/><circle cx="6" cy="18" r="3"/><circle cx="18" cy="16" r="3"/></svg>';
+          var TRASH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 6h18"/><path d="M8 6V4h8v2"/><path d="M6 6l1 14h10l1-14"/></svg>';
           var CLOSE_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
           var MORE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
           var HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.5-2.8 4.2"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/></svg>';
@@ -289,7 +292,10 @@ enum FavoritesScript {
             '.sr-backup .sr-btn svg{width:15px;height:15px}',
             '.sr-note{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 72px);z-index:60;padding:10px 12px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;color:' + TEXT + ';opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}',
             '.sr-note.sr-show{opacity:1;transform:none;pointer-events:auto}',
-            '.sr-note .sr-actions{margin-top:8px}',
+            '.sr-note .sr-actions{margin-top:8px;flex-wrap:wrap;gap:6px}',
+            // Message buttons: compact (still at least 30px tall to tap).
+            '.sr-note .sr-btn{padding:5px 10px;font-size:13px;line-height:18px;gap:6px;border-radius:7px}',
+            '.sr-note .sr-btn svg{width:15px;height:15px;color:inherit}',
             '.sr-note-title{font-weight:600}'
           ].join('\n');
 
@@ -483,9 +489,9 @@ enum FavoritesScript {
                 var url = 'https://radio.soulection.com' + (f.episodeURL || '');
                 var when = f.start != null ? ' at ' + clock(f.start) : '';
                 native({ op: 'share', text: f.song + (f.artist ? ' by ' + f.artist : '') + ' (' + (f.show || 'Soulection Radio') + when + ')', url: url });
-              }],
-              ['Find on Spotify', function () { native({ op: 'openURL', url: 'https://open.spotify.com/search/' + encodeURIComponent(q.trim()) }); }],
-              ['Find on Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }]
+              }, SHARE, 'Share this song'],
+              ['Spotify', function () { native({ op: 'openURL', url: 'https://open.spotify.com/search/' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Spotify'],
+              ['Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Apple Music']
             ];
             (extra || []).forEach(function (b) { buttons.push(b); });
             buttons.push(['Cancel', null]);
@@ -1188,8 +1194,9 @@ enum FavoritesScript {
             if (!n) return;
             var row = n.querySelector('.sr-actions');
             buttons.forEach(function (b) {
-              var btn = el('button', 'sr-btn', '<span>' + esc(b[0]) + '</span>');
+              var btn = el('button', 'sr-btn', (b[2] || '') + '<span>' + esc(b[0]) + '</span>');
               btn.type = 'button';
+              if (b[3]) btn.setAttribute('aria-label', b[3]);
               btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 hideNote();
@@ -1282,7 +1289,7 @@ enum FavoritesScript {
               more.setAttribute('aria-label', 'More for ' + f.song);
               more.addEventListener('click', function (e) {
                 e.stopPropagation();
-                songActions(f, [[hist ? 'Remove from History' : 'Remove from Likes', function () { removeItem(item, f.id, sheet.mode); }]]);
+                songActions(f, [['Remove', function () { removeItem(item, f.id, sheet.mode); }, TRASH, hist ? 'Remove from History' : 'Remove from Likes']]);
               });
               main.appendChild(more);
               main.appendChild(heart);
