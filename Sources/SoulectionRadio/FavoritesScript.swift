@@ -683,7 +683,11 @@ enum FavoritesScript {
           function hideSite(node) { if (node && !node.hasAttribute('data-sr-mini-hide')) node.setAttribute('data-sr-mini-hide', ''); }
           function renderMiniOverlay(player) {
             var over = player.querySelector(':scope > .sr-mini-over');
-            var on = !!(directShown && activeOurs());
+            // Also whenever a playlist plays: jumping to a song's spot leaves the site's own
+            // mini player frozen on the song before it.
+            var cur0 = playlist && playlist.current;
+            var shown = directShown && activeOurs() ? directShown : (cur0 ? { show: cur0.show, cover: cur0.cover } : null);
+            var on = !!shown;
             if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
             if (!on) { if (over) over.remove(); return; }
             if (!over) {
@@ -734,7 +738,7 @@ enum FavoritesScript {
               var r = getComputedStyle(siteImg).borderRadius;
               if (img.style.borderRadius !== r) img.style.borderRadius = r;
             }
-            if (directShown.cover && img.getAttribute('src') !== directShown.cover) img.src = directShown.cover;
+            if (shown.cover && img.getAttribute('src') !== shown.cover) img.src = shown.cover;
 
             // Show line and song
             var textBox = over.querySelector('.sr-mo-text');
@@ -746,7 +750,7 @@ enum FavoritesScript {
               copyFont((lines[1] && lines[1].querySelector('b, strong, span')) || lines[1], over.querySelector('.sr-mo-song'));
               copyFont(lines[1], over.querySelector('.sr-mo-line'));
             }
-            set('.sr-mo-show', directShown.show || '');
+            set('.sr-mo-show', shown.show || '');
             set('.sr-mo-song', song || '');
             set('.sr-mo-artist', artist || '');
 
