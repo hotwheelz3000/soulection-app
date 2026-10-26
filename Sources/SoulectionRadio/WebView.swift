@@ -39,6 +39,14 @@ struct WebView: UIViewRepresentable {
                 forMainFrameOnly: false
             )
         )
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: FavoritesScript.source,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
+        configuration.userContentController.add(context.coordinator.favorites, name: FavoritesBridge.name)
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -61,6 +69,7 @@ struct WebView: UIViewRepresentable {
         webView.scrollView.bounces = true
 
         context.coordinator.webView = webView
+        context.coordinator.favorites.webView = webView
         webView.load(URLRequest(url: url))
         return webView
     }
@@ -238,6 +247,7 @@ struct WebView: UIViewRepresentable {
     final class Coordinator: NSObject, WKNavigationDelegate, WKUIDelegate {
         let homeURL: URL
         let appearance: PageAppearance
+        let favorites = FavoritesBridge()
         weak var webView: WKWebView?
 
         init(homeURL: URL, appearance: PageAppearance) {

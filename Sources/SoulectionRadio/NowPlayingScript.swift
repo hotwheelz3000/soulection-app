@@ -16,6 +16,11 @@ import Foundation
 ///   tracklist timestamp; previous restarts the current song after 3 seconds). It
 ///   clears seekforward/seekbackward so iOS shows track buttons instead of 10-second
 ///   skips. Play/pause stay with the widget.
+///
+/// It also exposes `window.__soulectionNowPlaying` for FavoritesScript: the playback
+/// state (show, episode, tracklist, position), seek and pause, a metadata override,
+/// and next/previous hooks so the lock screen buttons move through the favorites
+/// playlist while it plays.
 enum NowPlayingScript {
     static let source = #"""
         (function () {
@@ -58,6 +63,9 @@ enum NowPlayingScript {
             var lastSent = '';
             var lastSentAt = 0;
             var scheduled = false;
+            var lastState = null;
+            var override = null; // metadata FavoritesScript shows while its playlist plays
+            var playlist = null; // {next, previous} handlers while the favorites playlist plays
 
             function miniPlayer() {
               var slider = document.querySelector('[role="slider"][aria-valuenow]');
@@ -104,7 +112,10 @@ enum NowPlayingScript {
               var pageEpisode = episodeOnPage();
               if (number && showNumber(pageEpisode) === number) {
                 var parsed = parseTracklist();
-                if (parsed.length) tracklists[number] = parsed;
+                if (parsed.length) {
+                  parsed.url = location.pathname;
+                  tracklists[number] = parsed;
+                }
               }
               var tracks = (number && tracklists[number]) || [];
 
@@ -143,6 +154,14 @@ enum NowPlayingScript {
                 if (parts.length > 1) { artist = parts.shift(); title = parts.join(' - '); } else { title = playerSong; }
               }
               if (!title) { title = showLine || album; artist = artist || 'Soulection Radio'; }
+              if (override) {
+                title = override.title;
+                artist = override.artist;
+                album = override.album;
+                artwork = override.artwork || artwork;
+              }
+              var slider2 = player.querySelector('[role="slider"][aria-valuemax]');
+              var duration = slider2 ? parseFloat(slider2.getAttribute('aria-valuemax')) : NaN;
 
               return {
                 type: MSG,
@@ -152,7 +171,16 @@ enum NowPlayingScript {
                 artwork: artwork,
                 starts: tracks.map(function (x) { return x.start; }),
                 index: index,
-                t: t
+                t: t,
+                // Used by FavoritesScript (not by the player frame).
+                number: number,
+                show: showLine.split(' | ')[0].trim(),
+                cover: img && img.src ? img.src : '',
+                episodeURL: tracks.url || '',
+                tracks: tracks.map(function (x) { return { start: x.start, artist: x.artist, title: x.title }; }),
+                duration: isNaN(duration) ? null : duration,
+                paused: frameTime ? !!frameTime.paused : null,
+                playlist: !!playlist
               };
             }
 
@@ -178,8 +206,10 @@ enum NowPlayingScript {
             function update() {
               scheduled = false;
               var state = currentState();
+              lastState = state;
+              try { window.dispatchEvent(new CustomEvent('soulection-nowplaying', { detail: state })); } catch (e) {}
               if (!state) return;
-              var key = JSON.stringify([state.title, state.artist, state.album, state.artwork, state.starts]);
+              var key = JSON.stringify([state.title, state.artist, state.album, state.artwork, state.starts, state.playlist]);
               var now = Date.now();
               if (key === lastSent && now - lastSentAt < 5000) return;
               lastSent = key;
@@ -203,6 +233,10 @@ enum NowPlayingScript {
               if (!fromPlayer) return;
               if (typeof d.t === 'number') frameTime = { t: d.t, paused: !!d.paused, at: Date.now() };
               if (d.hello) lastSent = '';
+              if (d.command && playlist) {
+                // Lock screen next/previous while the favorites playlist plays.
+                try { playlist[d.command === 'next' ? 'next' : 'previous'](); } catch (err) {}
+              }
               if (typeof d.seekTo === 'number') {
                 // The player frame couldn't seek its own media element; use the widget API.
                 try {
@@ -228,6 +262,23 @@ enum NowPlayingScript {
 
             // Timer fallback in case the page updates without DOM mutations.
             setInterval(schedule, 1000);
+
+            function toPlayer(msg) {
+              msg.type = MSG + '-control';
+              playerFrames().forEach(function (f) {
+                try { f.contentWindow.postMessage(msg, '*'); } catch (e) {}
+              });
+            }
+
+            // Used by FavoritesScript to follow playback and drive the favorites playlist.
+            window.__soulectionNowPlaying = {
+              state: function () { return currentState(); },
+              refresh: function () { lastSent = ''; update(); },
+              seek: function (t) { toPlayer({ seek: t }); },
+              pause: function () { toPlayer({ pause: true }); },
+              setOverride: function (meta) { override = meta; lastSent = ''; schedule(); },
+              setPlaylist: function (handlers) { playlist = handlers; lastSent = ''; schedule(); }
+            };
           }
 
           // ---------------------------------------------------------------------------
@@ -308,6 +359,14 @@ enum NowPlayingScript {
             function handlers() {
               var starts = state.starts || [];
               var set = function (a, h) { try { nativeSetHandler.call(ms, a, h); } catch (e) {} };
+              if (state.playlist) {
+                // The favorites playlist decides what next/previous mean.
+                set('nexttrack', function () { post({ command: 'next', t: now() }); });
+                set('previoustrack', function () { post({ command: 'previous', t: now() }); });
+                set('seekforward', null);
+                set('seekbackward', null);
+                return;
+              }
               set('nexttrack', starts.length ? function () {
                 var t = now();
                 for (var i = 0; i < starts.length; i++) if (starts[i] > t + 1) return seek(starts[i]);
@@ -329,6 +388,11 @@ enum NowPlayingScript {
             window.addEventListener('message', function (e) {
               if (e.source !== window.parent || !SOULECTION_ORIGIN.test(e.origin)) return;
               var d = e.data;
+              if (d && d.type === MSG + '-control') {
+                if (typeof d.seek === 'number') seek(d.seek);
+                if (d.pause && media) media.pause();
+                return;
+              }
               if (!d || d.type !== MSG) return;
               state = d;
               try {
