@@ -3,8 +3,10 @@ import Foundation
 /// Favorites, listening history and a random-show button: hearts on songs, a sheet with
 /// Favorites and History tabs, playlists from either, and a dice in the top bar.
 ///
-/// - History: a song is recorded after it has played for 2 seconds (like Spotify's
+/// - History: a song is recorded as soon as it starts playing (like Spotify's
 ///   Recently played), saved in the app, newest first, with replays moved to the top.
+/// - Sleep timer: a moon in the top bar. Fixed times run in the app (so they keep
+///   going while locked); "End of song" and "End of show" follow playback here.
 /// - Dice: picks a random episode from the site's sitemap and home page and plays it
 ///   from the start.
 ///
@@ -53,6 +55,8 @@ enum FavoritesScript {
 
           var DICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/></svg>';
 
+          var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3a6 6 0 0 0 9 9 9 9 0 1 1-9-9Z"/></svg>';
+
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
@@ -73,6 +77,22 @@ enum FavoritesScript {
             '.sr-tabbtn{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;margin:0;font-family:' + FONT + ';font-size:18px;line-height:24px;font-weight:600;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-tabbtn[aria-pressed="true"]{color:' + TEXT + '}',
             '.sr-clear[hidden]{display:none}',
+            // Sleep timer: moon in the top bar (with time left) and its panel.
+            '.sr-moon-top{font-size:21px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center;gap:4px}',
+            '.sr-moon-top[aria-pressed="true"]{color:' + ACCENT + '}',
+            '.sr-moon-left{font-family:' + FONT + ';font-size:11px;line-height:1;font-variant-numeric:tabular-nums}',
+            '.sr-moon-left:empty{display:none}',
+            '.sr-sleep .sr-sheet{min-height:0}',
+            '.sr-sleep-title{font-size:13px;line-height:18px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';margin:0}',
+            '.sr-sleep-status{font-size:12px;line-height:16px;color:' + MUTED + ';margin-top:3px}',
+            '.sr-sleep-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0;margin:0;background:none;border:0;border-bottom:1px solid ' + BORDER + ';-webkit-appearance:none;appearance:none;font-family:' + FONT + ';font-size:17px;line-height:22px;color:' + TEXT + ';text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-sleep-row:last-child{border-bottom:0}',
+            '.sr-sleep-row:active{background:' + HOVER + '}',
+            '.sr-sleep-row[aria-current="true"]{font-weight:600}',
+            '.sr-sleep-row .sr-grow{flex:1}',
+            '.sr-step{display:inline-flex;align-items:center;justify-content:center;width:38px;height:38px;border-radius:9999px;border:1px solid ' + BORDER + ';background:none;color:' + TEXT + ';font-size:22px;line-height:1;padding:0;-webkit-appearance:none;appearance:none;cursor:pointer}',
+            '.sr-step:active{background:' + HOVER + '}',
+            '.sr-sleep-off{color:' + TEXT + ';font-weight:600}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
             '.sr-grab::after{margin:5px auto 0}',
@@ -121,6 +141,7 @@ enum FavoritesScript {
           var sheet = null; // {root, backdrop, panel, list, sub, playBtn, shuffleBtn}
           var tab = null;
           var dice = null;
+          var moon = null;
           var renderPending = false;
 
           function np() { return window.__soulectionNowPlaying || null; }
@@ -188,7 +209,7 @@ enum FavoritesScript {
           }
 
           // ---------------------------------------------------------------------------
-          // Listening history: a song counts once it has played for 2 seconds.
+          // Listening history: a song is saved as soon as it starts playing.
           // ---------------------------------------------------------------------------
           var listen = null; // {track, played: seconds heard so far, last: ms, done}
           function followListening(st) {
@@ -199,10 +220,11 @@ enum FavoritesScript {
             // Count time only while it's actually playing (the position must be moving too,
             // in case the player hasn't reported paused/playing).
             var moving = st.t != null && listen.lastT != null && st.t > listen.lastT;
-            if (st.paused === false || (st.paused == null && moving)) listen.played += Math.min(2, (now - listen.last) / 1000);
+            var playing = st.paused === false || (st.paused == null && moving);
             listen.last = now;
             listen.lastT = st.t;
-            if (listen.done || listen.played < 2) return;
+            // Saved the moment it starts playing, like Spotify's Recently played.
+            if (listen.done || !playing) return;
             listen.done = true;
             var entry = {};
             for (var k in t) entry[k] = t[k];
@@ -214,6 +236,7 @@ enum FavoritesScript {
 
           window.__soulectionFavorites = {
             toast: function (message) { showToast(message); },
+            sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
               if (opts && Array.isArray(opts.history)) history = opts.history;
@@ -704,6 +727,218 @@ enum FavoritesScript {
               dice.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); playRandomShow(); });
             }
             if (dice.previousElementSibling !== tab) box.parentElement.insertBefore(dice, tab.nextSibling);
+            if (!moon) {
+              moon = heartButton('sr-moon-top');
+              moon.innerHTML = MOON + '<span class="sr-moon-left"></span>';
+              moon.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSleep(); });
+            }
+            if (moon.previousElementSibling !== dice) box.parentElement.insertBefore(moon, dice.nextSibling);
+            renderMoon();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Sleep timer
+          // ---------------------------------------------------------------------------
+          var SLEEP_KEY = 'sr-sleep';
+          var CUSTOM_KEY = 'sr-sleep-custom';
+          var sleep = null;      // {type: 'time', endsAt} | {type: 'song', id} | {type: 'show', number}
+          var sleepPanel = null; // {root, list, status}
+          var sleepTick = null;
+          try { sleep = JSON.parse(sessionStorage.getItem(SLEEP_KEY) || 'null'); } catch (e) {}
+          if (sleep && sleep.type === 'time' && sleep.endsAt <= Date.now()) sleep = null;
+          var customMinutes = 45;
+          try { customMinutes = Math.min(720, Math.max(5, parseInt(localStorage.getItem(CUSTOM_KEY), 10) || 45)); } catch (e) {}
+
+          function saveSleep() {
+            try { if (sleep) sessionStorage.setItem(SLEEP_KEY, JSON.stringify(sleep)); else sessionStorage.removeItem(SLEEP_KEY); } catch (e) {}
+          }
+          function durationLabel(min) {
+            var h = Math.floor(min / 60), m = min % 60;
+            var parts = [];
+            if (h) parts.push(h + (h === 1 ? ' hour' : ' hours'));
+            if (m || !h) parts.push(m + (m === 1 ? ' minute' : ' minutes'));
+            return parts.join(', ');
+          }
+          function clock(sec) {
+            sec = Math.max(0, Math.ceil(sec));
+            var h = Math.floor(sec / 3600), m = Math.floor(sec % 3600 / 60), s = sec % 60;
+            var mm = (h && m < 10 ? '0' : '') + m;
+            return (h ? h + ':' : '') + mm + ':' + (s < 10 ? '0' : '') + s;
+          }
+          function sleepText() {
+            if (!sleep) return '';
+            if (sleep.type === 'time') return clock((sleep.endsAt - Date.now()) / 1000);
+            return sleep.type === 'song' ? 'Song' : 'Show';
+          }
+          function renderMoon() {
+            if (!moon) return;
+            var on = !!sleep;
+            if (moon.getAttribute('aria-pressed') !== String(on)) moon.setAttribute('aria-pressed', String(on));
+            var label = on ? 'Sleep timer on, ' + (sleep.type === 'time' ? sleepText() + ' left' : 'stops at the end of the ' + (sleep.type === 'song' ? 'song' : 'show')) : 'Sleep timer';
+            if (moon.getAttribute('aria-label') !== label) moon.setAttribute('aria-label', label);
+            var left = moon.querySelector('.sr-moon-left');
+            var t = sleepText();
+            if (left && left.textContent !== t) left.textContent = t;
+            if (sleepPanel && sleepPanel.root.classList.contains('sr-open')) renderSleepStatus();
+          }
+          function startTick() {
+            if (sleepTick) return;
+            sleepTick = setInterval(function () {
+              if (!sleep) { clearInterval(sleepTick); sleepTick = null; }
+              renderMoon();
+            }, 1000);
+          }
+
+          function setSleep(next) {
+            sleep = next;
+            saveSleep();
+            if (sleep && sleep.type === 'time') native({ op: 'sleepStart', seconds: (sleep.endsAt - Date.now()) / 1000 });
+            else native({ op: 'sleepCancel' });
+            if (sleep) startTick();
+            renderMoon();
+          }
+          function startTimer(minutes) { setSleep({ type: 'time', endsAt: Date.now() + minutes * 60000 }); closeSleep(); showToast('Sleep timer: ' + durationLabel(minutes) + '.'); }
+          function stopAfterSong() {
+            var t = currentTrack();
+            if (!t) return showToast('Play a song from a show first.');
+            setSleep({ type: 'song', id: t.id, end: t.end });
+            closeSleep();
+            showToast('Stopping at the end of this song.');
+          }
+          function stopAfterShow() {
+            var st = npState();
+            if (!st || !st.number) return showToast('Play a show first.');
+            setSleep({ type: 'show', number: st.number });
+            closeSleep();
+            showToast('Stopping at the end of this show.');
+          }
+          function sleepNow() {
+            setSleep(null);
+            native({ op: 'sleepNow' });
+            var n = np();
+            n && n.pause();
+            showToast('Sleep timer: paused.');
+          }
+          // "End of song" / "End of show" follow playback.
+          function followSleep(st) {
+            if (!sleep || sleep.type === 'time' || !st) return;
+            if (sleep.type === 'song') {
+              var t = currentTrack();
+              var past = sleep.end != null && st.t != null && st.t >= sleep.end - 0.6;
+              if (past || (t && t.id !== sleep.id) || (!t && st.index != null && st.index >= 0)) sleepNow();
+            } else if (sleep.type === 'show') {
+              var ended = st.duration && st.t != null && st.t >= st.duration - 1;
+              if (ended || (st.number && st.number !== sleep.number)) sleepNow();
+            }
+          }
+
+          function buildSleep() {
+            if (sleepPanel || !document.body) return;
+            var root = el('div', 'sr-fav-root sr-sleep');
+            var backdrop = el('div', 'sr-backdrop');
+            var panel = el('div', 'sr-sheet');
+            panel.setAttribute('role', 'dialog');
+            panel.setAttribute('aria-label', 'Sleep timer');
+            backdrop.hidden = panel.hidden = true;
+            var head = el('div', 'sr-sheet-head');
+            head.appendChild(el('div', 'sr-sheet-grab'));
+            head.appendChild(el('h2', 'sr-sleep-title', 'Sleep timer'));
+            var status = el('div', 'sr-sleep-status');
+            head.appendChild(status);
+            var list = el('div', 'sr-list');
+            panel.appendChild(head);
+            panel.appendChild(list);
+            root.appendChild(backdrop);
+            root.appendChild(panel);
+            document.body.appendChild(root);
+            backdrop.addEventListener('click', closeSleep);
+            // Swipe down to close.
+            var y0 = 0, dy = 0, dragging = false;
+            panel.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; dy = 0; dragging = list.scrollTop <= 0; }, { passive: true });
+            panel.addEventListener('touchmove', function (e) {
+              if (!dragging) return;
+              dy = Math.max(0, e.touches[0].clientY - y0);
+              if (dy > 0) { panel.style.transition = 'none'; panel.style.transform = 'translateY(' + dy + 'px)'; }
+            }, { passive: true });
+            panel.addEventListener('touchend', function () {
+              panel.style.transition = '';
+              if (dragging && dy > 90) closeSleep(); else panel.style.transform = '';
+            });
+            sleepPanel = { root: root, backdrop: backdrop, panel: panel, list: list, status: status };
+          }
+          function row(label, onTap, extra) {
+            var r = el('button', 'sr-sleep-row', '<span class="sr-grow">' + esc(label) + '</span>');
+            r.type = 'button';
+            r.addEventListener('click', onTap);
+            if (extra) extra(r);
+            return r;
+          }
+          function renderSleepStatus() {
+            if (!sleepPanel) return;
+            var s = !sleep ? 'Off' : sleep.type === 'time' ? sleepText() + ' left'
+              : sleep.type === 'song' ? 'Stops at the end of this song' : 'Stops at the end of this show';
+            if (sleepPanel.status.textContent !== s) sleepPanel.status.textContent = s;
+          }
+          function renderSleep() {
+            var list = sleepPanel.list;
+            list.textContent = '';
+            if (sleep) {
+              var off = row('Turn off timer', function () { setSleep(null); closeSleep(); showToast('Sleep timer off.'); });
+              off.classList.add('sr-sleep-off');
+              list.appendChild(off);
+            }
+            [5, 15, 30, 60].forEach(function (m) {
+              list.appendChild(row(m === 60 ? '1 hour' : m + ' minutes', function () { startTimer(m); }));
+            });
+            var songRow = row('End of song', stopAfterSong);
+            if (sleep && sleep.type === 'song') songRow.setAttribute('aria-current', 'true');
+            list.appendChild(songRow);
+            var showRow = row('End of show', stopAfterShow);
+            if (sleep && sleep.type === 'show') showRow.setAttribute('aria-current', 'true');
+            list.appendChild(showRow);
+            // Custom time: tap the label to start, -/+ change it by 5 minutes.
+            var custom = row(durationLabel(customMinutes), function () { startTimer(customMinutes); }, function (r) {
+              [['−', -5, 'Less time'], ['+', 5, 'More time']].forEach(function (b) {
+                var step = el('span', 'sr-step', b[0]);
+                step.setAttribute('role', 'button');
+                step.setAttribute('aria-label', b[2]);
+                step.addEventListener('click', function (e) {
+                  e.stopPropagation();
+                  customMinutes = Math.min(720, Math.max(5, customMinutes + b[1]));
+                  try { localStorage.setItem(CUSTOM_KEY, String(customMinutes)); } catch (err) {}
+                  r.querySelector('.sr-grow').textContent = durationLabel(customMinutes);
+                });
+                r.appendChild(step);
+              });
+            });
+            list.appendChild(custom);
+            renderSleepStatus();
+          }
+          function openSleep() {
+            buildSleep();
+            if (!sleepPanel) return;
+            closeSheet();
+            renderSleep();
+            sleepPanel.backdrop.hidden = sleepPanel.panel.hidden = false;
+            sleepPanel.panel.style.transform = '';
+            document.documentElement.classList.add('sr-lock');
+            void sleepPanel.panel.offsetHeight;
+            sleepPanel.root.classList.add('sr-open');
+          }
+          function closeSleep() {
+            if (!sleepPanel || !sleepPanel.root.classList.contains('sr-open')) return;
+            sleepPanel.root.classList.remove('sr-open');
+            sleepPanel.panel.style.transform = '';
+            document.documentElement.classList.remove('sr-lock');
+            setTimeout(function () {
+              if (sleepPanel.root.classList.contains('sr-open')) return;
+              sleepPanel.backdrop.hidden = sleepPanel.panel.hidden = true;
+            }, 300);
+          }
+          if (sleep) {
+            // Page reloaded while a timer was running: make sure the app's timer matches.
+            if (sleep.type === 'time') native({ op: 'sleepStart', seconds: (sleep.endsAt - Date.now()) / 1000 });
+            startTick();
           }
 
           // ---------------------------------------------------------------------------
@@ -974,6 +1209,7 @@ enum FavoritesScript {
           window.addEventListener('soulection-nowplaying', function (e) {
             followPlayback(e.detail);
             followListening(e.detail);
+            followSleep(e.detail);
             schedule();
           });
 

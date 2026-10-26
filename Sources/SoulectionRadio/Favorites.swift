@@ -197,7 +197,7 @@ final class FavoritesStore {
 /// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import",
 /// "backupLater" (dismiss the backup reminder until the next few favorites),
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
-/// "historyClear".
+/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel" or "sleepNow".
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
@@ -206,6 +206,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     let store = FavoritesStore()
     weak var webView: WKWebView?
+    /// Sleep timer for fixed durations. It runs in the app (not the web page), so it
+    /// keeps counting while the screen is locked and audio plays in the background.
+    private var sleepTimer: Timer?
 
     func userContentController(
         _ userContentController: WKUserContentController,
@@ -245,6 +248,20 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             store.removeFromHistory(id: id)
         case "historyClear":
             store.clearHistory()
+        case "sleepStart":
+            guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
+            startSleepTimer(seconds: seconds)
+            return
+        case "sleepCancel":
+            sleepTimer?.invalidate()
+            sleepTimer = nil
+            return
+        case "sleepNow":
+            // "End of song" / "End of show" are watched by the page; it asks us to stop.
+            sleepTimer?.invalidate()
+            sleepTimer = nil
+            webView?.pauseAllMediaPlayback(completionHandler: nil)
+            return
         case "export":
             exportFavorites()
             return
@@ -255,6 +272,22 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             break
         }
         send()
+    }
+
+    private func startSleepTimer(seconds: Double) {
+        sleepTimer?.invalidate()
+        sleepTimer = Timer.scheduledTimer(withTimeInterval: seconds, repeats: false) { [weak self] _ in
+            Task { @MainActor in self?.sleepTimerFired() }
+        }
+    }
+
+    private func sleepTimerFired() {
+        sleepTimer = nil
+        webView?.pauseAllMediaPlayback(completionHandler: nil)
+        webView?.evaluateJavaScript(
+            "window.__soulectionFavorites && window.__soulectionFavorites.sleepFired && window.__soulectionFavorites.sleepFired();",
+            completionHandler: nil
+        )
     }
 
     private func send() {
