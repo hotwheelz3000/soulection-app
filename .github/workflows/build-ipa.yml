@@ -1,0 +1,65 @@
+name: Build IPA
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      # The app name comes from `product:` in xtool.yml, so the IPA and the
+      # artifact follow the app automatically after ./rename-app.sh.
+      - name: Read app name
+        id: app
+        run: |
+          name=$(awk -F': *' '$1 == "product" { print $2 }' xtool.yml | tr -d "\"' \r")
+          if [ -z "$name" ]; then
+            echo "::error::xtool.yml has no 'product:' entry"
+            exit 1
+          fi
+          echo "App name: $name"
+          echo "name=$name" >> "$GITHUB_OUTPUT"
+
+      # Per https://xtool.sh/documentation/xtooldocs/installation-macos:
+      # use the preinstalled Xcode for the iOS SDK + Swift toolchain, then
+      # install xtool via Homebrew. No `xtool setup` / Apple ID is needed for
+      # an unsigned build.
+      - name: Check Xcode toolchain
+        run: |
+          xcode-select -p
+          xcrun -sdk iphoneos -show-sdk-path
+          swift --version
+
+      - name: Install xtool
+        run: |
+          brew install xtool-org/tap/xtool
+          xtool --help
+          xtool dev build --help
+
+      # Builds for arm64-apple-ios (the default triple). Without --sign the
+      # app is left unsigned; --ipa zips it into Payload/ as xtool/<App>.ipa.
+      - name: Build unsigned IPA
+        run: xtool dev build --ipa
+
+      - name: Package IPA manually if needed
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
+        run: |
+          if [ ! -f "xtool/$APP_NAME.ipa" ]; then
+            echo "xtool did not produce an .ipa; packaging the .app manually"
+            rm -rf Payload
+            mkdir Payload
+            cp -R "xtool/$APP_NAME.app" Payload/
+            zip -r "xtool/$APP_NAME.ipa" Payload
+          fi
+          ls -la xtool
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ${{ steps.app.outputs.name }}-ipa
+          path: xtool/${{ steps.app.outputs.name }}.ipa
+          if-no-files-found: error

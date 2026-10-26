@@ -1,0 +1,5 @@
+version: 1
+bundleID: com.example.MyApp
+# The SwiftPM product used as the app. Also names the built .app/.ipa.
+# Change it with ./rename-app.sh rather than by hand.
+product: MyApp
