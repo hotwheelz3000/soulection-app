@@ -394,6 +394,24 @@ enum FavoritesScript {
 
           window.__soulectionFavorites = {
             toast: function (message) { showToast(message); },
+            // A phone call (or another app's audio) paused the music; when it's over, carry on
+            // if it was playing just before.
+            interrupted: function (began) {
+              if (began) {
+                wasPlayingBeforeCall = Date.now() - lastPlayingAt < 3000;
+                return;
+              }
+              if (!wasPlayingBeforeCall) return;
+              wasPlayingBeforeCall = false;
+              [500, 1500, 3000].forEach(function (ms) {
+                setTimeout(function () {
+                  var st = npState();
+                  if (st && st.paused === false) return;
+                  var n = np();
+                  n && n.play();
+                }, ms);
+              });
+            },
             pickSavedFile: function (restored) { pickSavedFileNote(restored); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
@@ -2292,6 +2310,7 @@ enum FavoritesScript {
           // Favorites playlist
           // ---------------------------------------------------------------------------
           var PENDING_KEY = 'sr-favorites-playlist';
+          var lastPlayingAt = 0, wasPlayingBeforeCall = false;
           var playlist = null;   // {ids, pos, mode, current}
           var arriving = null;   // {id, since, tries} while switching to a favorite
           var endTimer = null;   // fires right at the current favorite's end
@@ -2456,12 +2475,15 @@ enum FavoritesScript {
             frame.src = src;
             document.body.appendChild(frame);
             ours.push(frame);
+            var n = np();
+            if (n && n.setOurs && frame.contentWindow) n.setOurs(frame.contentWindow, true);
             return frame;
           }
           function removeFrame(frame) {
             ours = ours.filter(function (x) { return x !== frame; });
             var n = np();
             if (n && n.setStandby && frame.contentWindow) n.setStandby(frame.contentWindow, false);
+            if (n && n.setOurs && frame.contentWindow) n.setOurs(frame.contentWindow, false);
             try { frame.remove(); } catch (e) {}
           }
           function activeOurs() {
@@ -2542,6 +2564,7 @@ enum FavoritesScript {
 
           window.addEventListener('soulection-frametime', function (e) {
             var d = e.detail || {};
+            if (d.paused === false && !d.muted) lastPlayingAt = Date.now();
             if (handing && handing.win && d.win === handing.win && d.paused === false) {
               // Unmute once it's at the song; give it a moment to get there, but not longer.
               var near = d.t != null && Math.abs(d.t - handing.f.start) < 3;
@@ -2615,6 +2638,64 @@ enum FavoritesScript {
             renderMiniPlayer(miniPlayer());
           }
           function switchInPlayer(f) { return handoff(f); }
+
+          // A player is playing out loud but isn't the one the app shows (a switch that didn't
+          // go cleanly). Follow that one: show its show and song, and pause any other player.
+          window.addEventListener('soulection-stray', function (e) {
+            if (handing) return;
+            var win = e.detail && e.detail.win;
+            var n = np();
+            if (!win || !n || !n.setActiveFrame) return;
+            var mine = null;
+            for (var i = 0; i < ours.length; i++) if (ours[i].contentWindow === win) mine = ours[i];
+            var site = soundcloudFrame();
+            // Quiet every other player.
+            ours.forEach(function (fr) { if (fr !== mine && fr.contentWindow) n.toFrame(fr.contentWindow, { pause: true, unmute: true }); });
+            if (site && site.contentWindow !== win) n.toFrame(site.contentWindow, { pause: true, unmute: true });
+            if (!mine) {
+              // The site's own player: back to normal following.
+              ours.slice().forEach(removeFrame);
+              standby = null;
+              n.setActiveFrame(null);
+              n.setDirect(null);
+              directShown = null;
+              direct = null;
+              renderMiniPlayer(miniPlayer());
+              return;
+            }
+            if (standby && standby.win === win) standby = null;
+            n.setStandby(win, false);
+            n.setActiveFrame(win);
+            // Which show it plays: from its SoundCloud link.
+            var link = '';
+            try { link = new URL(mine.src).searchParams.get('url') || ''; } catch (err) {}
+            var path = null;
+            Object.keys(episodeAudio).forEach(function (p) { if (episodeAudio[p] === link) path = p; });
+            var info = path && episodeInfos[path];
+            var cur = playlist && playlist.current;
+            if (info) {
+              var f = cur && cur.episodeURL === path ? cur : { show: 'Show #' + info.number, cover: info.cover, episodeURL: path };
+              directShown = directInfo(f, info);
+              n.setDirect(directShown);
+              direct = { number: directShown.number, id: cur && cur.episodeURL === path ? cur.id : null, heard: true };
+              // The playlist was on another song: let go of it rather than show the wrong one.
+              if (cur && cur.episodeURL !== path) dropPlaylist();
+            }
+            renderMiniPlayer(miniPlayer());
+          });
+          // Ends playlist mode without touching what's playing.
+          function dropPlaylist() {
+            if (!playlist) return;
+            playlist = null;
+            arriving = null;
+            mixNext = null;
+            mixNextItem = null;
+            try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
+            var n = np();
+            if (n) { n.setPlaylist(null); n.setOverride(null); }
+            renderTape();
+            schedule();
+          }
 
           // Back in the app after a background switch: show the playing show's page and let
           // the site take over from the same spot.
@@ -2763,6 +2844,7 @@ enum FavoritesScript {
           }, true);
 
           window.addEventListener('soulection-nowplaying', function (e) {
+            if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
             followPlayback(e.detail);
             followListening(e.detail);
             followSleep(e.detail);

@@ -70,6 +70,7 @@ enum NowPlayingScript {
             // the one to follow and control, and `direct` describes the show it plays.
             var activeFrame = null;   // contentWindow of the player in charge, or null for the site's
             var standbys = [];        // contentWindows of players loaded ahead (not in charge yet)
+            var ourWins = [];         // contentWindows of all the app's own players
             var frameTimes = [];      // [{win, t, paused, duration, at}]
             var direct = null;        // {number, show, cover, episodeURL, tracks}
             // Cover addresses must be absolute: the player frame is on another site.
@@ -259,14 +260,25 @@ enum NowPlayingScript {
               if (typeof d.t === 'number') {
                 var rec = timeOf(e.source);
                 if (!rec) { rec = { win: e.source }; frameTimes.push(rec); }
-                rec.t = d.t; rec.paused = !!d.paused; rec.at = Date.now();
+                rec.t = d.t; rec.paused = !!d.paused; rec.at = Date.now(); rec.muted = !!d.muted;
+                // Heard = playing and not muted. A heard player the app isn't following (after
+                // a switch that didn't go cleanly) is reported so the app can follow it instead.
+                var heard = !rec.paused && !rec.muted;
+                rec.heardSince = heard ? (rec.heardSince || Date.now()) : 0;
                 if (typeof d.duration === 'number' && isFinite(d.duration)) rec.duration = d.duration;
                 frameTimes = frameTimes.filter(function (r) { return Date.now() - r.at < 600000; });
-                try { window.dispatchEvent(new CustomEvent('soulection-frametime', { detail: { win: e.source, t: rec.t, paused: rec.paused, ready: !!d.standbyReady } })); } catch (err) {}
+                try { window.dispatchEvent(new CustomEvent('soulection-frametime', { detail: { win: e.source, t: rec.t, paused: rec.paused, muted: rec.muted } })); } catch (err) {}
                 // A player loaded ahead reports here too; only the one in charge counts.
-                var inCharge = activeFrame ? e.source === activeFrame : standbys.indexOf(e.source) < 0;
+                var inCharge = activeFrame ? e.source === activeFrame : (standbys.indexOf(e.source) < 0 && ourWins.indexOf(e.source) < 0);
+                if (!inCharge && heard && Date.now() - rec.heardSince > 2000) {
+                  var lead = activeFrame ? timeOf(activeFrame) : frameTime;
+                  var leadHeard = lead && Date.now() - lead.at < 3000 && !lead.paused && !lead.muted;
+                  if (!leadHeard) {
+                    try { window.dispatchEvent(new CustomEvent('soulection-stray', { detail: { win: e.source } })); } catch (err) {}
+                  }
+                }
                 if (!inCharge) return;
-                frameTime = { t: d.t, paused: !!d.paused, at: Date.now() };
+                frameTime = { t: d.t, paused: !!d.paused, muted: !!d.muted, at: Date.now() };
               }
               if (standbys.indexOf(e.source) >= 0 || (activeFrame && e.source !== activeFrame)) return;
               if (d.hello) lastSent = '';
@@ -307,7 +319,7 @@ enum NowPlayingScript {
                 return;
               }
               playerFrames().forEach(function (f) {
-                if (standbys.indexOf(f.contentWindow) >= 0) return;
+                if (standbys.indexOf(f.contentWindow) >= 0 || ourWins.indexOf(f.contentWindow) >= 0) return;
                 try { f.contentWindow.postMessage(msg, '*'); } catch (e) {}
               });
             }
@@ -328,6 +340,10 @@ enum NowPlayingScript {
               // The app's own players (see FavoritesScript's handoff).
               setActiveFrame: function (win) { activeFrame = win || null; frameTime = null; lastSent = ''; schedule(); },
               activeFrame: function () { return activeFrame; },
+              setOurs: function (win, on) {
+                ourWins = ourWins.filter(function (w) { return w !== win; });
+                if (on) ourWins.push(win);
+              },
               setStandby: function (win, on) {
                 standbys = standbys.filter(function (w) { return w !== win; });
                 if (on) standbys.push(win);
@@ -411,7 +427,7 @@ enum NowPlayingScript {
               var now = Date.now();
               if (e && e.type === 'timeupdate' && now - lastReport < 900) return;
               lastReport = now;
-              post({ t: media.currentTime, paused: media.paused, duration: media.duration });
+              post({ t: media.currentTime, paused: media.paused, duration: media.duration, muted: media.muted });
             }
 
             function post(extra) {

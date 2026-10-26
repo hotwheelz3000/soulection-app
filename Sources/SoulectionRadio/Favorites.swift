@@ -1,3 +1,4 @@
+import AVFoundation
 import AVKit
 import Foundation
 import MediaPlayer
@@ -237,6 +238,33 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     let store = FavoritesStore()
     weak var webView: WKWebView?
+
+    // MARK: Phone calls and other interruptions
+    //
+    // iOS pauses the music when a call comes in. When the call ends (or is declined), the
+    // page starts it again if it was playing before.
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(
+            self, selector: #selector(audioInterrupted(_:)),
+            name: AVAudioSession.interruptionNotification, object: nil
+        )
+    }
+
+    @objc nonisolated private func audioInterrupted(_ note: Notification) {
+        guard let raw = note.userInfo?[AVAudioSessionInterruptionTypeKey] as? UInt,
+              let type = AVAudioSession.InterruptionType(rawValue: raw) else { return }
+        let began = type == .began
+        Task { @MainActor [weak self] in self?.handleInterruption(began: began) }
+    }
+
+    private func handleInterruption(began: Bool) {
+        if !began { try? AVAudioSession.sharedInstance().setActive(true) }
+        webView?.evaluateJavaScript(
+            "window.__soulectionFavorites && window.__soulectionFavorites.interrupted && window.__soulectionFavorites.interrupted(\(began));",
+            completionHandler: nil
+        )
+    }
     /// Sleep timer for fixed durations. It runs in the app (not the web page), so it
     /// keeps counting while the screen is locked and audio plays in the background.
     private var sleepTimer: Timer?
