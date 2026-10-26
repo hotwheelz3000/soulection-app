@@ -208,6 +208,8 @@ struct WebView: UIViewRepresentable {
               for (var i = 0; i < stack.length; i++) {
                 var bar = fixedAncestor(stack[i]);
                 if (!bar) continue;
+                // The app's own Favorites tab and sheet size themselves.
+                if (bar.closest('.sr-tab, .sr-fav-root, .sr-note')) continue;
                 var r = bar.getBoundingClientRect();
                 if (r.bottom < h - 2 || r.height > h / 2) continue;
                 enlargeTimes(bar);
