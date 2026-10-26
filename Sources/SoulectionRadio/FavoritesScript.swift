@@ -8,10 +8,12 @@ import Foundation
 /// - Full player: tap or swipe up on the mini player for a Spotify-style full-screen
 ///   player (big cover, song, scrubber, previous/play/next, heart, sleep timer, AirPlay).
 ///   Play/pause is sent straight to the audio as well as through the site, so it's quick.
+/// - Mixtape: a cassette in the top bar plays random songs from random shows, endlessly;
+///   each song goes straight into Likes and History.
 /// - Sleep timer: a zZZ icon in the top bar that pulses while a timer runs. Fixed times run in the app (so they keep
 ///   going while locked); "End of song" and "End of show" follow playback here.
 /// - Dice: picks a random episode from the site's sitemap and home page and plays it
-///   from the start.
+///   from the start (it waits for the new page, presses that show's Play, then 0:00).
 ///
 /// - Hearts: a small heart after each song in an episode's tracklist, and one in the
 ///   site's mini player for the current song. Tapping saves or removes the song.
@@ -61,6 +63,9 @@ enum FavoritesScript {
           // Sleep timer icon: three Z's, small to big, that light up in a wave while it's on.
           var MOON = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><g transform="rotate(-10 12 12)"><path class="sr-z sr-z1" d="M1.6 15.4h3.6l-3.6 4.2h3.6"/><path class="sr-z sr-z2" d="M7.4 11.6h4.6l-4.6 5.6h4.6"/><path class="sr-z sr-z3" d="M14.2 7h6.6l-6.6 7.6h6.6"/></g></svg>';
 
+          // Mixtape: a cassette whose reels turn while it plays.
+          var CASSETTE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="5" width="20" height="14" rx="2.5"/><path d="M6.5 19l1.4-3.2h8.2l1.4 3.2"/><g class="sr-reel sr-reel1"><circle cx="8" cy="11" r="2.1"/><path d="M8 9.4v3.2M6.6 11h2.8"/></g><g class="sr-reel sr-reel2"><circle cx="16" cy="11" r="2.1"/><path d="M16 9.4v3.2M14.6 11h2.8"/></g><path d="M10.1 11h3.8"/></svg>';
+
           var CSS = [
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
@@ -76,6 +81,12 @@ enum FavoritesScript {
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
+            '.sr-tape-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
+            '.sr-tape-top[aria-pressed="true"]{color:#fff}',
+            '.sr-tape-top[aria-pressed="true"] svg{fill:none}',
+            '.sr-reel{transform-box:fill-box;transform-origin:center}',
+            '.sr-tape-top[aria-pressed="true"] .sr-reel{animation:sr-spin 2.4s linear infinite}',
+            '.sr-tape-top[aria-busy="true"] .sr-reel{animation:sr-spin .8s linear infinite}',
             // Favorites | History switch at the top of the sheet.
             '.sr-tabs{display:flex;gap:18px;align-items:baseline}',
             '.sr-tabbtn{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;margin:0;font-family:' + FONT + ';font-size:18px;line-height:24px;font-weight:600;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
@@ -189,6 +200,7 @@ enum FavoritesScript {
           var tab = null;
           var dice = null;
           var moon = null;
+          var tape = null;
           var renderPending = false;
 
           function np() { return window.__soulectionNowPlaying || null; }
@@ -213,7 +225,15 @@ enum FavoritesScript {
             return null;
           }
           function sourceList(source) { return source === 'history' ? history : favorites; }
-          function lookup(source, id) { return source === 'history' ? historyById(id) : byId(id); }
+          function lookup(source, id) {
+            if (source === 'history') return historyById(id);
+            if (source === 'mixtape') {
+              var items = (playlist && playlist.items) || [];
+              for (var i = 0; i < items.length; i++) if (items[i].id === id) return items[i];
+              return null;
+            }
+            return byId(id);
+          }
           function ago(ms) {
             var s = Math.max(0, (Date.now() - ms) / 1000);
             if (s < 60) return 'Just now';
@@ -361,8 +381,8 @@ enum FavoritesScript {
             return /^\/episodes\/[^/]+\/?$/.test(location.pathname) ? location.pathname.replace(/\/$/, '') : null;
           }
 
-          function pageRows() {
-            var rows = document.querySelectorAll('.col-span-full.grid');
+          function pageRows(doc) {
+            var rows = (doc || document).querySelectorAll('.col-span-full.grid');
             var out = [];
             for (var i = 0; i < rows.length; i++) {
               var spans = rows[i].querySelectorAll(':scope > span');
@@ -781,7 +801,14 @@ enum FavoritesScript {
               moon.innerHTML = MOON;
               moon.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSleep(); });
             }
-            if (moon.previousElementSibling !== dice) box.parentElement.insertBefore(moon, dice.nextSibling);
+            if (!tape) {
+              tape = heartButton('sr-tape-top');
+              tape.innerHTML = CASSETTE;
+              tape.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleMixtape(); });
+            }
+            if (tape.previousElementSibling !== dice) box.parentElement.insertBefore(tape, dice.nextSibling);
+            if (moon.previousElementSibling !== tape) box.parentElement.insertBefore(moon, tape.nextSibling);
+            renderTape();
             renderMoon();
           }
 
@@ -860,6 +887,7 @@ enum FavoritesScript {
           }
           function sleepNow() {
             setSleep(null);
+            endPlaylist(false); // so a playlist or Mixtape can't start the next song
             native({ op: 'sleepNow' });
             var n = np();
             n && n.pause();
@@ -1013,6 +1041,17 @@ enum FavoritesScript {
               return episodeList;
             });
           }
+          function episodeHeading() { return text(document.querySelector('#episode-card-header h1')); }
+          function goTo(path, storeKey, storeValue) {
+            if (location.pathname.replace(/\/$/, '') === path) return true;
+            if (window.next && window.next.router && window.next.router.push) {
+              window.next.router.push(path);
+              return true;
+            }
+            try { sessionStorage.setItem(storeKey, storeValue); } catch (e) {}
+            location.assign(path);
+            return false; // the page reloads; it picks up again from sessionStorage
+          }
           function playRandomShow() {
             if (!dice || dice.getAttribute('aria-busy') === 'true') return;
             dice.setAttribute('aria-busy', 'true');
@@ -1025,37 +1064,139 @@ enum FavoritesScript {
               var path = choices[Math.floor(Math.random() * choices.length)];
               endPlaylist(false);
               closeSheet();
-              if (here !== path) {
-                if (window.next && window.next.router && window.next.router.push) {
-                  window.next.router.push(path);
-                } else {
-                  try { sessionStorage.setItem(RANDOM_KEY, path); } catch (e) {}
-                  location.assign(path);
-                  return;
-                }
-              }
-              startShowFromTop(path);
+              closePlayer();
+              var oldHeading = here === path ? null : episodeHeading();
+              if (goTo(path, RANDOM_KEY, path)) startShowFromTop(path, oldHeading);
             });
           }
-          // Waits for the episode page, then presses its Play button (or the first song).
-          function startShowFromTop(path) {
+          // Waits for the new episode page to replace the old one, presses that show's own
+          // Play button, then makes sure it starts at 0:00.
+          function startShowFromTop(path, oldHeading) {
             var deadline = Date.now() + 15000;
             (function tryPlay() {
-              if (location.pathname.replace(/\/$/, '') === path) {
-                var main = document.querySelector('main') || document.body;
-                var btns = main.querySelectorAll('button');
-                for (var i = 0; i < btns.length; i++) {
+              var heading = episodeHeading();
+              var ready = location.pathname.replace(/\/$/, '') === path && heading && heading !== oldHeading;
+              if (ready) {
+                var header = document.querySelector('#episode-card-header');
+                var scope = (header && header.parentElement) || document.querySelector('main') || document.body;
+                var btns = scope.querySelectorAll('button');
+                var play = null;
+                for (var i = 0; i < btns.length && !play; i++) {
                   var b = btns[i];
                   if (b.closest('.sr-fav-root, .col-span-full.grid') || b.classList.contains('sr-heart')) continue;
-                  if (/^\s*play\s*$/i.test(b.textContent || '') || /^play\b/i.test(b.getAttribute('aria-label') || '')) { b.click(); return; }
+                  if (/^\s*play\s*$/i.test(b.textContent || '')) play = b;
                 }
-                var rows = pageRows();
-                var first = rows.length && rows[0].row.querySelector(':scope > button');
-                if (first) { first.click(); return; }
+                if (!play) {
+                  var rows = pageRows();
+                  play = rows.length ? rows[0].row.querySelector(':scope > button') : null;
+                }
+                if (play) {
+                  play.click();
+                  ensureFromStart(showNumber(heading));
+                  return;
+                }
               }
               if (Date.now() < deadline) setTimeout(tryPlay, 250);
               else showToast("Couldn't start that show.");
             })();
+          }
+          // If the site resumes where you left off, jump back to the beginning.
+          function ensureFromStart(number) {
+            var deadline = Date.now() + 10000;
+            (function check() {
+              var st = npState();
+              if (st && st.number === number && st.t != null) {
+                if (st.t > 3) { var n = np(); n && n.seek(0); }
+                return;
+              }
+              if (Date.now() < deadline) setTimeout(check, 300);
+            })();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Mixtape: endless random songs from random shows. Each one goes straight into
+          // Likes and History.
+          // ---------------------------------------------------------------------------
+          var MIX_KEY = 'sr-mixtape-pending';
+          var mixNext = null; // a promise for the next song, fetched ahead of time
+          function isMixtape() { return !!(playlist && playlist.source === 'mixtape'); }
+          function renderTape() {
+            if (!tape) return;
+            var on = isMixtape();
+            if (tape.getAttribute('aria-pressed') !== String(on)) tape.setAttribute('aria-pressed', String(on));
+            var label = on ? 'Stop Mixtape' : 'Start Mixtape';
+            if (tape.getAttribute('aria-label') !== label) tape.setAttribute('aria-label', label);
+          }
+          // Picks a random song (not a voice-over, and not the last song) from a random show.
+          function randomSong(tries) {
+            tries = tries || 0;
+            return loadEpisodes().then(function (paths) {
+              if (!paths.length) throw new Error('no shows');
+              var path = paths[Math.floor(Math.random() * paths.length)];
+              return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+                var doc = new DOMParser().parseFromString(html, 'text/html');
+                var rows = pageRows(doc);
+                var picks = [];
+                for (var i = 0; i < rows.length - 1; i++) if (!rows[i].vo) picks.push(i);
+                if (!picks.length) throw new Error('no tracklist');
+                var i2 = picks[Math.floor(Math.random() * picks.length)];
+                var row = rows[i2];
+                var h1 = doc.querySelector('#episode-card-header h1, main h1');
+                var number = showNumber(text(h1));
+                if (!number) throw new Error('no show number');
+                var img = doc.querySelector('#episode-card-header img');
+                var cover = img ? (img.getAttribute('src') || '') : '';
+                if (cover && cover.charAt(0) === '/') cover = location.origin + cover;
+                return {
+                  id: favId(path, row.start), song: row.song, artist: row.artist, show: 'Show #' + number,
+                  episodeURL: path, cover: cover, start: row.start, end: rows[i2 + 1].start, favoritedAt: Date.now()
+                };
+              });
+            }).catch(function (err) {
+              if (tries < 4) return randomSong(tries + 1);
+              throw err;
+            });
+          }
+          function prefetchMix() { mixNext = randomSong(); mixNext.catch(function () {}); }
+          function toggleMixtape() {
+            if (isMixtape()) { endPlaylist(true); showToast('Mixtape off.'); return; }
+            if (tape.getAttribute('aria-busy') === 'true') return;
+            tape.setAttribute('aria-busy', 'true');
+            closeSheet();
+            closePlayer();
+            randomSong().then(function (item) {
+              tape.removeAttribute('aria-busy');
+              endPlaylist(false);
+              playlist = { ids: [item.id], items: [item], pos: 0, mode: 'mixtape', source: 'mixtape', current: null };
+              showToast('Mixtape on. Every song goes into your Likes.');
+              playCurrent();
+              prefetchMix();
+            }).catch(function () {
+              tape.removeAttribute('aria-busy');
+              showToast("Couldn't start Mixtape.");
+            });
+          }
+          // Adds the next random song to the Mixtape and plays it.
+          function mixtapeAdvance() {
+            var list = playlist;
+            var pending = mixNext || randomSong();
+            mixNext = null;
+            pending.then(function (item) {
+              if (playlist !== list) return; // stopped meanwhile
+              list.items.push(item);
+              list.ids.push(item.id);
+              list.pos = list.ids.length - 1;
+              playCurrent();
+              prefetchMix();
+            }).catch(function () { if (playlist === list) endPlaylist(true); });
+          }
+          // Every Mixtape song goes straight into Likes (History records it as it plays).
+          function mixtapeLike(f) {
+            if (byId(f.id)) return;
+            var fav = {};
+            for (var k in f) fav[k] = f[k];
+            fav.favoritedAt = Date.now();
+            toggle(fav);
           }
 
           // Swipe up on the mini player to open the full player, like Spotify.
@@ -1261,7 +1402,7 @@ enum FavoritesScript {
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
             if (fp.title.textContent !== song) fp.title.textContent = song;
             if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
-            var show = miniShowLine() || st.show || '';
+            var show = isMixtape() && playlist.current ? 'Mixtape · ' + playlist.current.show : (miniShowLine() || st.show || '');
             if (fp.show.textContent !== show) fp.show.textContent = show;
             var cover = bigCover(st.cover || '');
             if (cover && fp.cover.getAttribute('src') !== cover) {
@@ -1398,6 +1539,8 @@ enum FavoritesScript {
             try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
             var n = np();
             if (n) { n.setPlaylist(null); n.setOverride(null); if (pause) n.pause(); }
+            mixNext = null;
+            renderTape();
             schedule();
           }
 
@@ -1409,6 +1552,7 @@ enum FavoritesScript {
             if (!f) return endPlaylist(true);
             var previous = playlist.current;
             playlist.current = f;
+            if (playlist.source === 'mixtape') { mixtapeLike(f); renderTape(); }
             var n = np();
             if (n) {
               n.setPlaylist({ next: nextFavorite, previous: previousFavorite });
@@ -1442,9 +1586,12 @@ enum FavoritesScript {
               }
             }
             var deadline = Date.now() + 15000;
+            var wantNumber = showNumber(f.show);
             (function tryClick() {
               if (!playlist || !arriving || arriving.id !== f.id) return;
-              if (location.pathname.replace(/\/$/, '') === f.episodeURL) {
+              var onPage = location.pathname.replace(/\/$/, '') === f.episodeURL &&
+                (!wantNumber || showNumber(episodeHeading()) === wantNumber);
+              if (onPage) {
                 var rows = pageRows();
                 var best = null;
                 rows.forEach(function (r) { if (r.start <= f.start + 1 && (!best || r.start > best.start)) best = r; });
@@ -1466,6 +1613,9 @@ enum FavoritesScript {
 
           function nextFavorite() {
             if (!playlist) return;
+            // Sleep timer set to "End of song" / "End of show": stop instead of moving on.
+            if (sleep && sleep.type !== 'time') return sleepNow();
+            if (playlist.source === 'mixtape' && playlist.pos >= playlist.ids.length - 1) return mixtapeAdvance();
             playlist.pos++;
             if (playlist.pos >= playlist.ids.length) return endPlaylist(true);
             playCurrent();
