@@ -115,16 +115,42 @@ struct WebView: UIViewRepresentable {
     /// env(safe-area-inset-bottom), so the playback times got cut off in the corners.
     /// This finds fixed elements touching the bottom edge and adds half the inset to
     /// their own bottom padding.
+    /// The same goes for the sticky top bar (back button and search): it sticks to
+    /// the very top, under the status bar, so the full top inset is added to its top
+    /// padding whenever it overlaps the status bar.
     private static let bottomBarInsetScript = #"""
         (function () {
           var MARK = 'data-sr-inset';
-          function bottomInset() {
+          function safeInset(side) {
             var probe = document.createElement('div');
-            probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-bottom:env(safe-area-inset-bottom)';
+            probe.style.cssText = 'position:fixed;visibility:hidden;pointer-events:none;padding-' + side + ':env(safe-area-inset-' + side + ')';
             document.documentElement.appendChild(probe);
-            var px = parseFloat(getComputedStyle(probe).paddingBottom) || 0;
+            var px = parseFloat(getComputedStyle(probe)['padding' + side.charAt(0).toUpperCase() + side.slice(1)]) || 0;
             probe.remove();
             return px;
+          }
+          function bottomInset() { return safeInset('bottom'); }
+          var TOP_MARK = 'data-sr-top-inset';
+          function applyTop() {
+            var inset = safeInset('top');
+            if (!inset) return;
+            var w = window.innerWidth, h = window.innerHeight;
+            var stack = document.elementsFromPoint ? document.elementsFromPoint(w / 2, Math.max(1, inset / 2)) : [];
+            for (var i = 0; i < stack.length; i++) {
+              var bar = fixedAncestor(stack[i]);
+              if (!bar) continue;
+              if (bar.getAttribute(TOP_MARK) === String(inset)) return;
+              var r = bar.getBoundingClientRect();
+              // Only a bar that starts inside the status bar area, not a full-screen layer.
+              if (r.top > inset - 1 || r.height > h / 3) continue;
+              var base = bar.hasAttribute(TOP_MARK + '-base')
+                ? parseFloat(bar.getAttribute(TOP_MARK + '-base'))
+                : (parseFloat(getComputedStyle(bar).paddingTop) || 0);
+              bar.setAttribute(TOP_MARK + '-base', String(base));
+              bar.setAttribute(TOP_MARK, String(inset));
+              bar.style.setProperty('padding-top', Math.round(base + inset) + 'px', 'important');
+              return;
+            }
           }
           function fixedAncestor(el) {
             for (; el && el !== document.body && el !== document.documentElement; el = el.parentElement) {
@@ -150,6 +176,7 @@ struct WebView: UIViewRepresentable {
             }
           }
           function apply() {
+            applyTop();
             var inset = bottomInset();
             if (!inset) return;
             var w = window.innerWidth, h = window.innerHeight;
@@ -182,6 +209,8 @@ struct WebView: UIViewRepresentable {
           }
           new MutationObserver(schedule).observe(document.documentElement, { childList: true, subtree: true });
           window.addEventListener('resize', schedule);
+          // A sticky top bar only reaches the status bar once the page scrolls.
+          window.addEventListener('scroll', schedule, { passive: true });
           window.addEventListener('orientationchange', schedule);
           apply();
         })();
