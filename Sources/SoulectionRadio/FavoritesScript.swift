@@ -2646,6 +2646,14 @@ enum FavoritesScript {
             var win = e.detail && e.detail.win;
             var n = np();
             if (!win || !n || !n.setActiveFrame) return;
+            // While Mixtape, Likes or History plays, a different player starting is a mistake
+            // (a play command that went to the wrong player): pause it and carry on with the
+            // right one instead of following it.
+            if (playlist && playlist.current) {
+              n.toFrame(win, { pause: true, unmute: true });
+              setTimeout(function () { var m = np(); if (m) m.play(); }, 150);
+              return;
+            }
             var mine = null;
             for (var i = 0; i < ours.length; i++) if (ours[i].contentWindow === win) mine = ours[i];
             var site = soundcloudFrame();

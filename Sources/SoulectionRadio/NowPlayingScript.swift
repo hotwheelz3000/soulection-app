@@ -280,6 +280,15 @@ enum NowPlayingScript {
                 if (!inCharge) return;
                 frameTime = { t: d.t, paused: !!d.paused, muted: !!d.muted, at: Date.now() };
               }
+              // Play/pause from the lock screen, Dynamic Island, headphones or a Bluetooth
+              // speaker. iOS can send it to any of the players, so it's always passed on to
+              // the one in charge (a pause goes to all of them).
+              if (d.command === 'play') { toPlayer({ play: true }); schedule(); return; }
+              if (d.command === 'pause') {
+                playerFrames().forEach(function (f) { toFrame(f.contentWindow, { pause: true }); });
+                schedule();
+                return;
+              }
               if (standbys.indexOf(e.source) >= 0 || (activeFrame && e.source !== activeFrame)) return;
               if (d.hello) lastSent = '';
               if (d.command && playlist) {
@@ -373,7 +382,7 @@ enum NowPlayingScript {
             var proto = Object.getPrototypeOf(ms);
             var metaDesc = Object.getOwnPropertyDescriptor(proto, 'metadata');
             var nativeSetHandler = proto.setActionHandler;
-            var OWNED = ['nexttrack', 'previoustrack', 'seekforward', 'seekbackward'];
+            var OWNED = ['nexttrack', 'previoustrack', 'seekforward', 'seekbackward', 'play', 'pause'];
             var state = null;
             var media = null;
 
@@ -470,6 +479,10 @@ enum NowPlayingScript {
             function handlers() {
               var starts = state.starts || [];
               var set = function (a, h) { try { nativeSetHandler.call(ms, a, h); } catch (e) {} };
+              // Play/pause go through the page, which knows which player is in charge. Pausing
+              // this one right away is always safe.
+              set('play', function () { post({ command: 'play' }); });
+              set('pause', function () { if (media) media.pause(); post({ command: 'pause' }); });
               if (state.playlist) {
                 // The favorites playlist decides what next/previous mean.
                 set('nexttrack', function () { post({ command: 'next', t: now() }); });
