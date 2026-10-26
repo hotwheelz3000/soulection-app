@@ -12,7 +12,7 @@ jobs:
   build:
     runs-on: macos-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       # The app name comes from `product:` in xtool.yml, so the IPA and the
       # artifact follow the app automatically after ./rename-app.sh.
@@ -69,6 +69,19 @@ jobs:
           xtool --help
           xtool dev build --help
 
+      # Stamp the build's date and time into the app (shown at the bottom of the help
+      # window), so testers can say which build they have.
+      - name: Stamp build info
+        run: |
+          label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
+          cat > Sources/SoulectionRadio/BuildInfo.swift <<EOF
+          /// Written by the Build IPA workflow.
+          enum BuildInfo {
+              static let label = "$label"
+          }
+          EOF
+          cat Sources/SoulectionRadio/BuildInfo.swift
+
       # Builds for arm64-apple-ios (the default triple). Without --sign the
       # app is left unsigned; --ipa zips it into Payload/ as xtool/<App>.ipa.
       # Compiler errors are also reported as annotations, so they show up on the
@@ -109,8 +122,23 @@ jobs:
           TZ=UTC touch -t "$la_now" "xtool/$APP_NAME.ipa"
           echo "Stamped with LA time $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M %Z')"
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v5
         with:
           name: ${{ steps.app.outputs.name }}-ipa
           path: xtool/${{ steps.app.outputs.name }}.ipa
           if-no-files-found: error
+
+      # Every build of main is also published as the "latest" GitHub Release, so testers
+      # can download the IPA from a plain link (no GitHub login; artifacts need one).
+      - name: Publish as latest release
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          APP_NAME: ${{ steps.app.outputs.name }}
+        run: |
+          label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
+          gh release delete latest --yes --cleanup-tag || true
+          gh release create latest "xtool/$APP_NAME.ipa" \
+            --title "Latest build ($label)" \
+            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME.ipa below and install it with Sideloadly or AltStore; see the README for the steps." \
+            --latest

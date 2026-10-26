@@ -668,8 +668,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         // The welcome screen shows on each launch until "Don't show again" is ticked
         // (stored in the app, not the website).
         let welcome = UserDefaults.standard.bool(forKey: Self.welcomeSeenKey) ? "false" : "true"
+        let build = (try? JSONEncoder().encode(BuildInfo.label)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome)});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build)});",
             completionHandler: nil
         )
     }

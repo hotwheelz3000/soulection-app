@@ -104,7 +104,8 @@ enum FavoritesScript {
             '.sr-mo-play{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;display:flex;align-items:center;justify-content:center;-webkit-tap-highlight-color:transparent}',
             '.sr-mo-play svg{width:var(--sr-icon,24px);height:var(--sr-icon,24px);display:block}',
             '.sr-mini-direct [data-sr-mini-hide]{visibility:hidden}',
-            '.sr-mini-direct .sr-heart-mini, .sr-mini-direct .sr-site-play{position:relative;z-index:4}',
+            '.sr-mini-direct .sr-heart-mini{position:relative;z-index:4}',
+            '.sr-help-build{padding:14px 0 6px;font-size:11px;line-height:16px;color:' + MUTED + ';text-align:center}',
             '.sr-mini-direct .sr-grab{z-index:4}',
             '.sr-player-frame{position:fixed;left:-10px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0}',
             '.sr-song-cell > .sr-bars{margin:5px 0 0 auto}',
@@ -419,6 +420,7 @@ enum FavoritesScript {
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
+              if (opts && typeof opts.build === 'string') buildLabel = opts.build;
               if (opts && Array.isArray(opts.history)) history = opts.history;
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
@@ -1300,7 +1302,8 @@ enum FavoritesScript {
               [MOON, 'Sleep timer', 'Fades out and pauses after a set time, or at the end of a song or show.'],
               [PLAYBIG, 'Full player', 'Tap or swipe up on the player at the bottom for big artwork and controls.'],
               [HEART, 'Heart any song', 'Tap the heart next to a song in a show’s tracklist, or in the player.'],
-              [NEXT, 'Skip songs', 'Next and previous on your lock screen jump between songs in the show.']
+              [NEXT, 'Skip songs', 'Next and previous on your lock screen jump between songs in the show.'],
+              [CLOUD, 'Backup to iCloud', 'In Likes, tap Turn on next to Auto-backup, then Create one, and save it to a folder in iCloud Drive. Your Likes and History are saved there automatically, so they survive deleting the app. After reinstalling, pick that file when the app offers to restore.']
             ];
           }
           function helpListHTML() {
@@ -1310,6 +1313,7 @@ enum FavoritesScript {
             }).join('') + '</div>';
           }
           var helpPanel = null;
+          var buildLabel = '';
           function openHelp() {
             if (!helpPanel) {
               var root = el('div', 'sr-fav-root sr-help');
@@ -1321,6 +1325,8 @@ enum FavoritesScript {
               head.appendChild(el('div', 'sr-sheet-grab'));
               head.appendChild(el('h2', 'sr-sleep-title', 'How it works'));
               var list = el('div', 'sr-list', helpListHTML());
+              var foot = el('div', 'sr-help-build');
+              list.appendChild(foot);
               panel.appendChild(head);
               panel.appendChild(list);
               root.appendChild(backdrop);
@@ -1340,6 +1346,8 @@ enum FavoritesScript {
               });
               helpPanel = { root: root, backdrop: backdrop, panel: panel };
             }
+            var buildEl = helpPanel.root.querySelector('.sr-help-build');
+            if (buildEl) buildEl.textContent = buildLabel ? 'Build: ' + buildLabel : '';
             closeSheet();
             helpPanel.backdrop.hidden = helpPanel.panel.hidden = false;
             helpPanel.panel.style.transform = '';
@@ -2452,14 +2460,6 @@ enum FavoritesScript {
           function soundcloudLink(doc) {
             var a = doc.querySelector('a[href*="soundcloud.com/"]');
             return a ? a.getAttribute('href') : null;
-          }
-          function audioLink(path) {
-            if (episodeAudio[path]) return Promise.resolve(episodeAudio[path]);
-            return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
-              var link = soundcloudLink(new DOMParser().parseFromString(html, 'text/html'));
-              if (link) episodeAudio[path] = link;
-              return link;
-            });
           }
           function soundcloudFrame() {
             return document.querySelector('iframe[src*="w.soundcloud.com"]:not(.sr-player-frame)');
