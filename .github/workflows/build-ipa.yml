@@ -5,6 +5,9 @@ on:
     branches: [main]
   workflow_dispatch:
 
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: macos-latest
@@ -33,6 +36,32 @@ jobs:
           xcode-select -p
           xcrun -sdk iphoneos -show-sdk-path
           swift --version
+
+      # iconPath in xtool.yml points at Resources/AppIcon.png. If it isn't
+      # committed yet, download the site's largest icon, make it a 1024x1024
+      # opaque PNG, and commit it back so later builds don't need the network.
+      - name: Fetch app icon if missing
+        id: icon
+        run: |
+          if [ -f Resources/AppIcon.png ]; then
+            echo "Resources/AppIcon.png already present"
+            exit 0
+          fi
+          python3 -m venv .icon-venv
+          .icon-venv/bin/pip install --quiet pillow
+          mkdir -p Resources
+          .icon-venv/bin/python scripts/fetch-app-icon.py https://radio.soulection.com/ Resources/AppIcon.png
+          sips -g pixelWidth -g pixelHeight -g hasAlpha Resources/AppIcon.png
+          echo "fetched=true" >> "$GITHUB_OUTPUT"
+
+      - name: Commit fetched icon
+        if: steps.icon.outputs.fetched == 'true' && github.event_name == 'push' && github.ref == 'refs/heads/main'
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898299+github-actions[bot]@users.noreply.github.com"
+          git add Resources/AppIcon.png
+          git commit -m "Add app icon fetched from radio.soulection.com"
+          git push origin HEAD:main || echo "::warning::Could not push the fetched icon"
 
       - name: Install xtool
         run: |

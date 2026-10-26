@@ -8,3 +8,6 @@ DerivedData/
 .netrc
 
 /xtool
+
+# Temporary venv used by the icon fetch step in CI
+/.icon-venv

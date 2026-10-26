@@ -1,5 +1,10 @@
 version: 1
-bundleID: com.example.MyApp
+bundleID: com.hotwheelz3000.SoulectionRadio
 # The SwiftPM product used as the app. Also names the built .app/.ipa.
 # Change it with ./rename-app.sh rather than by hand.
-product: MyApp
+product: SoulectionRadio
+# Merged into the generated Info.plist (background audio, dark UI).
+infoPath: SoulectionRadio-Info.plist
+# 1024x1024 opaque PNG. Fetched from radio.soulection.com by
+# scripts/fetch-app-icon.py (the Build IPA workflow runs it if missing).
+iconPath: Resources/AppIcon.png
