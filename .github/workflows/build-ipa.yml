@@ -114,18 +114,26 @@ jobs:
       # in UTC, which then shows 7-8 hours ahead on a phone in LA. Setting the
       # file's time to "LA time, labelled as UTC" cancels that out (daylight
       # saving is handled by the date command).
+      # Also makes a copy named with the build time (SoulectionRadio-2026-10-26-1623.ipa),
+      # so downloading a new build on an iPhone never collides with an older one
+      # ("SoulectionRadio.ipa 2"). That copy is what the Actions download holds.
       - name: Stamp IPA with build time
+        id: stamp
         env:
           APP_NAME: ${{ steps.app.outputs.name }}
         run: |
           la_now=$(TZ=America/Los_Angeles date +%Y%m%d%H%M.%S)
           TZ=UTC touch -t "$la_now" "xtool/$APP_NAME.ipa"
+          stamp=$(TZ=America/Los_Angeles date '+%Y-%m-%d-%H%M')
+          cp -p "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa"
+          echo "stamp=$stamp" >> "$GITHUB_OUTPUT"
+          echo "label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')" >> "$GITHUB_OUTPUT"
           echo "Stamped with LA time $(TZ=America/Los_Angeles date '+%Y-%m-%d %H:%M %Z')"
 
       - uses: actions/upload-artifact@v7
         with:
-          name: ${{ steps.app.outputs.name }}-ipa
-          path: xtool/${{ steps.app.outputs.name }}.ipa
+          name: ${{ steps.app.outputs.name }}-${{ steps.stamp.outputs.stamp }}
+          path: xtool/${{ steps.app.outputs.name }}-${{ steps.stamp.outputs.stamp }}.ipa
           if-no-files-found: error
 
       # Every build of main is also published as the "latest" GitHub Release, so testers
@@ -135,12 +143,9 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           APP_NAME: ${{ steps.app.outputs.name }}
+          stamp: ${{ steps.stamp.outputs.stamp }}
+          label: ${{ steps.stamp.outputs.label }}
         run: |
-          label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
-          # A second copy named with the build time, so downloading a new build on an
-          # iPhone never collides with an older one ("SoulectionRadio.ipa 2").
-          stamp=$(TZ=America/Los_Angeles date '+%Y-%m-%d-%H%M')
-          cp "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa"
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa" \
             --title "Latest build ($label)" \

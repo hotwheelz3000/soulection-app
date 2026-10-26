@@ -2152,10 +2152,14 @@ enum FavoritesScript {
             if (tape.getAttribute('aria-label') !== label) tape.setAttribute('aria-label', label);
           }
           // Picks a random song (not a voice-over, and not the last song) from a random show.
-          function randomSong(tries) {
+          // `avoid` is the song playing now: the pick always comes from a different show.
+          function randomSong(tries, avoid) {
             tries = tries || 0;
+            var avoidNumber = avoid ? showNumber(avoid.show) : null;
             return loadEpisodes().then(function (paths) {
               if (!paths.length) throw new Error('no shows');
+              var others = avoid ? paths.filter(function (p) { return p !== avoid.episodeURL; }) : paths;
+              if (others.length) paths = others;
               var path = paths[Math.floor(Math.random() * paths.length)];
               return fetch(path, { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
                 var doc = new DOMParser().parseFromString(html, 'text/html');
@@ -2168,6 +2172,7 @@ enum FavoritesScript {
                 var h1 = doc.querySelector('#episode-card-header h1, main h1');
                 var number = showNumber(text(h1));
                 if (!number) throw new Error('no show number');
+                if (avoidNumber && number === avoidNumber) throw new Error('same show');
                 var img = doc.querySelector('#episode-card-header img');
                 var cover = img ? (img.getAttribute('src') || '') : '';
                 if (cover && cover.charAt(0) === '/') cover = location.origin + cover;
@@ -2179,14 +2184,14 @@ enum FavoritesScript {
                 return item;
               });
             }).catch(function (err) {
-              if (tries < 4) return randomSong(tries + 1);
+              if (tries < 4) return randomSong(tries + 1, avoid);
               throw err;
             });
           }
           var mixNextItem = null; // the prefetched song, once it's known
           function prefetchMix() {
             mixNextItem = null;
-            var p = mixNext = randomSong();
+            var p = mixNext = randomSong(0, playlist && playlist.current);
             p.then(function (item) { if (mixNext === p) mixNextItem = item; }).catch(function () {});
           }
           function toggleMixtape() {
@@ -2210,10 +2215,15 @@ enum FavoritesScript {
           // Adds the next random song to the Mixtape and plays it.
           function mixtapeAdvance() {
             var list = playlist;
-            var pending = mixNext || randomSong();
+            var now = list && list.current;
+            var pending = mixNext || randomSong(0, now);
             mixNext = null;
             mixNextItem = null;
             pending.then(function (item) {
+              // Never the show that's playing (it would just carry on in the same show).
+              if (now && showNumber(item.show) === showNumber(now.show)) return randomSong(0, now);
+              return item;
+            }).then(function (item) {
               if (playlist !== list) return; // stopped meanwhile
               list.items.push(item);
               list.ids.push(item.id);
@@ -2916,6 +2926,7 @@ enum FavoritesScript {
           var standby = null;  // {f, frame, win, ready, info}
           var ours = [];       // the app's own player frames (the site's stays as it is)
           var handing = null;  // {f, win, timer} while a handoff is in progress
+          var pageFallbackFor = null; // the song a stuck switch already handed to the show's page
           var directShown = null; // what the mini player shows while the app's player plays
 
           function makeFrame(src) {
@@ -3039,17 +3050,40 @@ enum FavoritesScript {
             // new one plays): a muted or silent moment makes iOS drop the Dynamic Island and
             // freeze the app in the background.
             if (!standby || standby.f.id !== f.id) { discardStandby(); prepareStandby(f); }
-            var h = handing = { f: f, oldWin: oldWin, oldFrame: oldFrame, win: null, frame: null, info: null, started: Date.now(), reloads: 0, timer: null, poke: null };
+            var h = handing = { f: f, oldWin: oldWin, oldFrame: oldFrame, win: null, frame: null, info: null, started: Date.now(), reloads: 0, kickedSince: 0, timer: null, poke: null };
             arriving = { id: f.id, since: Date.now(), tries: 1 };
+            // Loads the new show's player again from scratch (twice at most).
+            function reload() {
+              h.reloads++;
+              h.win = null; h.frame = null; h.kickedSince = 0;
+              discardStandby();
+              prepareStandby(f);
+            }
+            // With the app open, a switch that hasn't happened after 5 seconds goes through the
+            // show's page instead (like pressing Next), rather than leaving the old show playing.
+            var canUsePage = pageFallbackFor !== f.id;
+            function usePage() {
+              clearTimeout(h.timer);
+              clearInterval(h.poke);
+              handing = null;
+              h.win = null;
+              discardStandby();
+              pageFallbackFor = f.id; // if the page can't do it either, don't come back here again
+              if (playlist && playlist.current === f) openEpisodeAndPlay(f);
+            }
             function kick() {
               if (handing !== h) return;
+              if (canUsePage && !document.hidden && Date.now() - h.started > 5000) return usePage();
               var sb = standby;
               if (!sb || sb.f.id !== f.id) { prepareStandby(f); return; }
               if (!sb.win || !sb.loaded) {
-                // Not loaded yet: give it 10 seconds, then load it again (twice at most).
-                if (Date.now() - sb.createdAt > 10000 && h.reloads < 2) { h.reloads++; discardStandby(); prepareStandby(f); }
+                // Not loaded yet: give it 5 seconds, then load it again.
+                if (Date.now() - sb.createdAt > 5000 && h.reloads < 2) reload();
                 return;
               }
+              // Loaded and told to play, but still not playing after 3 seconds: load it again.
+              if (!h.kickedSince) h.kickedSince = Date.now();
+              else if (Date.now() - h.kickedSince > 3000 && h.reloads < 2) { reload(); return; }
               h.win = sb.win; h.frame = sb.frame; h.info = sb.info;
               // Start it (still muted) at the song: through SoundCloud's own player API, and
               // directly in case the audio is already set up. Repeated until it plays.
