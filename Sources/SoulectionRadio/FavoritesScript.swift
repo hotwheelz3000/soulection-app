@@ -90,6 +90,8 @@ enum FavoritesScript {
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
             // The song playing in a show's tracklist: a light background and moving bars.
             '.sr-row-playing{background:rgba(255,255,255,.06);border-radius:8px}',
+            '.sr-song-cell > .sr-bars{margin:5px 0 0 auto}',
+            '.sr-row-playing .sr-heart-row{margin-left:0}',
             '.sr-row-flash{animation:sr-flash 1.8s ease}',
             '@keyframes sr-flash{0%,60%{background:rgba(255,255,255,.16)}100%{background:transparent}}',
             '.sr-bars{display:inline-flex;align-items:flex-end;gap:2px;width:12px;height:12px;margin-top:4px;flex:none;color:' + TEXT + '}',
@@ -1488,7 +1490,11 @@ enum FavoritesScript {
             if (!bars) {
               bars = el('span', 'sr-bars', '<i></i><i></i><i></i>');
               bars.setAttribute('aria-hidden', 'true');
-              current.songCell.insertBefore(bars, current.songCell.firstChild);
+            }
+            // Just left of the heart.
+            var rowHeart = current.songCell.querySelector(':scope > .sr-heart');
+            if (bars.parentNode !== current.songCell || bars.nextElementSibling !== rowHeart) {
+              current.songCell.insertBefore(bars, rowHeart || null);
             }
             var paused = !!st.paused;
             if (bars.classList.contains('sr-paused') !== paused) bars.classList.toggle('sr-paused', paused);
@@ -2106,6 +2112,7 @@ enum FavoritesScript {
             if (n) { n.setPlaylist(null); n.setOverride(null); if (pause) n.pause(); }
             mixNext = null;
             direct = null;
+            keepAwake(false);
             renderTape();
             schedule();
           }
@@ -2166,6 +2173,13 @@ enum FavoritesScript {
           // Points the site's SoundCloud player straight at the show's audio. The script
           // inside the player (NowPlayingScript) reads sr_start and jumps to the song, so
           // this doesn't depend on the site's SoundCloud helper or on the page being drawn.
+          // Silence from the app while the player loads, so iOS doesn't freeze it.
+          var awake = false;
+          function keepAwake(on) {
+            if (awake === on) return;
+            awake = on;
+            native({ op: 'keepAwake', on: on });
+          }
           function switchFailed(f) {
             if (!playlist || playlist.current !== f) return;
             showToast("Couldn't switch to the next song. Tap Next to try another.");
@@ -2189,8 +2203,9 @@ enum FavoritesScript {
                 src = 'https://w.soundcloud.com/player/?url=' + encodeURIComponent(link) +
                   '&auto_play=true&sr_start=' + Math.max(0, f.start) + '&sr_id=' + Date.now();
               }
-              direct = { number: showNumber(f.show), id: f.id };
+              direct = { number: showNumber(f.show), id: f.id, heard: false };
               arriving = { id: f.id, since: Date.now(), tries: 1 };
+              keepAwake(true);
               frame.src = src;
               // If iOS held back autoplay, nudge it once the player has loaded.
               setTimeout(function () {
@@ -2206,7 +2221,9 @@ enum FavoritesScript {
             if (document.hidden || !direct || !playlist || !playlist.current) return;
             var f = playlist.current;
             var st = npState();
-            var at = st && st.t != null ? st.t : f.start;
+            // Only trust the playing time once the new show has been heard, and only if it's
+            // inside this song; otherwise it's left over from the previous show.
+            var at = direct.heard && st && st.t != null && st.t >= f.start - 1 && (f.end == null || st.t < f.end) ? st.t : f.start;
             direct = null;
             arriving = { id: f.id, since: Date.now(), tries: 0, at: at };
             openEpisodeAndPlay(f, at);
@@ -2294,8 +2311,10 @@ enum FavoritesScript {
             var playingNumber = direct && direct.id === f.id ? direct.number : (st && st.number);
             if (arriving) {
               var at = arriving.at != null ? arriving.at : f.start;
-              if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20) {
+              if (st && playingNumber === number && st.t != null && st.t >= at - 2 && st.t <= at + 20 && st.paused !== true) {
                 arriving = null;
+                if (direct && direct.id === f.id) direct.heard = true;
+                keepAwake(false);
               } else if (Date.now() - arriving.since > 7000) {
                 if (st && playingNumber === number && arriving.tries < 3) {
                   arriving.tries++;
@@ -2309,6 +2328,8 @@ enum FavoritesScript {
               return;
             }
             if (!st || st.t == null) return;
+            // Times from before a background switch was heard belong to the old show.
+            if (direct && direct.id === f.id && !direct.heard) return;
             if (playingNumber !== number) return endPlaylist(false);
             var end = f.end != null ? f.end : (st.duration || Infinity);
             var left = end - st.t;

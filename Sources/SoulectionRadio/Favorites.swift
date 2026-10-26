@@ -256,6 +256,49 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private static let welcomeSeenKey = "App.welcomeHidden"
     static let autoBackupFileName = "Soulection Radio Backup.json"
     private var autoBackupTask: Task<Void, Never>?
+
+    // MARK: Staying awake while switching shows
+
+    /// Plays silence while the player loads the next show with the screen locked. Without
+    /// any sound for a moment, iOS freezes the app and the switch never finishes.
+    private var silence: AVAudioPlayer?
+    private var keepAwakeTask: Task<Void, Never>?
+
+    private func startKeepAwake() {
+        if silence == nil {
+            silence = try? AVAudioPlayer(data: Self.silentWAV())
+            silence?.numberOfLoops = -1
+            silence?.volume = 0
+        }
+        try? AVAudioSession.sharedInstance().setActive(true)
+        if silence?.isPlaying != true { silence?.play() }
+        keepAwakeTask?.cancel()
+        keepAwakeTask = Task { @MainActor [weak self] in
+            try? await Task.sleep(for: .seconds(20)) // never longer than this
+            guard !Task.isCancelled else { return }
+            self?.stopKeepAwake()
+        }
+    }
+
+    private func stopKeepAwake() {
+        keepAwakeTask?.cancel()
+        keepAwakeTask = nil
+        silence?.stop()
+    }
+
+    /// One second of silent 8 kHz mono audio, as a WAV file.
+    private static func silentWAV() -> Data {
+        let rate: UInt32 = 8000
+        let samples = Int(rate)
+        var d = Data()
+        func u32(_ v: UInt32) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 4)) }
+        func u16(_ v: UInt16) { var x = v.littleEndian; d.append(Data(bytes: &x, count: 2)) }
+        d.append(contentsOf: Array("RIFF".utf8)); u32(UInt32(36 + samples))
+        d.append(contentsOf: Array("WAVEfmt ".utf8)); u32(16); u16(1); u16(1); u32(rate); u32(rate); u16(1); u16(8)
+        d.append(contentsOf: Array("data".utf8)); u32(UInt32(samples))
+        d.append(Data(repeating: 128, count: samples))
+        return d
+    }
     private var autoBackupError = false
     private enum PickerPurpose { case importFile, saveBackup, restoreBackup }
     private var pickerPurpose: PickerPurpose = .importFile
@@ -495,6 +538,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             UserDefaults.standard.set(true, forKey: Self.welcomeSeenKey)
         case "airplay":
             showAirPlayPicker()
+            return
+        case "keepAwake":
+            if (body["on"] as? Bool) == true { startKeepAwake() } else { stopKeepAwake() }
             return
         case "sleepCancel":
             sleepTimer?.invalidate()
