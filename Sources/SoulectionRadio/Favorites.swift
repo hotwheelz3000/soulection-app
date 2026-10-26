@@ -525,6 +525,24 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "airplay":
             showAirPlayPicker()
             return
+        case "haptic":
+            if (body["kind"] as? String) == "success" {
+                UINotificationFeedbackGenerator().notificationOccurred(.success)
+            } else {
+                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+            }
+            return
+        case "share":
+            shareSong(text: body["text"] as? String ?? "", link: body["url"] as? String)
+            return
+        case "openURL":
+            // Only Spotify and Apple Music searches (opens their app if it's installed).
+            guard let raw = body["url"] as? String, let url = URL(string: raw),
+                  url.scheme == "https",
+                  ["open.spotify.com", "music.apple.com"].contains(url.host ?? "")
+            else { return }
+            UIApplication.shared.open(url)
+            return
         case "sleepCancel":
             sleepTimer?.invalidate()
             sleepTimer = nil
@@ -698,6 +716,23 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         return top
     }
 
+    // MARK: Share
+
+    private func shareSong(text: String, link: String?) {
+        guard let presenter = presenter() else { return }
+        var items: [Any] = [text]
+        if let link, let url = URL(string: link), let host = url.host,
+           url.scheme == "https", host == "soulection.com" || host.hasSuffix(".soulection.com") {
+            items.append(url)
+        }
+        let share = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        if let popover = share.popoverPresentationController, let view = webView {
+            popover.sourceView = view
+            popover.sourceRect = CGRect(x: view.bounds.midX, y: view.bounds.maxY - 80, width: 1, height: 1)
+        }
+        presenter.present(share, animated: true)
+    }
+
     // MARK: Export
 
     private func exportFavorites() {
@@ -719,7 +754,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                 guard let self else { return }
                 if completed {
                     self.store.addedSinceBackup = 0
-                    self.toast("Favorites backed up.")
+                    self.toast("Your Likes and History are backed up.")
                 }
                 self.send()
             }
@@ -745,7 +780,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             // Saved (moved) to the user's chosen spot: remember it and keep it up to date.
             guard rememberBackupFile(url) else {
                 send()
-                toast("Saved, but iOS won't let the app keep that file updated.")
+                toast("Saved. But your iPhone won't let the app update that file.")
                 return
             }
             let ok = writeAutoBackup()
@@ -754,7 +789,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             if ok {
                 toast("Auto-backup on: saving to \(place).")
             } else {
-                toast("Auto-backup couldn't write to that file: " + (lastWriteFailure ?? "unknown reason") + ".")
+                toast("Auto-backup couldn't save to that file. (" + (lastWriteFailure ?? "No reason given") + ")")
             }
             return
         case .restoreBackup:
@@ -779,7 +814,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         guard let data = try? Data(contentsOf: url),
               let incoming = FavoritesStore.readBackup(data)
         else {
-            toast("That file isn't a favorites backup.")
+            toast("That file isn't a Soulection Radio backup.")
             return
         }
         let added = store.merge(incoming.favorites)

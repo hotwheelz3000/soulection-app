@@ -27,8 +27,9 @@ import Foundation
 ///   (every 4 new favorites a reminder suggests exporting). Swipe down or tap outside to close.
 ///   Styled with the site's own values (read from radio.soulection.com): background
 ///   rgb(26,26,26), border rgb(42,42,42), 9px corners like the mini player card, Bai
-///   Jamjuree, rgb(138,138,138) text with semibold song names, rgb(90,90,90) for the
-///   show line, and white as the accent (filled hearts, button icons).
+///   Jamjuree, semibold song names and white as the accent (filled hearts, button icons).
+///   Text greys are lighter than the site's (rgb(180) text, rgb(150) secondary) so all
+///   text meets WCAG 2.2 AA contrast; the site's own grey text is raised to match.
 /// - Playlist: playing a favorite opens its episode and taps its tracklist row (the
 ///   site's own way to start an episode at a song). When playback reaches the
 ///   favorite's end (the next song's timestamp) it moves to the next favorite,
@@ -42,13 +43,15 @@ enum FavoritesScript {
           var SOULECTION_ORIGIN = /^https:\/\/([a-z0-9-]+\.)*soulection\.com$/i;
           if (window !== window.top || !SOULECTION_ORIGIN.test(location.origin)) return;
 
-          // Site styles, read from radio.soulection.com (computed values on an iPhone-sized page).
+          // Site styles, read from radio.soulection.com (computed values on an iPhone-sized page),
+          // with the text greys raised so all text reads at 4.5:1 or better on the dark
+          // background (WCAG 2.2 AA). The site's own greys are raised to match (see CSS).
           var FONT = '"Bai Jamjuree", sans-serif';
           var BG = 'rgb(26, 26, 26)';         // body, header, mini player card
           var BORDER = 'rgb(42, 42, 42)';     // card and header borders
-          var TEXT = 'rgb(138, 138, 138)';    // body text, song and artist
-          var MUTED = 'rgb(90, 90, 90)';      // mini player show line, column headings
-          var TRACK = 'rgb(58, 58, 58)';      // progress track
+          var TEXT = 'rgb(180, 180, 180)';    // body text, song and artist (site: 138; now 8.9:1)
+          var MUTED = 'rgb(150, 150, 150)';   // show lines, labels, headings (site: 90; now 5.9:1)
+          var TRACK = 'rgb(105, 105, 105)';   // progress track (site: 58; now 3.1:1 as a control)
           var ACCENT = 'rgb(255, 255, 255)';  // filled hearts and icons
           var HOVER = 'rgba(51, 65, 85, 0.7)'; // tracklist row hover
           var SHADOW = 'rgba(0, 0, 0, 0.1) 0px 10px 15px -3px, rgba(0, 0, 0, 0.1) 0px 4px 6px -4px';
@@ -70,10 +73,34 @@ enum FavoritesScript {
 
           var CLOUD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M17.5 19a4.5 4.5 0 1 0-1.4-8.8A6 6 0 0 0 4.3 13 3 3 0 0 0 6 19z"/></svg>';
 
+          var CLOSE_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
+          var MORE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
           var HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.5-2.8 4.2"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/></svg>';
           var EYE = '<svg viewBox="0 0 64 40" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20C11 7 21 2 32 2s21 5 29 18c-8 13-18 18-29 18S11 33 3 20z"/><path d="M38 12c-2-3-8-3-10 0-3 4 1 7 4 8s7 4 4 8c-2 3-8 3-10 0"/></svg>';
 
           var CSS = [
+            // Accessibility: a clear outline on whatever has keyboard focus, a hidden
+            // live region for VoiceOver announcements, close (x) and more (...) buttons,
+            // the Likes search box, and no motion when iOS "Reduce Motion" is on.
+            '.sr-fav-root :focus-visible,.sr-np :focus-visible,.sr-note :focus-visible,.sr-welcome :focus-visible,[class*="sr-"]:focus-visible{outline:2px solid #fff;outline-offset:2px;border-radius:6px}',
+            '.sr-live{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
+            '.sr-sheet-head{position:relative}',
+            '.sr-x{position:absolute;top:4px;right:4px;width:44px;height:44px;display:flex;align-items:center;justify-content:center;background:none;border:0;padding:0;margin:0;color:' + TEXT + ';-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent;z-index:2}',
+            '.sr-x svg{width:20px;height:20px;display:block}',
+            '.sr-x:active{opacity:.6}',
+            '.sr-more{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:10px 6px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;flex:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-more svg{width:22px;height:22px;display:block}',
+            '.sr-search{display:block;width:100%;box-sizing:border-box;margin-top:10px;padding:9px 12px;border:1px solid ' + BORDER + ';border-radius:9px;background:' + BG + ';color:#fff;font-family:' + FONT + ';font-size:16px;line-height:20px;-webkit-appearance:none;appearance:none}',
+            '.sr-search::placeholder{color:' + MUTED + '}',
+            '.sr-sleep-custom{display:flex;align-items:center;gap:10px;min-height:52px;border-bottom:1px solid ' + BORDER + '}',
+            '.sr-sleep-custom .sr-sleep-row{flex:1;border-bottom:0}',
+            '.sr-np-more{font-size:24px}',
+            '@media (prefers-reduced-motion: reduce){[class*="sr-"],[class*="sr-"] *,[class*="sr-"]::after{animation:none !important;transition:none !important}}',
+            // Raise the site's own text greys too (Tailwind classes on radio.soulection.com).
+            'html body{color:' + TEXT + '}',
+            'html body .text-gray-400{color:rgb(140, 140, 140)}',
+            'html body .text-gray-500{color:' + MUTED + '}',
+            'html body .text-gray-600{color:rgb(165, 165, 165)}',
             '.sr-heart{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:0;display:inline-flex;align-items:center;justify-content:center;color:' + TEXT + ';cursor:pointer;pointer-events:auto;line-height:1;vertical-align:middle;-webkit-tap-highlight-color:transparent;font:inherit}',
             '.sr-heart svg{width:1em;height:1em;display:block}',
             '.sr-heart[aria-pressed="true"]{color:' + ACCENT + '}',
@@ -332,11 +359,15 @@ enum FavoritesScript {
 
           // Saves or removes a song. The app keeps the list; this updates the hearts right
           // away and the app's reply replaces the list.
-          function toggle(fav) {
+          function toggle(fav, quiet) {
             var existing = byId(fav.id);
             if (existing) favorites = favorites.filter(function (f) { return f.id !== fav.id; });
             else favorites = favorites.concat([fav]);
             native({ op: 'toggle', favorite: fav });
+            if (!quiet) {
+              haptic('light');
+              announce(existing ? 'Removed from Likes' : 'Added to Likes');
+            }
             schedule();
           }
           function remove(id) {
@@ -348,6 +379,117 @@ enum FavoritesScript {
             history = history.filter(function (f) { return f.id !== id; });
             native({ op: 'historyRemove', id: id });
             schedule();
+          }
+
+          // ---------------------------------------------------------------------------
+          // Accessibility helpers
+          // ---------------------------------------------------------------------------
+          var reduceMotion = false;
+          try {
+            var rm = window.matchMedia('(prefers-reduced-motion: reduce)');
+            reduceMotion = rm.matches;
+            rm.addEventListener && rm.addEventListener('change', function () { reduceMotion = rm.matches; });
+          } catch (e) {}
+
+          // Panels act like proper pop-ups: focus moves into them, Tab stays inside, Escape
+          // closes them, and focus goes back to where it was when they close.
+          var dialogs = []; // [{panel, close, back}]
+          function focusables(node) {
+            return Array.prototype.filter.call(
+              node.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])'),
+              function (n) { return !n.disabled && !n.hidden && n.offsetParent !== null; });
+          }
+          function dialogOpened(panel, close) {
+            dialogClosed(panel, true);
+            panel.setAttribute('aria-modal', 'true');
+            dialogs.push({ panel: panel, close: close, back: document.activeElement });
+            setTimeout(function () {
+              var first = panel.querySelector('.sr-x') || focusables(panel)[0];
+              if (first && dialogs.length && dialogs[dialogs.length - 1].panel === panel) {
+                try { first.focus({ preventScroll: true }); } catch (e) {}
+              }
+            }, 60);
+          }
+          function dialogClosed(panel, quiet) {
+            for (var i = dialogs.length - 1; i >= 0; i--) {
+              if (dialogs[i].panel !== panel) continue;
+              var d = dialogs.splice(i, 1)[0];
+              if (!quiet && d.back && d.back.focus && d.back.isConnected) {
+                try { d.back.focus({ preventScroll: true }); } catch (e) {}
+              }
+            }
+          }
+          document.addEventListener('keydown', function (e) {
+            // A message with buttons (like "Share / Find on Spotify") closes first.
+            if (e.key === 'Escape' && note && note.__sticky && note.querySelector('button')) { e.preventDefault(); hideNote(); return; }
+            if (!dialogs.length) return;
+            var top = dialogs[dialogs.length - 1];
+            if (e.key === 'Escape') { e.preventDefault(); top.close(); return; }
+            if (e.key !== 'Tab') return;
+            var items = focusables(top.panel);
+            if (!items.length) return;
+            var first = items[0], last = items[items.length - 1];
+            if (!top.panel.contains(document.activeElement)) { e.preventDefault(); first.focus(); }
+            else if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+            else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+          }, true);
+          function closeButton(close, label) {
+            var b = el('button', 'sr-x', CLOSE_X);
+            b.type = 'button';
+            b.setAttribute('aria-label', label || 'Close');
+            b.addEventListener('click', function (e) { e.stopPropagation(); close(); });
+            return b;
+          }
+          // A tappable area that isn't a button gets a role, a label and Enter/Space.
+          function keyClickable(node, label) {
+            node.setAttribute('role', 'button');
+            node.setAttribute('tabindex', '0');
+            if (label) node.setAttribute('aria-label', label);
+            node.addEventListener('keydown', function (e) {
+              if (e.target !== node || (e.key !== 'Enter' && e.key !== ' ')) return;
+              e.preventDefault();
+              node.click();
+            });
+          }
+          // Spoken by VoiceOver (polite: after whatever it's saying now).
+          var liveEl = null;
+          function announce(text) {
+            if (!document.body || !text) return;
+            if (!liveEl || !liveEl.isConnected) {
+              liveEl = el('div', 'sr-live');
+              liveEl.setAttribute('aria-live', 'polite');
+              liveEl.setAttribute('role', 'status');
+              document.body.appendChild(liveEl);
+            }
+            liveEl.textContent = '';
+            setTimeout(function () { liveEl.textContent = text; }, 80);
+          }
+          var announcedId = null;
+          function announceSong() {
+            var t = (playlist && playlist.current) || currentTrack();
+            var st = npState();
+            if (!t || !st || st.paused !== false || t.id === announcedId) return;
+            announcedId = t.id;
+            announce('Now playing: ' + t.song + (t.artist ? ' by ' + t.artist : ''));
+          }
+          // A light tap you can feel (hearts, timers).
+          function haptic(kind) { native({ op: 'haptic', kind: kind || 'light' }); }
+
+          // Share, or find the song on Spotify / Apple Music.
+          function songActions(f, extra) {
+            var q = (f.song || '') + ' ' + (f.artist || '');
+            var buttons = [
+              ['Share', function () {
+                var url = 'https://radio.soulection.com' + (f.episodeURL || '');
+                var when = f.start != null ? ' at ' + clock(f.start) : '';
+                native({ op: 'share', text: f.song + (f.artist ? ' by ' + f.artist : '') + ' (' + (f.show || 'Soulection Radio') + when + ')', url: url });
+              }],
+              ['Find on Spotify', function () { native({ op: 'openURL', url: 'https://open.spotify.com/search/' + encodeURIComponent(q.trim()) }); }],
+              ['Find on Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }]
+            ];
+            (extra || []).forEach(function (b) { buttons.push(b); });
+            buttons.push(['Cancel', null]);
+            noteWithButtons('<div class="sr-note-title">' + esc(f.song || '') + '</div><div>' + esc(f.artist || '') + '</div>', buttons);
           }
 
           // ---------------------------------------------------------------------------
@@ -475,7 +617,8 @@ enum FavoritesScript {
               setTimeout(function () { showNote(next[0], next[1]); }, 300);
             }
           }
-          function showToast(message) { showNote('<div>' + esc(message) + '</div>', 2600); }
+          // Short messages stay up long enough to read (and for VoiceOver to read them out).
+          function showToast(message) { showNote('<div>' + esc(message) + '</div>', 5000); }
           // Every few new favorites, suggest exporting a backup (once per page load).
           function maybeRemindBackup() {
             // Also when auto-backup is on but failing: nothing is being saved then.
@@ -486,8 +629,8 @@ enum FavoritesScript {
               ? '<div class="sr-note-title">Auto-backup isn\'t saving</div>' +
                 '<div>Your newest Likes aren\'t in your backup file yet. Set auto-backup up again to keep them safe.</div>' +
                 '<div class="sr-actions"></div>'
-              : '<div class="sr-note-title">Back up your favorites?</div>' +
-                '<div>Turn on auto-backup to iCloud Drive and your Likes and History are kept even if the app is deleted.</div>' +
+              : '<div class="sr-note-title">Back up your Likes?</div>' +
+                '<div>Turn on auto-backup to iCloud Drive. Then your Likes and History are safe, even if you delete the app.</div>' +
                 '<div class="sr-actions"></div>', 0);
             if (!n) { reminded = false; return; }
             // Pushed away by another message before you answered: it can come back.
@@ -511,7 +654,7 @@ enum FavoritesScript {
             setTimeout(function () {
               var n = showNote(
                 '<div class="sr-note-title">Restore your Likes and History?</div>' +
-                '<div>If you had auto-backup on, pick your backup file (Soulection Radio Backup.json, e.g. in iCloud Drive). Everything comes back, then save it once to keep auto-backup going.</div>' +
+                '<div>Did you use auto-backup before? Pick your backup file (Soulection Radio Backup.json, often in iCloud Drive). Your songs come back. Then save it once more to keep auto-backup on.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) return;
               var actions = n.querySelector('.sr-actions');
@@ -529,14 +672,14 @@ enum FavoritesScript {
           function chooseAutoBackup() {
             noteWithButtons(
               '<div class="sr-note-title">Auto-backup</div>' +
-              '<div>Pick your Soulection Radio Backup.json if you have one, or create a new one (for example in iCloud Drive).</div>',
+              '<div>Already have a file called Soulection Radio Backup.json? Pick it. If not, make a new one. iCloud Drive is a good place for it.</div>',
               [['Use my backup file', function () { native({ op: 'backupUseFile' }); }],
                ['Create one', function () { native({ op: 'backupCreate' }); }],
                ['Cancel', null]]);
           }
           function pickSavedFileNote(restored) {
             showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + ' songs' : 'Backup read') + '</div>' +
-              '<div>Now save it back to keep auto-backup going: pick the same folder, tap Save, then Replace.</div>', 8000);
+              '<div>Now save it back so auto-backup keeps working: pick the same folder, tap Save, then tap Replace.</div>', 10000);
           }
 
           function renderAutoBackup() {
@@ -615,7 +758,7 @@ enum FavoritesScript {
           function setHeart(b, on, label) {
             var v = on ? 'true' : 'false';
             if (b.getAttribute('aria-pressed') !== v) b.setAttribute('aria-pressed', v);
-            var l = (on ? 'Remove ' : 'Add ') + label + (on ? ' from favorites' : ' to favorites');
+            var l = (on ? 'Unlike ' : 'Like ') + label;
             if (b.getAttribute('aria-label') !== l) b.setAttribute('aria-label', l);
           }
 
@@ -745,6 +888,9 @@ enum FavoritesScript {
               ['.sr-mo-img', '.sr-mo-text', '.sr-mo-bar'].forEach(function (sel) {
                 over.querySelector(sel).addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               });
+              over.querySelector('.sr-mo-img').setAttribute('aria-hidden', 'true');
+              over.querySelector('.sr-mo-bar').setAttribute('aria-hidden', 'true');
+              keyClickable(over.querySelector('.sr-mo-text'), 'Open player');
               player.appendChild(over);
             }
             var base = player.getBoundingClientRect();
@@ -791,6 +937,8 @@ enum FavoritesScript {
               copyFont(lines[1], over.querySelector('.sr-mo-line'));
             }
             set('.sr-mo-show', shown.show || '');
+            var openLabel = 'Open player: ' + (song || '') + (artist ? ' by ' + artist : '');
+            if (textBox.getAttribute('aria-label') !== openLabel) textBox.setAttribute('aria-label', openLabel);
             set('.sr-mo-song', song || '');
             set('.sr-mo-artist', artist || '');
 
@@ -907,12 +1055,13 @@ enum FavoritesScript {
             var backdrop = el('div', 'sr-backdrop');
             var panel = el('div', 'sr-sheet');
             panel.setAttribute('role', 'dialog');
-            panel.setAttribute('aria-label', 'Favorites');
+            panel.setAttribute('aria-label', 'Likes');
             backdrop.hidden = panel.hidden = true;
             var head = el('div', 'sr-sheet-head');
             head.appendChild(el('div', 'sr-sheet-grab'));
+            head.appendChild(closeButton(function () { closeSheet(); }));
             var tabs = el('div', 'sr-tabs');
-            var favTab = el('button', 'sr-tabbtn', 'Favorites');
+            var favTab = el('button', 'sr-tabbtn', 'Likes');
             var histTab = el('button', 'sr-tabbtn', 'History');
             favTab.type = histTab.type = 'button';
             favTab.addEventListener('click', function () { setMode('favorites'); });
@@ -922,6 +1071,12 @@ enum FavoritesScript {
             head.appendChild(tabs);
             var sub = el('div', 'sr-sheet-sub');
             head.appendChild(sub);
+            var search = el('input', 'sr-search');
+            search.type = 'search';
+            search.setAttribute('enterkeyhint', 'search');
+            search.setAttribute('autocomplete', 'off');
+            search.addEventListener('input', function () { sheet.query = search.value; renderSheet(); });
+            head.appendChild(search);
             var actions = el('div', 'sr-actions');
             var playBtn = el('button', 'sr-btn', PLAY + '<span>Play in order</span>');
             var shuffleBtn = el('button', 'sr-btn', SHUFFLE + '<span>Shuffle</span>');
@@ -957,7 +1112,7 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, mode: 'favorites', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'favorites', key: '' };
             attachSheetDrag();
           }
 
@@ -974,10 +1129,12 @@ enum FavoritesScript {
             void sheet.panel.offsetHeight; // start the slide-up from the closed position
             sheet.root.classList.add('sr-open');
             renderTab();
+            dialogOpened(sheet.panel, closeSheet);
           }
 
           function closeSheet() {
             if (!isOpen()) return;
+            dialogClosed(sheet.panel);
             sheet.root.classList.remove('sr-open');
             sheet.panel.style.transform = '';
             document.documentElement.classList.remove('sr-lock');
@@ -992,6 +1149,8 @@ enum FavoritesScript {
             if (!sheet || sheet.mode === mode) return;
             sheet.mode = mode;
             sheet.key = '';
+            sheet.query = '';
+            if (sheet.search) sheet.search.value = '';
             sheet.list.scrollTop = 0;
             renderSheet();
           }
@@ -1004,7 +1163,7 @@ enum FavoritesScript {
             var n = history.length;
             noteWithButtons(
               '<div class="sr-note-title">Clear listening history?</div>' +
-              '<div>This removes all ' + n + (n === 1 ? ' song' : ' songs') + ' from History. Your favorites stay.</div>',
+              '<div>This removes all ' + n + (n === 1 ? ' song' : ' songs') + ' from History. Your Likes stay.</div>',
               [['Continue', clearStepTwo], ['Cancel', null]]);
           }
           function clearStepTwo() {
@@ -1037,6 +1196,8 @@ enum FavoritesScript {
               });
               row.appendChild(btn);
             });
+            var firstBtn = row.querySelector('button');
+            if (firstBtn) setTimeout(function () { try { firstBtn.focus({ preventScroll: true }); } catch (e) {} }, 60);
           }
 
           function renderSheet() {
@@ -1045,21 +1206,27 @@ enum FavoritesScript {
             renderAutoBackup();
             sheet.favTab.setAttribute('aria-pressed', hist ? 'false' : 'true');
             sheet.histTab.setAttribute('aria-pressed', hist ? 'true' : 'false');
-            sheet.panel.setAttribute('aria-label', hist ? 'History' : 'Favorites');
+            sheet.panel.setAttribute('aria-label', hist ? 'History' : 'Likes');
+            var ph = hist ? 'Search your History' : 'Search your Likes';
+            if (sheet.search.getAttribute('placeholder') !== ph) { sheet.search.setAttribute('placeholder', ph); sheet.search.setAttribute('aria-label', ph); }
             sheet.clearBtn.hidden = !hist;
             var source = hist ? history : favorites;
             var sorted = source.slice().sort(function (a, b) { return b.favoritedAt - a.favoritedAt; });
+            var total = sorted.length;
+            var q = (sheet.query || '').trim().toLowerCase();
+            if (q) sorted = sorted.filter(function (f) { return ((f.song || '') + ' ' + (f.artist || '') + ' ' + (f.show || '')).toLowerCase().indexOf(q) >= 0; });
             // The song playing right now, however it was started (Likes, History, Mixtape, or a show).
             var nowTrack = (playlist && playlist.current) || currentTrack();
             var playingId = nowTrack ? nowTrack.id : null;
             // History rows show "2h ago", and hearts there follow favorites, so both go in the key.
             var key = JSON.stringify([sheet.mode, sorted.map(function (f) { return f.id + (hist ? ':' + ago(f.favoritedAt) + ':' + !!byId(f.id) : ''); }), playingId]);
             var count = sorted.length;
-            sheet.sub.textContent = count === 1 ? '1 song' : count + ' songs';
-            sheet.playBtn.disabled = sheet.shuffleBtn.disabled = sheet.clearBtn.disabled = !count;
+            sheet.sub.textContent = q ? count + ' of ' + total + ' songs' : (count === 1 ? '1 song' : count + ' songs');
+            sheet.playBtn.disabled = sheet.shuffleBtn.disabled = sheet.clearBtn.disabled = !total;
+            key += '|' + q;
             if (key !== sheet.key) {
               sheet.key = key;
-              buildSheetList(sorted, hist, playingId, count);
+              buildSheetList(sorted, hist, playingId, count, q);
             }
             var st = npState();
             var paused = !st || !!st.paused;
@@ -1067,18 +1234,22 @@ enum FavoritesScript {
             if (sb && sb.classList.contains('sr-paused') !== paused) sb.classList.toggle('sr-paused', paused);
           }
 
-          function buildSheetList(sorted, hist, playingId, count) {
+          function buildSheetList(sorted, hist, playingId, count, q) {
             sheet.list.textContent = '';
             if (!count) {
-              sheet.list.appendChild(el('div', 'sr-empty', hist
-                ? 'Nothing here yet. Songs you listen to show up here.'
-                : 'No favorites yet. Tap the heart next to a song to save it.'));
+              sheet.list.appendChild(el('div', 'sr-empty', q
+                ? 'No songs match “' + esc(q) + '”.'
+                : hist
+                  ? 'Nothing here yet. Songs you play show up here.'
+                  : 'No likes yet. Tap the heart next to a song to like it.'));
               return;
             }
             sorted.forEach(function (f) {
               var item = el('div', 'sr-item' + (f.id === playingId ? ' sr-item-playing' : ''));
               item.setAttribute('data-id', f.id);
-              item.appendChild(el('div', 'sr-item-remove', 'Remove'));
+              var behind = el('div', 'sr-item-remove', 'Remove');
+              behind.setAttribute('aria-hidden', 'true');
+              item.appendChild(behind);
               var showLine = esc(f.show) + (hist ? ' · ' + esc(ago(f.favoritedAt)) : '');
               var main = el('div', 'sr-item-main',
                 '<img alt="" src="' + esc(f.cover) + '">' +
@@ -1103,9 +1274,23 @@ enum FavoritesScript {
                 bars.setAttribute('aria-hidden', 'true');
                 main.appendChild(bars);
               }
+              // More: share, find on Spotify / Apple Music, and (History) remove: a tap
+              // instead of the swipe, for anyone who can't swipe.
+              var more = el('button', 'sr-more', MORE);
+              more.type = 'button';
+              more.setAttribute('aria-label', 'More for ' + f.song);
+              more.addEventListener('click', function (e) {
+                e.stopPropagation();
+                songActions(f, [[hist ? 'Remove from History' : 'Remove from Likes', function () { removeItem(item, f.id, sheet.mode); }]]);
+              });
+              main.appendChild(more);
               main.appendChild(heart);
+              // The song text is the "play" control for keyboards and VoiceOver (the whole row
+              // can't be one, since the heart and more buttons sit inside it).
+              keyClickable(main.querySelector('.sr-item-text'), 'Play ' + f.song + (f.artist ? ' by ' + f.artist : '') + (f.id === playingId ? ', playing now' : ''));
               // Tapping the cover opens the song's show instead of playing it.
               var cover = main.querySelector('img');
+              keyClickable(cover, 'Open ' + (f.show || 'the show') + ' at ' + f.song);
               cover.addEventListener('click', function (e) {
                 if (main.getAttribute('data-swiped')) return;
                 e.stopPropagation();
@@ -1208,7 +1393,7 @@ enum FavoritesScript {
             if (!box || !box.parentElement) return;
             if (!tab) {
               tab = heartButton('sr-heart-top');
-              tab.setAttribute('aria-label', 'Show favorites');
+              tab.setAttribute('aria-label', 'Open Likes and History');
               tab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(); });
             }
             if (tab.previousElementSibling !== box) box.parentElement.insertBefore(tab, box.nextSibling);
@@ -1296,14 +1481,15 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           function helpItems() {
             return [
-              [HEART, 'Likes', 'Your saved songs and your listening History. Play them as a playlist, tap a cover to open its show, and back them up to iCloud Drive.'],
-              [DICE, 'Random show', 'Starts a random episode from the very beginning.'],
-              [CASSETTE, 'Mixtape', 'Endless random songs from random shows. Each song is added to your Likes and History, even if you skip it. Remove any you don’t want.'],
-              [MOON, 'Sleep timer', 'Fades out and pauses after a set time, or at the end of a song or show.'],
-              [PLAYBIG, 'Full player', 'Tap or swipe up on the player at the bottom for big artwork and controls.'],
-              [HEART, 'Heart any song', 'Tap the heart next to a song in a show’s tracklist, or in the player.'],
-              [NEXT, 'Skip songs', 'Next and previous on your lock screen jump between songs in the show.'],
-              [CLOUD, 'Backup to iCloud', 'In Likes, tap Turn on next to Auto-backup, then Create one, and save it to a folder in iCloud Drive. Your Likes and History are saved there automatically, so they survive deleting the app. After reinstalling, pick that file when the app offers to restore.']
+              [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show.'],
+              [DICE, 'Random show', 'Plays a random show from the start.'],
+              [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
+              [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
+              [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap the show name to open its song list.'],
+              [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
+              [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
+              [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
+              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on, then Create one, and save it in a folder. After you put the app back, pick that file when it asks.']
             ];
           }
           function helpListHTML() {
@@ -1324,7 +1510,10 @@ enum FavoritesScript {
               var head = el('div', 'sr-sheet-head');
               head.appendChild(el('div', 'sr-sheet-grab'));
               head.appendChild(el('h2', 'sr-sleep-title', 'How it works'));
+              head.appendChild(closeButton(function () { closeHelp(); }));
               var list = el('div', 'sr-list', helpListHTML());
+              list.setAttribute('tabindex', '0'); // scrollable with the keyboard
+              list.setAttribute('aria-label', 'What each button does');
               var foot = el('div', 'sr-help-build');
               list.appendChild(foot);
               panel.appendChild(head);
@@ -1354,9 +1543,11 @@ enum FavoritesScript {
             document.documentElement.classList.add('sr-lock');
             void helpPanel.panel.offsetHeight;
             helpPanel.root.classList.add('sr-open');
+            dialogOpened(helpPanel.panel, closeHelp);
           }
           function closeHelp() {
             if (!helpPanel || !helpPanel.root.classList.contains('sr-open')) return;
+            dialogClosed(helpPanel.panel);
             helpPanel.root.classList.remove('sr-open');
             helpPanel.panel.style.transform = '';
             document.documentElement.classList.remove('sr-lock');
@@ -1385,13 +1576,16 @@ enum FavoritesScript {
             try { sessionStorage.setItem(WELCOME_SESSION_KEY, '1'); } catch (e) {}
             var w = el('div', 'sr-fav-root sr-welcome',
               '<h1 class="sr-welcome-title">Welcome to Soulection Radio</h1>' +
-              '<div class="sr-welcome-sub">Every show, playing in the background, with a few extras:</div>' +
+              '<div class="sr-welcome-sub">Every show, still playing when your screen is off, plus a few extras:</div>' +
               helpListHTML() +
               '<label class="sr-welcome-check"><input type="checkbox"><span>Don’t show again</span></label>' +
               '<button type="button" class="sr-welcome-go">Get started</button>');
             w.setAttribute('role', 'dialog');
             w.setAttribute('aria-label', 'Welcome');
             document.body.appendChild(w);
+            dialogOpened(w, function () { var go = w.querySelector('.sr-welcome-go'); go && go.click(); });
+            var wl = w.querySelector('.sr-help-list');
+            if (wl) { wl.setAttribute('tabindex', '0'); wl.setAttribute('aria-label', 'What each button does'); }
             var title = w.querySelector('.sr-welcome-title');
             var refit = function () { if (w.isConnected) fitOneLine(title, 28, 14); };
             refit();
@@ -1405,6 +1599,7 @@ enum FavoritesScript {
             w.querySelector('.sr-welcome-go').addEventListener('click', function () {
               if (w.querySelector('.sr-welcome-check input').checked) native({ op: 'welcomeSeen' });
               welcomeOpen = false;
+              dialogClosed(w);
               w.classList.remove('sr-show');
               setTimeout(function () { w.remove(); }, 320);
               if (restoreAfterWelcome) { restoreAfterWelcome = false; offerRestore(); }
@@ -1469,7 +1664,7 @@ enum FavoritesScript {
             if (sleep) startTick();
             renderMoon();
           }
-          function startTimer(minutes) { setSleep({ type: 'time', endsAt: Date.now() + minutes * 60000 }); closeSleep(); showToast('Sleep timer: ' + durationLabel(minutes) + '.'); }
+          function startTimer(minutes) { setSleep({ type: 'time', endsAt: Date.now() + minutes * 60000 }); haptic('light'); closeSleep(); showToast('Sleep timer: ' + durationLabel(minutes) + '.'); }
           function stopAfterSong() {
             var t = currentTrack();
             if (!t) return showToast('Play a song from a show first.');
@@ -1490,7 +1685,7 @@ enum FavoritesScript {
             native({ op: 'sleepNow' });
             var n = np();
             n && n.pause();
-            showToast('Sleep timer: paused.');
+            showToast('Sleep timer: music paused.');
           }
           // "End of song" / "End of show" follow playback.
           var SLEEP_FADE = 15; // seconds of fade before "End of song" / "End of show"
@@ -1527,7 +1722,9 @@ enum FavoritesScript {
             var head = el('div', 'sr-sheet-head');
             head.appendChild(el('div', 'sr-sheet-grab'));
             head.appendChild(el('h2', 'sr-sleep-title', 'Sleep timer'));
+            head.appendChild(closeButton(function () { closeSleep(); }));
             var status = el('div', 'sr-sleep-status');
+            status.setAttribute('aria-live', 'polite');
             head.appendChild(status);
             var list = el('div', 'sr-list');
             panel.appendChild(head);
@@ -1571,6 +1768,14 @@ enum FavoritesScript {
               var off = row('Turn off timer', function () { setSleep(null); closeSleep(); showToast('Sleep timer off.'); });
               off.classList.add('sr-sleep-off');
               list.appendChild(off);
+              if (sleep.type === 'time') {
+                list.appendChild(row('Add 5 more minutes', function () {
+                  setSleep({ type: 'time', endsAt: Math.max(Date.now(), sleep.endsAt) + 5 * 60000 });
+                  haptic('light');
+                  renderSleep();
+                  announce('Sleep timer: ' + sleepText() + ' left.');
+                }));
+              }
             }
             [5, 15, 30, 60].forEach(function (m) {
               list.appendChild(row(m === 60 ? '1 hour' : m + ' minutes', function () { startTimer(m); }));
@@ -1581,20 +1786,25 @@ enum FavoritesScript {
             var showRow = row('End of show', stopAfterShow);
             if (sleep && sleep.type === 'show') showRow.setAttribute('aria-current', 'true');
             list.appendChild(showRow);
-            // Custom time: tap the label to start, -/+ change it by 5 minutes.
-            var custom = row(durationLabel(customMinutes), function () { startTimer(customMinutes); }, function (r) {
-              [['−', -5, 'Less time'], ['+', 5, 'More time']].forEach(function (b) {
-                var step = el('span', 'sr-step', b[0]);
-                step.setAttribute('role', 'button');
-                step.setAttribute('aria-label', b[2]);
-                step.addEventListener('click', function (e) {
-                  e.stopPropagation();
-                  customMinutes = Math.min(720, Math.max(5, customMinutes + b[1]));
-                  try { localStorage.setItem(CUSTOM_KEY, String(customMinutes)); } catch (err) {}
-                  r.querySelector('.sr-grow').textContent = durationLabel(customMinutes);
-                });
-                r.appendChild(step);
+            // Custom time: tap the time to start it; - and + change it by 5 minutes. (Separate
+            // buttons, not buttons inside a button, so VoiceOver and keyboards reach each one.)
+            var custom = el('div', 'sr-sleep-custom');
+            var start = row(durationLabel(customMinutes), function () { startTimer(customMinutes); });
+            start.setAttribute('aria-label', 'Start timer for ' + durationLabel(customMinutes));
+            custom.appendChild(start);
+            [['−', -5, 'Less time'], ['+', 5, 'More time']].forEach(function (b) {
+              var step = el('button', 'sr-step', b[0]);
+              step.type = 'button';
+              step.setAttribute('aria-label', b[2]);
+              step.addEventListener('click', function (e) {
+                e.stopPropagation();
+                customMinutes = Math.min(720, Math.max(5, customMinutes + b[1]));
+                try { localStorage.setItem(CUSTOM_KEY, String(customMinutes)); } catch (err) {}
+                start.querySelector('.sr-grow').textContent = durationLabel(customMinutes);
+                start.setAttribute('aria-label', 'Start timer for ' + durationLabel(customMinutes));
+                announce(durationLabel(customMinutes));
               });
+              custom.appendChild(step);
             });
             list.appendChild(custom);
             renderSleepStatus();
@@ -1609,9 +1819,11 @@ enum FavoritesScript {
             document.documentElement.classList.add('sr-lock');
             void sleepPanel.panel.offsetHeight;
             sleepPanel.root.classList.add('sr-open');
+            dialogOpened(sleepPanel.panel, closeSleep);
           }
           function closeSleep() {
             if (!sleepPanel || !sleepPanel.root.classList.contains('sr-open')) return;
+            dialogClosed(sleepPanel.panel);
             sleepPanel.root.classList.remove('sr-open');
             sleepPanel.panel.style.transform = '';
             document.documentElement.classList.remove('sr-lock');
@@ -1663,6 +1875,60 @@ enum FavoritesScript {
             location.assign(path);
             return false; // the page reloads; it picks up again from sessionStorage
           }
+          // ---------------------------------------------------------------------------
+          // Pick up where you left off: the show and spot you were last listening to are
+          // remembered, and opening the app later offers to carry on from there.
+          // ---------------------------------------------------------------------------
+          var LAST_KEY = 'sr-last-spot';
+          var RESUME_KEY = 'sr-resume';
+          var lastSaved = 0;
+          function rememberSpot(st) {
+            if (!st || st.paused !== false || !st.episodeURL || st.t == null || st.t < 30) return;
+            if (st.duration && st.t > st.duration - 60) { try { localStorage.removeItem(LAST_KEY); } catch (e) {} return; }
+            if (Date.now() - lastSaved < 15000) return;
+            lastSaved = Date.now();
+            var t = currentTrack();
+            try {
+              localStorage.setItem(LAST_KEY, JSON.stringify({
+                url: st.episodeURL, t: Math.floor(st.t), show: st.show || ('Show #' + st.number),
+                song: t ? t.song : '', at: Date.now()
+              }));
+            } catch (e) {}
+          }
+          var resumeTries = 0;
+          function offerResume() {
+            var spot = null;
+            try { spot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
+            if (!spot || !spot.url || Date.now() - spot.at > 14 * 86400000) return;
+            var st = npState();
+            if (st && st.paused === false) return; // already playing something
+            if (welcomeOpen || note) { if (++resumeTries < 10) setTimeout(offerResume, 4000); return; }
+            noteWithButtons(
+              '<div class="sr-note-title">Pick up where you left off?</div>' +
+              '<div>' + esc(spot.show) + (spot.song ? ' · ' + esc(spot.song) : '') + ' at ' + clock(spot.t) + '</div>',
+              [['Keep listening', function () { resumeSpot(spot); }],
+               ['No thanks', function () { try { localStorage.removeItem(LAST_KEY); } catch (e) {} }]]);
+          }
+          function resumeSpot(spot) {
+            if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
+            var deadline = Date.now() + 10000;
+            (function tryStart() {
+              var rows = location.pathname.replace(/\/$/, '') === spot.url ? pageRows() : [];
+              var best = null;
+              rows.forEach(function (r) { if (r.start <= spot.t + 1 && (!best || r.start > best.start)) best = r; });
+              var btn = best && best.row.querySelector(':scope > button');
+              if (!btn) {
+                if (Date.now() < deadline) setTimeout(tryStart, 250);
+                else showToast("Couldn't open that show.");
+                return;
+              }
+              endPlaylist(false);
+              btn.click();
+              setTimeout(function () { var n = np(); n && n.seek(spot.t); }, 1500);
+              revealSong(spot.url, spot.t, null, null);
+            })();
+          }
+
           // Opens a song's show page and scrolls to the song, flashing its row.
           var REVEAL_KEY = 'sr-reveal-song';
           function showSongInShow(f) {
@@ -1850,7 +2116,7 @@ enum FavoritesScript {
               tape.removeAttribute('aria-busy');
               endPlaylist(false);
               playlist = { ids: [item.id], items: [item], pos: 0, mode: 'mixtape', source: 'mixtape', current: null };
-              showToast('Mixtape on. Every song goes into your Likes.');
+              showToast('Mixtape on. Each song goes into your Likes.');
               playCurrent();
               prefetchMix();
             }).catch(function () {
@@ -1879,7 +2145,7 @@ enum FavoritesScript {
             var fav = {};
             for (var k in f) fav[k] = f[k];
             fav.favoritedAt = Date.now();
-            toggle(fav);
+            toggle(fav, true); // no tap feel or announcement for every Mixtape song
           }
 
           // Swipe up on the mini player to open the full player, like Spotify.
@@ -2028,6 +2294,7 @@ enum FavoritesScript {
                 '</div>' +
                 '<div class="sr-np-extras">' +
                   '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
+                  '<button type="button" class="sr-np-icon sr-np-more" aria-label="Share or find this song">' + MORE + '</button>' +
                   '<button type="button" class="sr-np-icon sr-np-airplay" aria-label="AirPlay">' + AIRPLAY + '</button>' +
                 '</div>' +
               '</div>';
@@ -2046,6 +2313,7 @@ enum FavoritesScript {
             fp.meta.appendChild(fp.heart);
             root.querySelector('.sr-np-close').addEventListener('click', closePlayer);
             // "Playing from <show>": opens that show's tracklist at the playing song.
+            keyClickable(root.querySelector('.sr-np-from'), 'Open the show that is playing');
             root.querySelector('.sr-np-from').addEventListener('click', function () {
               var f = (playlist && playlist.current) || currentTrack();
               if (!f || !f.episodeURL) {
@@ -2061,6 +2329,10 @@ enum FavoritesScript {
             root.querySelector('.sr-np-next').addEventListener('click', nextSong);
             fp.sleep.addEventListener('click', function () { openSleep(); });
             root.querySelector('.sr-np-airplay').addEventListener('click', function () { native({ op: 'airplay' }); });
+            root.querySelector('.sr-np-more').addEventListener('click', function () {
+              var f = (playlist && playlist.current) || currentTrack();
+              if (f) songActions(f); else showToast('Play a song from a show first.');
+            });
             fp.heart.addEventListener('click', function () {
               var t = currentTrack();
               if (t) { t.favoritedAt = Date.now(); toggle(t); renderPlayer(); }
@@ -2098,6 +2370,7 @@ enum FavoritesScript {
           }
           function startMorph() {
             endMorph();
+            if (reduceMotion) return;
             var from = thumbRect(), to = finalCoverRect();
             if (!from || !to || !fp.cover.getAttribute('src')) return;
             var img = el('img', 'sr-np-morph');
@@ -2159,6 +2432,13 @@ enum FavoritesScript {
           }
           function animateTo(target, velocity, done) {
             cancelAnimationFrame(fpAnim);
+            if (reduceMotion) {
+              // iOS "Reduce Motion": no spring, no growing card; just open or close.
+              fpAnim = null;
+              setProgress(target);
+              if (done) done();
+              return;
+            }
             fpV = velocity || 0;
             var last = performance.now();
             var k = 340, c = 2 * Math.sqrt(k) * 0.9; // a quick spring with a hint of bounce
@@ -2190,6 +2470,7 @@ enum FavoritesScript {
               fpTravel = playerTravel();
               fp.root.hidden = false;
               fp.root.classList.add('sr-open');
+              dialogOpened(fp.root, closePlayer);
               document.documentElement.classList.add('sr-lock');
               renderPlayer();
               setProgress(0);
@@ -2250,6 +2531,7 @@ enum FavoritesScript {
           function finishClose() {
             endMorph();
             if (!fp) return;
+            dialogClosed(fp.root);
             fp.root.classList.remove('sr-open');
             fp.root.hidden = true;
             fpP = 0;
@@ -2930,6 +3212,7 @@ enum FavoritesScript {
 
           window.addEventListener('soulection-nowplaying', function (e) {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
+            rememberSpot(e.detail);
             followPlayback(e.detail);
             followListening(e.detail);
             followSleep(e.detail);
@@ -2972,6 +3255,7 @@ enum FavoritesScript {
             renderRowHearts();
             renderPlayingRow();
             renderMiniPlayer(miniPlayer());
+            announceSong();
             renderTab();
             if (isOpen()) renderSheet();
           }
@@ -3004,6 +3288,15 @@ enum FavoritesScript {
               var reveal = JSON.parse(sessionStorage.getItem(REVEAL_KEY) || 'null');
               sessionStorage.removeItem(REVEAL_KEY);
               if (reveal && reveal.url) revealSong(reveal.url, reveal.start, showNumber(reveal.show), null);
+            } catch (e) {}
+            try {
+              var resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null');
+              sessionStorage.removeItem(RESUME_KEY);
+              if (resume && resume.url) setTimeout(function () { resumeSpot(resume); }, 500);
+              else if (!sessionStorage.getItem('sr-resume-offered')) {
+                sessionStorage.setItem('sr-resume-offered', '1');
+                setTimeout(offerResume, 6000);
+              }
             } catch (e) {}
             try {
               var randomPath = sessionStorage.getItem(RANDOM_KEY);
