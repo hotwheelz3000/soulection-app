@@ -4,7 +4,7 @@ A full-screen iOS wrapper around [radio.soulection.com](https://radio.soulection
 
 - Audio keeps playing with the screen locked or the app in the background (`UIBackgroundModes: audio` in `SoulectionRadio-Info.plist`, `AVAudioSession` `.playback` category in `SoulectionRadioApp.swift`).
 - Inline media playback with no user-gesture requirement, AirPlay and Picture in Picture enabled.
-- Dark background behind the safe area, pull-to-refresh, swipe back/forward, and links leaving `soulection.com` open in Safari (`Sources/SoulectionRadio/WebView.swift`).
+- Edge to edge like a Safari home-screen web app: the web view fills the screen and the page handles safe areas with CSS `env(safe-area-inset-*)` (`viewport-fit=cover` is injected if missing). Pull-to-refresh, swipe back/forward, and links leaving `soulection.com` open in Safari (`Sources/SoulectionRadio/WebView.swift`).
 - App icon: `Resources/AppIcon.png` (`iconPath` in `xtool.yml`), produced by `scripts/fetch-app-icon.py` from the site's largest icon. The Build IPA workflow runs the script and commits the result if the icon is missing.
 
 ---

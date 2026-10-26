@@ -5,12 +5,10 @@ struct ContentView: View {
     @State private var appearance = PageAppearance()
 
     var body: some View {
-        ZStack {
-            // The page's own background fills the area behind the status bar and
-            // home indicator, while the web content itself stays inside the safe area.
-            Color(uiColor: appearance.backgroundColor).ignoresSafeArea()
-            WebView(url: homeURL, appearance: appearance)
-        }
-        .background(Color(uiColor: appearance.backgroundColor).ignoresSafeArea())
+        // Edge to edge, like a Safari home-screen web app: the page draws under
+        // the status bar and home indicator and handles the insets itself with
+        // CSS env(safe-area-inset-*).
+        WebView(url: homeURL, appearance: appearance)
+            .ignoresSafeArea()
     }
 }

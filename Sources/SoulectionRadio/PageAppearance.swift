@@ -1,8 +1,8 @@
 import Observation
 import UIKit
 
-/// The background color of the loaded page, used to fill the safe areas so
-/// the status bar and home indicator regions blend into the site.
+/// The background color of the loaded page, used for the web view's own
+/// background so loading and overscroll areas blend into the site.
 @MainActor
 @Observable
 final class PageAppearance {

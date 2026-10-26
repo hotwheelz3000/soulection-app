@@ -17,6 +17,13 @@ struct WebView: UIViewRepresentable {
         configuration.allowsAirPlayForMediaPlayback = true
         configuration.allowsPictureInPictureMediaPlayback = true
         configuration.websiteDataStore = .default()
+        configuration.userContentController.addUserScript(
+            WKUserScript(
+                source: Self.viewportFitScript,
+                injectionTime: .atDocumentStart,
+                forMainFrameOnly: true
+            )
+        )
 
         let webView = WKWebView(frame: .zero, configuration: configuration)
         webView.navigationDelegate = context.coordinator
@@ -24,7 +31,8 @@ struct WebView: UIViewRepresentable {
         webView.allowsBackForwardNavigationGestures = true
         webView.isOpaque = false
         context.coordinator.applyBackground(to: webView)
-        // SwiftUI already keeps the view inside the safe area; don't inset twice.
+        // The web view fills the whole screen and the page applies the safe-area
+        // insets itself, so the scroll view must not add its own.
         webView.scrollView.contentInsetAdjustmentBehavior = .never
 
         let refreshControl = UIRefreshControl()
@@ -41,6 +49,50 @@ struct WebView: UIViewRepresentable {
         webView.load(URLRequest(url: url))
         return webView
     }
+
+    /// Ensures the page's viewport meta has viewport-fit=cover so that
+    /// env(safe-area-inset-*) reports the real insets, as in a home-screen web app.
+    /// Runs at document start, before <head> is parsed, so it patches viewport
+    /// tags as they're added (or rewritten by client-side code), and adds one
+    /// if the page has none by DOMContentLoaded.
+    private static let viewportFitScript = #"""
+        (function () {
+          var COVER = /viewport-fit\s*=\s*cover/i;
+          function isViewport(node) {
+            return node.nodeName === 'META' &&
+              (node.getAttribute('name') || '').toLowerCase() === 'viewport';
+          }
+          function patch(meta) {
+            var content = meta.getAttribute('content') || '';
+            if (COVER.test(content)) return;
+            content = content.replace(/,?\s*viewport-fit\s*=\s*[^,]*/ig, '').replace(/^[\s,]+|[\s,]+$/g, '');
+            meta.setAttribute('content', (content ? content + ', ' : '') + 'viewport-fit=cover');
+          }
+          new MutationObserver(function (mutations) {
+            mutations.forEach(function (m) {
+              if (m.type === 'attributes') {
+                if (isViewport(m.target)) patch(m.target);
+                return;
+              }
+              m.addedNodes.forEach(function (node) {
+                if (isViewport(node)) patch(node);
+                else if (node.querySelectorAll) node.querySelectorAll('meta[name="viewport"]').forEach(patch);
+              });
+            });
+          }).observe(document, { childList: true, subtree: true, attributes: true, attributeFilter: ['content', 'name'] });
+          document.addEventListener('DOMContentLoaded', function () {
+            var metas = document.querySelectorAll('meta[name="viewport"]');
+            if (metas.length) {
+              metas.forEach(patch);
+            } else if (document.head) {
+              var meta = document.createElement('meta');
+              meta.name = 'viewport';
+              meta.content = 'width=device-width, initial-scale=1, viewport-fit=cover';
+              document.head.appendChild(meta);
+            }
+          });
+        })();
+        """#
 
     func updateUIView(_ webView: WKWebView, context: Context) {
         context.coordinator.applyBackground(to: webView)
