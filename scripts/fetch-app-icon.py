@@ -6,7 +6,9 @@ Usage: fetch-app-icon.py <site-url> <output.png>
 Looks at apple-touch-icon / icon <link> tags, the web app manifest, and the
 usual fallback paths, downloads each candidate, keeps the largest raster
 image (apple-touch-icon wins ties), pads it to a square, scales it to
-1024x1024 and flattens any transparency onto black. Requires Pillow.
+1024x1024 and flattens any transparency onto black, or onto white when the
+artwork itself is dark (a black logo on a transparent background). Requires
+Pillow.
 """
 import io
 import json
@@ -15,14 +17,13 @@ import urllib.request
 from html.parser import HTMLParser
 from urllib.parse import urljoin
 
-from PIL import Image
+from PIL import Image, ImageStat
 
 USER_AGENT = (
     "Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 "
     "(KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1"
 )
 SIZE = 1024
-BACKGROUND = (0, 0, 0)
 
 
 def fetch(url):
@@ -51,6 +52,26 @@ class IconLinkParser(HTMLParser):
             self.icons.append((href, True))
         elif "icon" in rel:
             self.icons.append((href, False))
+
+
+def background_for(image):
+    """Black, unless the visible artwork is dark enough to vanish on black."""
+    rgba = image.convert("RGBA")
+    alpha = rgba.getchannel("A")
+    if alpha.getextrema()[0] == 255:
+        return (0, 0, 0)  # already opaque; padding only
+    visible = alpha.point(lambda a: 255 if a >= 128 else 0)
+    if visible.getextrema()[1] == 0:
+        return (0, 0, 0)
+    mean = ImageStat.Stat(rgba.convert("L"), mask=visible).mean[0]
+    return (255, 255, 255) if mean < 96 else (0, 0, 0)
+
+
+def is_blank(image):
+    rgba = image.convert("RGBA")
+    if rgba.getchannel("A").getextrema()[1] == 0:
+        return True
+    return all(lo == hi for lo, hi in rgba.getextrema())
 
 
 def candidates(site_url):
@@ -96,6 +117,9 @@ def main():
         except Exception as e:
             print(f"  skipping {url}: {e}")
             continue
+        if is_blank(image):
+            print(f"  skipping {url}: blank image")
+            continue
         side = min(image.size)
         print(f"  found {url}: {image.size[0]}x{image.size[1]}{' (apple-touch-icon)' if apple else ''}")
         if best is None or (side, apple) > best[:2]:
@@ -107,16 +131,17 @@ def main():
     print(f"Using {url} ({image.size[0]}x{image.size[1]})")
 
     image = image.convert("RGBA")
+    background = background_for(image)
     # Pad to a square so the icon is not distorted.
     side = max(image.size)
-    square = Image.new("RGBA", (side, side), BACKGROUND + (255,))
+    square = Image.new("RGBA", (side, side), background + (255,))
     square.alpha_composite(image, ((side - image.width) // 2, (side - image.height) // 2))
     square = square.resize((SIZE, SIZE), Image.LANCZOS)
     # Flatten onto an opaque background: App Store icons may not have alpha.
-    flat = Image.new("RGB", (SIZE, SIZE), BACKGROUND)
+    flat = Image.new("RGB", (SIZE, SIZE), background)
     flat.paste(square, mask=square.getchannel("A"))
     flat.save(out_path, "PNG")
-    print(f"Wrote {out_path} ({SIZE}x{SIZE}, {flat.mode})")
+    print(f"Wrote {out_path} ({SIZE}x{SIZE}, {flat.mode}, background {background})")
 
 
 if __name__ == "__main__":
