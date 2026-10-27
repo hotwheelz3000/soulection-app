@@ -242,10 +242,20 @@ enum FavoritesScript {
             // Full-size player.
             '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translate3d(0,100%,0);will-change:transform;-webkit-user-select:none;user-select:none}',
             '.sr-np-morph{position:fixed;z-index:46;object-fit:cover;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45);will-change:left,top,width,height}',
+            // Pieces of the mini player travelling to their places in the big player.
+            '.sr-np-tv{position:fixed;left:0;top:0;z-index:47;pointer-events:none;margin:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:' + FONT + '}',
+            '.sr-np-tv svg{display:block;width:100%;height:100%}',
+            '.sr-np-tv-play{display:flex;align-items:center;justify-content:center;border-radius:9999px;overflow:visible}',
+            '.sr-np-tv-play svg{width:47%;height:47%}',
+            '.sr-np-tv-track{overflow:visible;border-radius:9999px;background:' + TRACK + '}',
+            '.sr-np-tv-track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}',
+            '.sr-np-tv-track b{position:absolute;top:50%;border-radius:50%;transform:translate(-50%,-50%)}',
+            '.sr-np-tv-grab{border-radius:9999px;background:' + TRACK + '}',
+            '.sr-np-handle{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 2px);width:36px;height:4px;margin-left:-18px;border-radius:9999px;background:' + TRACK + ';pointer-events:none}',
             '.sr-np[hidden]{display:none}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
-            '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 6px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
+            '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 12px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
             '.sr-np-top{display:flex;align-items:center;gap:8px;flex:none}',
             '.sr-np-from{flex:1;min-width:0;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-from:active .sr-np-show{color:' + ACCENT + '}',
@@ -2677,7 +2687,7 @@ enum FavoritesScript {
             root.setAttribute('role', 'dialog');
             root.setAttribute('aria-label', 'Now playing');
             root.innerHTML =
-              '<div class="sr-np-bg"></div>' +
+              '<div class="sr-np-bg"></div><div class="sr-np-handle"></div>' +
               '<div class="sr-np-inner">' +
                 '<div class="sr-np-top">' +
                   '<button type="button" class="sr-np-icon sr-np-close" aria-label="Close player">' + CHEVRON + '</button>' +
@@ -2773,32 +2783,232 @@ enum FavoritesScript {
           // Where the big cover sits once the player is fully open. The player's content is
           // still slid down a little while it opens, so measure it without that offset (or the
           // growing cover would aim too low and jump at the end).
-          function finalCoverRect() {
-            var prevRoot = fp.root.style.transform, prevInner = fp.inner.style.transform;
+          // ---------------------------------------------------------------------------
+          // Mini player -> big player: everything the mini player shows travels to its place
+          // in the big player, following the finger (cover, show, song, artist, heart, bar,
+          // times, play button and the little line). Only what the mini player doesn't have
+          // fades in around them.
+          // ---------------------------------------------------------------------------
+          // The visible pieces of whichever mini player is on screen.
+          function miniParts() {
+            var card = playerCard();
+            if (!card) return {};
+            var q = function (sel) { var n = card.querySelector(sel); return n && n.getBoundingClientRect().width ? n : null; };
+            if (card === liveCard) {
+              return { cover: q('.sr-ready-img'), show: q('.sr-ready-show'), title: q('.sr-ready-song'), artist: q('.sr-ready-artist'),
+                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur') };
+            }
+            if (card.querySelector(':scope > .sr-mini-over')) {
+              return { cover: q('.sr-mo-img'), show: q('.sr-mo-show'), title: q('.sr-mo-song'), artist: q('.sr-mo-artist'),
+                play: q('.sr-mo-play'), track: q('.sr-mo-bar'), el: q('.sr-mo-el'), dur: q('.sr-mo-dur'), heart: q('.sr-heart-mini'), grab: q('.sr-grab') };
+            }
+            var lines = card.querySelectorAll('.content-col > div');
+            var line = lines[1];
+            var spans = line ? line.querySelectorAll(':scope > span') : [];
+            var thumb = card.querySelector('[role="slider"]');
+            var times = card.querySelectorAll('[data-sr-time]:not(.sr-mo-time)');
+            var vis = function (n) { return n && n.getBoundingClientRect().width ? n : null; };
+            return {
+              cover: vis(card.querySelector('img')), show: vis(lines[0]), title: vis(spans[0] || line),
+              artist: vis(spans.length > 1 ? spans[spans.length - 1] : null), play: vis(sitePlayButton()),
+              track: vis(thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement)),
+              el: vis(times[0]), dur: vis(times[1]), heart: q('.sr-heart-mini'), grab: q('.sr-grab')
+            };
+          }
+          // Where the big player's pieces sit when it's fully open.
+          function finalRects() {
+            var prevRoot = fp.root.style.transform, prevInner = fp.inner.style.transform, prevClip = fp.root.style.clipPath;
             fp.root.style.transform = 'none';
             fp.inner.style.transform = 'none';
-            var r = fp.cover.getBoundingClientRect();
+            var R = function (n) { var r = n && n.getBoundingClientRect(); return r && r.width ? r : null; };
+            var out = {
+              cover: R(fp.cover), show: R(fp.show), title: R(fp.title), artist: R(fp.artist), heart: R(fp.heart),
+              play: R(fp.play), track: R(fp.track), el: R(fp.elapsed), dur: R(fp.left),
+              grab: R(fp.root.querySelector('.sr-np-handle'))
+            };
             fp.root.style.transform = prevRoot;
             fp.inner.style.transform = prevInner;
-            return r.width ? r : null;
+            fp.root.style.clipPath = prevClip;
+            return out;
           }
+          function finalCoverRect() { return finalRects().cover; }
           function startMorph() {
             endMorph();
             if (reduceMotion) return;
-            var from = thumbRect(), to = finalCoverRect();
-            if (!from || !to || !fp.cover.getAttribute('src')) return;
-            var img = el('img', 'sr-np-morph');
-            img.alt = '';
-            img.src = fp.cover.currentSrc || fp.cover.src;
-            document.body.appendChild(img);
-            fp.cover.style.visibility = 'hidden';
-            morph = { img: img, from: from, to: to };
+            var to = finalRects(), parts = miniParts(), from = {};
+            Object.keys(parts).forEach(function (k) { if (parts[k]) from[k] = parts[k].getBoundingClientRect(); });
+            var m = { from: from, to: to, nodes: {}, hidden: [] };
+            var hide = function (n) { if (!n) return; m.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
+            // The cover.
+            var fromCover = from.cover || thumbRect();
+            if (fromCover && to.cover && fp.cover.getAttribute('src')) {
+              var img = el('img', 'sr-np-morph');
+              img.alt = '';
+              img.src = fp.cover.currentSrc || fp.cover.src;
+              document.body.appendChild(img);
+              m.img = img; m.fromCover = fromCover;
+              hide(fp.cover); hide(parts.cover);
+            }
+            // Text: shows the big player's words, starting at the mini player's size and spot.
+            var text = function (k, big, mini) {
+              if (!to[k] || !from[k]) return;
+              var n = el('div', 'sr-np-tv');
+              var bs = getComputedStyle(big), ms = getComputedStyle(mini);
+              n.textContent = big.textContent;
+              n.style.fontWeight = bs.fontWeight;
+              n.style.color = bs.color;
+              m.nodes[k] = { n: n, f0: parseFloat(ms.fontSize) || 12, f1: parseFloat(bs.fontSize) || 16 };
+              document.body.appendChild(n);
+              hide(big); hide(mini);
+            };
+            text('show', fp.show, parts.show);
+            text('title', fp.title, parts.title);
+            text('artist', fp.artist, parts.artist);
+            text('el', fp.elapsed, parts.el);
+            text('dur', fp.left, parts.dur);
+            if (m.nodes.dur) m.nodes.dur.n.style.textAlign = 'right';
+            // The heart.
+            if (to.heart && from.heart) {
+              var h = el('div', 'sr-np-tv', fp.heart.innerHTML);
+              h.style.color = getComputedStyle(fp.heart).color;
+              h.style.overflow = 'visible';
+              m.nodes.heart = { n: h };
+              document.body.appendChild(h);
+              hide(fp.heart); hide(parts.heart);
+            }
+            // The bar: thin with the site's knob, then the big player's thicker bar.
+            if (to.track && from.track) {
+              var t = el('div', 'sr-np-tv sr-np-tv-track', '<i></i><b></b>');
+              var siteKnob = parts.track && parts.track.querySelector('[role="slider"], .sr-mo-knob, .sr-ready-knob');
+              var kc = siteKnob ? getComputedStyle(siteKnob).backgroundColor : 'rgb(234, 88, 12)';
+              var km = /(\d+)\D+(\d+)\D+(\d+)/.exec(kc) || [0, 234, 88, 12];
+              m.nodes.track = { n: t, knob: [+km[1], +km[2], +km[3]] };
+              document.body.appendChild(t);
+              hide(fp.track); hide(parts.track);
+            }
+            // The play button: an icon in the mini player, the white circle in the big one.
+            if (to.play && from.play) {
+              var pb = el('div', 'sr-np-tv sr-np-tv-play', fp.play.innerHTML);
+              m.nodes.play = { n: pb };
+              document.body.appendChild(pb);
+              hide(fp.play); hide(parts.play);
+            }
+            // The little line.
+            if (to.grab && from.grab) {
+              var g = el('div', 'sr-np-tv sr-np-tv-grab');
+              m.nodes.grab = { n: g };
+              document.body.appendChild(g);
+              hide(fp.root.querySelector('.sr-np-handle')); hide(parts.grab);
+            }
+            morph = m;
           }
           function endMorph() {
             if (!morph) return;
-            morph.img.remove();
+            var m = morph;
             morph = null;
-            if (fp) fp.cover.style.visibility = '';
+            if (m.img) m.img.remove();
+            Object.keys(m.nodes).forEach(function (k) { m.nodes[k].n.remove(); });
+            m.hidden.forEach(function (h) { h[0].style.visibility = h[1]; });
+            if (fp) {
+              ['.sr-np-prev', '.sr-np-next'].forEach(function (sel) { var b = fp.root.querySelector(sel); if (b) b.style.transform = ''; });
+            }
+          }
+          var lerp = function (a, b, t) { return a + (b - a) * t; };
+          function placeMorph(e) {
+            var m = morph, f = m.from, t = m.to, N = m.nodes, W = window.innerWidth;
+            var box = function (n, x, y, w, h) {
+              var st = n.style;
+              st.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
+              if (w != null) st.width = w.toFixed(1) + 'px';
+              if (h != null) st.height = h.toFixed(1) + 'px';
+            };
+            // Cover.
+            var coverBottom = null;
+            if (m.img) {
+              var a = m.fromCover, b = t.cover, cs = m.img.style;
+              var ch = lerp(a.height, b.height, e);
+              cs.left = lerp(a.left, b.left, e) + 'px';
+              cs.top = lerp(a.top, b.top, e) + 'px';
+              cs.width = lerp(a.width, b.width, e) + 'px';
+              cs.height = ch + 'px';
+              cs.borderRadius = (2 + 4 * e) + 'px';
+              coverBottom = lerp(a.top, b.top, e) + ch;
+            }
+            var under = Math.max(0, Math.min(1, (e - .08) / .2)); // once the cover reaches the title's row
+            // Show line, little line: straight to their places.
+            if (N.show) {
+              var sh = N.show;
+              sh.n.style.fontSize = lerp(sh.f0, sh.f1, e) + 'px';
+              sh.n.style.maxWidth = lerp(f.show.width, t.show.width, e) + 'px';
+              box(sh.n, lerp(f.show.left, t.show.left, e), lerp(f.show.top, t.show.top, e));
+            }
+            if (N.grab) box(N.grab.n, lerp(f.grab.left + f.grab.width / 2 - 18, t.grab.left, e), lerp(f.grab.top + f.grab.height / 2 - 2, t.grab.top, e), 36, 4);
+            // Title: moves with the pull, and keeps clear of the growing cover.
+            var ty = lerp(f.title ? f.title.top : t.title.top, t.title ? t.title.top : 0, e);
+            if (coverBottom != null && t.title && t.cover) ty = lerp(ty, Math.max(ty, coverBottom + (t.title.top - t.cover.bottom)), under);
+            if (N.title) {
+              var ti = N.title;
+              ti.n.style.fontSize = lerp(ti.f0, ti.f1, e) + 'px';
+              ti.n.style.maxWidth = lerp(f.title.width, t.title.width, e) + 'px';
+              box(ti.n, lerp(f.title.left, t.title.left, e), ty);
+            }
+            var titleTop0 = f.title ? f.title.top : (t.title ? t.title.top : 0);
+            var titleTop1 = t.title ? t.title.top : 0;
+            // Artist: drops under the title first, then slides left.
+            if (N.artist) {
+              var ar = N.artist, ea = Math.pow(e, .6);
+              ar.n.style.fontSize = lerp(ar.f0, ar.f1, ea) + 'px';
+              ar.n.style.maxWidth = lerp(f.artist.width, t.artist.width, e) + 'px';
+              box(ar.n, lerp(f.artist.left, t.artist.left, Math.pow(e, 1.8)), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
+            }
+            // Heart: to the right of the title.
+            if (N.heart) {
+              var hy = lerp(f.heart.top, t.heart.top, e);
+              hy = lerp(hy, ty + (t.heart.top - titleTop1), under);
+              var hs = lerp(f.heart.width, t.heart.width, e);
+              box(N.heart.n, lerp(f.heart.left, t.heart.left, e), hy, hs, hs);
+            }
+            // Bar and times: always below the artist.
+            var by = ty + lerp((f.track ? f.track.top : titleTop0) - titleTop0, (t.track ? t.track.top : titleTop1) - titleTop1, e);
+            if (N.track) {
+              var tr = N.track, th = lerp(Math.max(1, f.track.height > 8 ? 1 : f.track.height), t.track.height, e);
+              box(tr.n, lerp(f.track.left, t.track.left, e), by + (lerp(f.track.height, t.track.height, e) - th) / 2, lerp(f.track.width, t.track.width, e), th);
+              var st = npState() || {};
+              var frac = st.duration ? Math.max(0, Math.min(1, (st.t || 0) / st.duration)) : 0;
+              var fill = tr.n.querySelector('i'), knob = tr.n.querySelector('b');
+              fill.style.width = (frac * 100) + '%';
+              fill.style.opacity = e.toFixed(3);
+              knob.style.left = (frac * 100) + '%';
+              var ks = lerp(14, 12, e);
+              knob.style.width = knob.style.height = ks + 'px';
+              knob.style.background = 'rgb(' + tr.knob.map(function (c) { return Math.round(lerp(c, 255, e)); }).join(',') + ')';
+            }
+            var tt = function (k) {
+              var x = N[k];
+              if (!x) return;
+              var dy0 = f[k].top - (f.track ? f.track.top : f[k].top), dy1 = t[k].top - (t.track ? t.track.top : t[k].top);
+              x.n.style.fontSize = lerp(x.f0, x.f1, e) + 'px';
+              var w = lerp(f[k].width, t[k].width, e) + 8;
+              x.n.style.width = w + 'px';
+              var left = k === 'dur' ? lerp(f[k].right, t[k].right, e) - w : lerp(f[k].left, t[k].left, e);
+              box(x.n, left, by + lerp(dy0, dy1, e));
+            };
+            tt('el'); tt('dur');
+            // Play: from the mini player's spot to the middle under the bar, growing late.
+            if (N.play) {
+              var es = Math.pow(e, 1.8);
+              var size = lerp(Math.min(f.play.width, f.play.height), t.play.width, es);
+              var cx = lerp(f.play.left + f.play.width / 2, t.play.left + t.play.width / 2, Math.pow(e, .8));
+              var cy0 = f.play.top + f.play.height / 2, cy1 = t.play.top + t.play.height / 2;
+              var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, 1.15));
+              box(N.play.n, cx - size / 2, cy - size / 2, size, size);
+              N.play.n.style.background = 'rgba(255,255,255,' + es.toFixed(3) + ')';
+              var c0 = 180, c1 = 26, c = Math.round(lerp(c0, c1, es));
+              N.play.n.style.color = 'rgb(' + c + ',' + c + ',' + c + ')';
+              // Previous and next stay level with it.
+              var shift = (cy - cy1).toFixed(1);
+              ['.sr-np-prev', '.sr-np-next'].forEach(function (sel) { var b = fp.root.querySelector(sel); if (b) b.style.transform = 'translateY(' + shift + 'px)'; });
+            }
           }
           // The full player grows out of the mini player card: it's clipped to the card's exact
           // shape at the start and the clip opens up to the whole screen as it rises. The card
@@ -2832,17 +3042,11 @@ enum FavoritesScript {
             var solid = Math.min(1, e / 0.25);
             root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
             fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
-            var show = Math.max(0, Math.min(1, (e - 0.45) / 0.45));
+            // What only the big player has fades in over the last part, rising a little.
+            var show = morph ? Math.max(0, Math.min(1, (e - 0.55) / 0.4)) : Math.max(0, Math.min(1, (e - 0.45) / 0.45));
             fp.inner.style.opacity = show.toFixed(3);
-            fp.inner.style.transform = 'translate3d(0,' + (k * 40).toFixed(1) + 'px,0)';
-            if (!morph) return;
-            var e = Math.max(0, Math.min(1, p)), f = morph.from, t = morph.to;
-            var st = morph.img.style;
-            st.left = (f.left + (t.left - f.left) * e) + 'px';
-            st.top = (f.top + (t.top - f.top) * e) + 'px';
-            st.width = (f.width + (t.width - f.width) * e) + 'px';
-            st.height = (f.height + (t.height - f.height) * e) + 'px';
-            st.borderRadius = (2 + 4 * e) + 'px';
+            fp.inner.style.transform = 'translate3d(0,' + ((1 - show) * 24).toFixed(1) + 'px,0)';
+            if (morph) placeMorph(e);
           }
           function animateTo(target, velocity, done) {
             cancelAnimationFrame(fpAnim);
@@ -2855,7 +3059,7 @@ enum FavoritesScript {
             }
             fpV = velocity || 0;
             var last = performance.now();
-            var k = 340, c = 2 * Math.sqrt(k) * 0.9; // a quick spring with a hint of bounce
+            var k = 340, c = 2 * Math.sqrt(k); // quick, and settles straight into place (no bounce)
             function step(now) {
               var dt = Math.min(0.032, (now - last) / 1000);
               last = now;
@@ -2867,7 +3071,7 @@ enum FavoritesScript {
                 if (done) done();
                 return;
               }
-              setProgress(Math.max(-0.03, Math.min(1.03, p)));
+              setProgress(Math.max(0, Math.min(1, p)));
               fpAnim = requestAnimationFrame(step);
             }
             fpAnim = requestAnimationFrame(step);
