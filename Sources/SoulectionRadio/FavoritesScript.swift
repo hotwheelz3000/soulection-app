@@ -330,9 +330,8 @@ enum FavoritesScript {
             // Like a thought bubble: starts small, round and soft, floats up as it opens, then
             // sharpens into the box and stops still.
             // The full player's ... : just the buttons, no box, in the space under the top row.
-            // They show all at once, with no animation.
-            '.sr-np-actions{position:absolute;left:24px;right:24px;z-index:2;display:flex;justify-content:space-around;transition:opacity .15s ease}',
-            '.sr-np-actions.sr-closing{opacity:0}',
+            // They show and hide all at once, with no animation.
+            '.sr-np-actions{position:absolute;left:24px;right:24px;z-index:2;display:flex;justify-content:space-around}',
             '.sr-np-act{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;color:' + TEXT + ';font-family:' + FONT + ';font-size:11px;line-height:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-act svg{width:22px;height:22px}',
             '.sr-np-act:active{color:#fff}',
@@ -2932,7 +2931,7 @@ enum FavoritesScript {
           // The full player's ... row: Share, Spotify, Apple Music, transparent, under the top row.
           var npMenu = null; // {box, trigger, outside, key}
           function openNpActions(f, trigger) {
-            closeNpActions(true);
+            closeNpActions();
             var inner = fp && fp.root.querySelector('.sr-np-inner');
             var top = fp && fp.root.querySelector('.sr-np-top');
             if (!inner || !top) return;
@@ -2977,21 +2976,19 @@ enum FavoritesScript {
             var first = box.querySelector('button');
             if (first) setTimeout(function () { try { first.focus({ preventScroll: true }); } catch (e) {} }, 60);
           }
-          function closeNpActions(instant) {
+          function closeNpActions() {
             var m = npMenu;
             if (!m) return;
             npMenu = null;
             document.removeEventListener('click', m.outside, true);
             document.removeEventListener('keydown', m.key, true);
             if (m.trigger) { m.trigger.classList.remove('sr-on'); m.trigger.setAttribute('aria-expanded', 'false'); }
-            if (instant) { m.box.remove(); return; }
-            m.box.classList.add('sr-closing');
-            setTimeout(function () { m.box.remove(); }, 160);
+            m.box.remove();
           }
 
           function finishClose() {
             endMorph();
-            closeNpActions(true);
+            closeNpActions();
             if (!fp) return;
             dialogClosed(fp.root);
             fp.root.classList.remove('sr-open');
