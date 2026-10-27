@@ -128,7 +128,7 @@ enum FavoritesScript {
             '.sr-mini-over > *{position:absolute;pointer-events:auto;cursor:pointer;margin:0;box-sizing:border-box}',
             '.sr-mo-img{object-fit:cover}',
             '.sr-mo-text{display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden}',
-            '.sr-mo-text > div{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-mo-text > div{flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-mo-song{font-weight:700}',
             '.sr-mo-bar{display:flex;align-items:center}',
             '.sr-mo-track{position:relative;flex:1;overflow:hidden}',
@@ -922,6 +922,7 @@ enum FavoritesScript {
                 '<div class="sr-mo-bar"><div class="sr-mo-track"><div class="sr-mo-fill"></div></div><div class="sr-mo-knob"></div></div>' +
                 '<span class="sr-mo-time sr-mo-el"></span><span class="sr-mo-time sr-mo-dur"></span>' +
                 '<button type="button" class="sr-mo-play" aria-label="Play"></button>');
+              over.__born = Date.now();
               over.querySelector('.sr-mo-play').addEventListener('click', function (e) {
                 e.preventDefault(); e.stopPropagation();
                 togglePlay();
@@ -950,7 +951,10 @@ enum FavoritesScript {
             var sameNodes = over.__nodes && nodes.every(function (n, i) { return n === over.__nodes[i]; });
             over.__nodes = nodes;
             var layoutKey = Math.round(base.width) + 'x' + Math.round(base.height);
-            var relayout = !sameNodes || over.__key !== layoutKey || !over.__at || Date.now() - over.__at > 3000;
+            // Right after it appears the site's player is still sliding in and loading, so
+            // measure on every update for the first few seconds.
+            var relayout = !sameNodes || over.__key !== layoutKey || !over.__at || Date.now() - over.__at > 3000 ||
+              Date.now() - (over.__born || 0) < 5000;
             if (relayout) { over.__key = layoutKey; over.__at = Date.now(); }
             var st = npState() || {};
             var cur = playlist && playlist.current;
@@ -979,10 +983,21 @@ enum FavoritesScript {
               copyFont(lines[1], over.querySelector('.sr-mo-line'));
             }
             set('.sr-mo-show', shown.show || '');
-            var openLabel = 'Open player: ' + (song || '') + (artist ? ' by ' + artist : '');
-            if (textBox.getAttribute('aria-label') !== openLabel) textBox.setAttribute('aria-label', openLabel);
             set('.sr-mo-song', song || '');
             set('.sr-mo-artist', artist || '');
+            if (col && relayout) {
+              // Measured while the site's text was still loading, its space can come out too
+              // short: always leave room for both lines, centred on the site's text.
+              var colRect = col.getBoundingClientRect();
+              var need = over.querySelector('.sr-mo-show').offsetHeight + over.querySelector('.sr-mo-line').offsetHeight;
+              if (need > colRect.height) {
+                var top = (colRect.top - base.top) - (need - colRect.height) / 2;
+                textBox.style.top = top + 'px';
+                textBox.style.height = need + 'px';
+              }
+            }
+            var openLabel = 'Open player: ' + (song || '') + (artist ? ' by ' + artist : '');
+            if (textBox.getAttribute('aria-label') !== openLabel) textBox.setAttribute('aria-label', openLabel);
 
             // Progress bar
             var dur = st.duration || 0, pos = st.t || 0;
@@ -1108,8 +1123,8 @@ enum FavoritesScript {
             favTab.type = histTab.type = 'button';
             favTab.addEventListener('click', function () { setMode('favorites'); });
             histTab.addEventListener('click', function () { setMode('history'); });
-            tabs.appendChild(favTab);
             tabs.appendChild(histTab);
+            tabs.appendChild(favTab);
             head.appendChild(tabs);
             var sub = el('div', 'sr-sheet-sub');
             head.appendChild(sub);
@@ -1154,7 +1169,7 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'favorites', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
             attachSheetDrag();
           }
 
@@ -1163,6 +1178,13 @@ enum FavoritesScript {
           function openSheet() {
             buildSheet();
             if (!sheet || isOpen()) return;
+            // Always opens on History (the first tab).
+            if (sheet.mode !== 'history') {
+              sheet.mode = 'history';
+              sheet.key = '';
+              sheet.query = '';
+              if (sheet.search) sheet.search.value = '';
+            }
             renderSheet();
             sheet.backdrop.hidden = sheet.panel.hidden = false;
             sheet.panel.style.transform = '';
@@ -1923,7 +1945,7 @@ enum FavoritesScript {
           }
           // ---------------------------------------------------------------------------
           // Pick up where you left off: the show and spot you were last listening to are
-          // remembered, and opening the app later offers to carry on from there.
+          // remembered, and opening the app later goes back to that show, ready to carry on.
           // ---------------------------------------------------------------------------
           var LAST_KEY = 'sr-last-spot';
           var RESUME_KEY = 'sr-resume';
@@ -1941,38 +1963,45 @@ enum FavoritesScript {
               }));
             } catch (e) {}
           }
-          var resumeTries = 0;
-          function offerResume() {
+          // Opening the app goes to the show you were last listening to, ready to carry on:
+          // nothing plays until you tap play (so it never stops a podcast or other music),
+          // and then it jumps to where you stopped.
+          var pendingSpot = null;
+          function savedSpot() {
             var spot = null;
             try { spot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
-            if (!spot || !spot.url || Date.now() - spot.at > 14 * 86400000) return;
+            if (!spot || !spot.url || Date.now() - spot.at > 14 * 86400000) return null;
+            return spot;
+          }
+          function readySpot(spot) {
+            spot = spot || savedSpot();
+            if (!spot) return;
             var st = npState();
             if (st && st.paused === false) return; // already playing something
-            if (welcomeOpen || note) { if (++resumeTries < 10) setTimeout(offerResume, 4000); return; }
-            noteWithButtons(
-              '<div class="sr-note-title">Pick up where you left off?</div>' +
-              '<div>' + esc(spot.show) + (spot.song ? ' · ' + esc(spot.song) : '') + ' at ' + clock(spot.t) + '</div>',
-              [['Keep listening', function () { resumeSpot(spot); }],
-               ['No thanks', function () { try { localStorage.removeItem(LAST_KEY); } catch (e) {} }]]);
-          }
-          function resumeSpot(spot) {
+            var here = location.pathname.replace(/\/$/, '');
+            // Only from the home page (not when a notification or link opened a show).
+            if (here !== spot.url && here !== '') return;
             if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
-            var deadline = Date.now() + 10000;
-            (function tryStart() {
-              var rows = location.pathname.replace(/\/$/, '') === spot.url ? pageRows() : [];
-              var best = null;
-              rows.forEach(function (r) { if (r.start <= spot.t + 1 && (!best || r.start > best.start)) best = r; });
-              var btn = best && best.row.querySelector(':scope > button');
-              if (!btn) {
-                if (Date.now() < deadline) setTimeout(tryStart, 250);
-                else showToast("Couldn't open that show.");
-                return;
-              }
-              endPlaylist(false);
-              btn.click();
-              setTimeout(function () { var n = np(); n && n.seek(spot.t); }, 1500);
-              revealSong(spot.url, spot.t, null, null);
-            })();
+            pendingSpot = spot;
+            revealSong(spot.url, spot.t, showNumber(spot.show), null);
+          }
+          // The first play of that show jumps to the saved spot. Playing anything else (or a
+          // song in its tracklist) forgets it.
+          function followPendingSpot(st) {
+            var spot = pendingSpot;
+            if (!spot || !st || st.paused !== false) return;
+            pendingSpot = null;
+            if (playlist && playlist.current) return;
+            var sameShow = (st.episodeURL && st.episodeURL.replace(/\/$/, '') === spot.url) ||
+              (st.number && st.number === showNumber(spot.show));
+            if (!sameShow || st.t == null || st.t > 5) return;
+            var n = np();
+            if (!n) return;
+            n.seek(spot.t);
+            setTimeout(function () {
+              var now = npState();
+              if (now && now.t != null && now.t < spot.t - 5) { var m = np(); m && m.seek(spot.t); }
+            }, 1500);
           }
 
           // Opens a song's show page and scrolls to the song, flashing its row.
@@ -3362,6 +3391,7 @@ enum FavoritesScript {
 
           window.addEventListener('soulection-nowplaying', function (e) {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
+            followPendingSpot(e.detail);
             rememberSpot(e.detail);
             followPlayback(e.detail);
             followListening(e.detail);
@@ -3443,10 +3473,10 @@ enum FavoritesScript {
             try {
               var resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null');
               sessionStorage.removeItem(RESUME_KEY);
-              if (resume && resume.url) setTimeout(function () { resumeSpot(resume); }, 500);
+              if (resume && resume.url) setTimeout(function () { readySpot(resume); }, 500);
               else if (!sessionStorage.getItem('sr-resume-offered')) {
                 sessionStorage.setItem('sr-resume-offered', '1');
-                setTimeout(offerResume, 6000);
+                setTimeout(function () { readySpot(); }, 1500);
               }
             } catch (e) {}
             try {
