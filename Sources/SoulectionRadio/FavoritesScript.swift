@@ -1,7 +1,7 @@
 import Foundation
 
 /// Favorites, listening history and a random-show button: hearts on songs, a sheet with
-/// Favorites and History tabs, playlists from either, and a dice in the top bar.
+/// History and Likes tabs (History first), playlists from either, and a dice in the top bar.
 ///
 /// - History: a song is recorded as soon as it starts playing (like Spotify's
 ///   Recently played), saved in the app, newest first, with replays moved to the top.
@@ -12,19 +12,19 @@ import Foundation
 ///   each song goes straight into Likes and History.
 /// - Sleep timer: a zZZ icon in the top bar that pulses while a timer runs. Fixed times run in the app (so they keep
 ///   going while locked); "End of song" and "End of show" follow playback here.
-/// - Dice: picks a random episode from the site's sitemap and home page and plays it
-///   from the start (it waits for the new page, presses that show's Play, then 0:00).
+/// - Dice: picks a random episode from the site's own show list (its database, or the shows
+///   on the page if that can't be reached) and plays it from the start.
 ///
 /// - Hearts: a small heart after each song in an episode's tracklist, and one in the
-///   site's mini player for the current song. Tapping saves or removes the song.
+///   mini player and the full player for the current song. Tapping saves or removes it.
 /// - Storage: the list lives in the app (FavoritesBridge, UserDefaults), not in the
 ///   website's storage. The page asks for it on load and gets it back after changes.
 /// - Welcome screen on each launch until "Don't show again" is ticked; ? panel and
 ///   press-and-hold labels explain the top bar icons.
-/// - Sheet: swipe up on the mini player (it gets a grab handle), or tap the heart
-///   button in the top bar, next to search. Lists favorites newest first, with swipe left
-///   to remove, "Play in order" and "Shuffle", and Export/Import to back them up
-///   (every 4 new favorites a reminder suggests exporting). Swipe down or tap outside to close.
+/// - Sheet: tap the heart button in the top bar, next to search. Lists songs newest first,
+///   with swipe left to remove, "Play in order" and "Shuffle", auto-backup to a folder and
+///   Export/Import (every 4 new likes a reminder suggests turning backup on). Swipe down or
+///   tap outside to close.
 ///   Styled with the site's own values (read from radio.soulection.com): background
 ///   rgb(26,26,26), border rgb(42,42,42), 9px corners like the mini player card, Bai
 ///   Jamjuree, semibold song names and white as the accent (filled hearts, button icons).
@@ -79,7 +79,6 @@ enum FavoritesScript {
           var CLOSE_X = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" aria-hidden="true"><path d="M6 6l12 12M18 6 6 18"/></svg>';
           var MORE = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="5" cy="12" r="2"/><circle cx="12" cy="12" r="2"/><circle cx="19" cy="12" r="2"/></svg>';
           var HELP = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="9.5"/><path d="M9.2 9.3a2.9 2.9 0 0 1 5.6 1c0 1.9-2.8 2.5-2.8 4.2"/><circle cx="12" cy="17.6" r=".6" fill="currentColor"/></svg>';
-          var EYE = '<svg viewBox="0 0 64 40" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 20C11 7 21 2 32 2s21 5 29 18c-8 13-18 18-29 18S11 33 3 20z"/><path d="M38 12c-2-3-8-3-10 0-3 4 1 7 4 8s7 4 4 8c-2 3-8 3-10 0"/></svg>';
 
           var CSS = [
             // Accessibility: a clear outline on whatever has keyboard focus, a hidden
@@ -183,6 +182,7 @@ enum FavoritesScript {
             '.sr-mo-play svg{width:var(--sr-icon,24px);height:var(--sr-icon,24px);display:block}',
             '.sr-mini-direct [data-sr-mini-hide]{visibility:hidden}',
             '.sr-mini-direct .sr-heart-mini{position:relative;z-index:4}',
+            '.sr-btn.sr-help-welcome{display:flex;margin:14px auto 0;padding:10px 16px;font-size:14px;line-height:20px}',
             '.sr-help-build{padding:14px 0 6px;font-size:11px;line-height:16px;color:' + MUTED + ';text-align:center}',
             '.sr-mini-direct .sr-grab{z-index:4}',
             '.sr-player-frame{position:fixed;left:-10px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0}',
@@ -684,6 +684,7 @@ enum FavoritesScript {
               });
             },
             pickSavedFile: function (restored) { pickSavedFileNote(restored); },
+            backupFallback: function (kind) { backupFallback(kind); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -757,7 +758,7 @@ enum FavoritesScript {
                 '<div>Your newest Likes aren\'t in your backup file yet. Set auto-backup up again to keep them safe.</div>' +
                 '<div class="sr-actions"></div>'
               : '<div class="sr-note-title">Back up your Likes?</div>' +
-                '<div>Turn on auto-backup to iCloud Drive. Then your Likes and History are safe, even if you delete the app.</div>' +
+                '<div>Choose a folder in iCloud Drive for your backup. Then your Likes and History are safe, even if you delete the app.</div>' +
                 '<div class="sr-actions"></div>', 0);
             if (!n) { reminded = false; return; }
             // Pushed away by another message before you answered: it can come back.
@@ -766,7 +767,8 @@ enum FavoritesScript {
             var onBtn = el('button', 'sr-btn', CLOUD + '<span>' + (failing ? 'Set up again' : 'Turn on') + '</span>');
             var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
             onBtn.type = laterBtn.type = 'button';
-            onBtn.addEventListener('click', function () { hideNote(); chooseAutoBackup(); });
+            // The note already says what happens, so this goes straight to choosing a folder.
+            onBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupChooseFolder' }); });
             laterBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupLater' }); });
             actions.appendChild(onBtn);
             actions.appendChild(laterBtn);
@@ -781,32 +783,53 @@ enum FavoritesScript {
             setTimeout(function () {
               var n = showNote(
                 '<div class="sr-note-title">Restore your Likes and History?</div>' +
-                '<div>Did you use auto-backup before? Pick your backup file (Soulection Radio Backup.json, often in iCloud Drive). Your songs come back. Then save it once more to keep auto-backup on.</div>' +
+                '<div>If you used backup before, choose the folder your backup is in (for example iCloud Drive, Soulection). Your songs come back and backup stays on.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) return;
               var actions = n.querySelector('.sr-actions');
-              var pickBtn = el('button', 'sr-btn', IMPORT + '<span>Pick backup file</span>');
+              var pickBtn = el('button', 'sr-btn', IMPORT + '<span>Choose backup folder</span>');
               var noBtn = el('button', 'sr-btn', '<span>Not now</span>');
               pickBtn.type = noBtn.type = 'button';
-              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreBackup' }); });
+              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupChooseFolder' }); });
               noBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreDismissed' }); });
               actions.appendChild(pickBtn);
               actions.appendChild(noBtn);
             }, 1500);
           }
 
-          // Turn on / Change: use a backup file you already have, or create one.
+          // Turn on / Change: one step, choose a folder. A backup already in it comes back.
           function chooseAutoBackup() {
             noteWithButtons(
-              '<div class="sr-note-title">Auto-backup</div>' +
-              '<div>Already have a file called Soulection Radio Backup.json? Pick it. If not, make a new one. iCloud Drive is a good place for it.</div>',
-              [['Use my backup file', function () { native({ op: 'backupUseFile' }); }],
-               ['Create one', function () { native({ op: 'backupCreate' }); }],
+              '<div class="sr-note-title">Back up your Likes and History</div>' +
+              '<div>Choose a folder to keep your backup in. iCloud Drive is best: your songs stay safe even if you delete the app. If a backup is already there, its songs come back.</div>',
+              [['Choose folder', function () { native({ op: 'backupChooseFolder' }); }, CLOUD],
                ['Cancel', null]]);
           }
+          // The other way, for when the folder way doesn't work on a phone: with the backup
+          // file itself. Spelled out step by step.
+          function backupFallback(kind) {
+            if (kind === 'cancelled') {
+              noteWithButtons(
+                '<div class="sr-note-title">Backup wasn\'t set up</div>' +
+                '<div>Didn\'t see your folder, or it didn\'t work? You can use the backup file instead.</div>',
+                [['Use a file instead', function () { backupFallback('refused'); }],
+                 ['OK', null]]);
+              return;
+            }
+            var restoreFirst = !favorites.length && !history.length;
+            var save = ['Save a backup file', function () { native({ op: 'backupCreate' }); }, CLOUD];
+            var pick = ['Pick my backup file', function () { native({ op: 'restoreBackup' }); }, IMPORT];
+            noteWithButtons(
+              '<div class="sr-note-title">Let\'s use the backup file instead</div>' +
+              '<div>Your iPhone didn\'t let the app use that folder.</div>' +
+              '<div><b>To turn backup on:</b> tap Save a backup file, choose a folder, then tap Save.</div>' +
+              '<div><b>To get your songs back:</b> tap Pick my backup file and choose Soulection Radio Backup.json. Then save it back to the same folder: tap Save, then Replace.</div>',
+              (restoreFirst ? [pick, save] : [save, pick]).concat([['Cancel', null]]));
+          }
+          // The file way, step 2 of 2: the save screen opens next.
           function pickSavedFileNote(restored) {
-            showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + ' songs' : 'Backup read') + '</div>' +
-              '<div>Now save it back so auto-backup keeps working: pick the same folder, tap Save, then tap Replace.</div>', 10000);
+            showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + (restored === 1 ? ' song' : ' songs') : 'Backup read') + '. One more step</div>' +
+              '<div>To keep backing up, save the file back: choose the same folder, tap Save, then tap Replace.</div>', 12000);
           }
 
           function renderAutoBackup() {
@@ -1660,7 +1683,7 @@ enum FavoritesScript {
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
-              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on, then Create one, and save it in a folder. After you put the app back, pick that file when it asks.']
+              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and choose a folder. After you put the app back, choose the same folder when it asks.']
             ];
           }
           function helpListHTML() {
@@ -1686,6 +1709,14 @@ enum FavoritesScript {
               var list = el('div', 'sr-list', helpListHTML());
               list.setAttribute('tabindex', '0'); // scrollable with the keyboard
               list.setAttribute('aria-label', 'What each button does');
+              // Brings back the welcome screen (the one shown when the app opens).
+              var again = el('button', 'sr-btn sr-help-welcome', '<span>Show welcome screen</span>');
+              again.type = 'button';
+              again.addEventListener('click', function () {
+                closeHelp();
+                setTimeout(function () { showWelcome(true); }, 320);
+              });
+              list.appendChild(again);
               var foot = el('div', 'sr-help-build');
               list.appendChild(foot);
               panel.appendChild(head);
@@ -1708,7 +1739,7 @@ enum FavoritesScript {
               helpPanel = { root: root, backdrop: backdrop, panel: panel };
             }
             var buildEl = helpPanel.root.querySelector('.sr-help-build');
-            if (buildEl) buildEl.textContent = buildLabel ? 'Build: ' + buildLabel : '';
+            if (buildEl) buildEl.textContent = buildLabel;
             closeSheet();
             helpPanel.backdrop.hidden = helpPanel.panel.hidden = false;
             helpPanel.panel.style.transform = '';
@@ -1742,12 +1773,12 @@ enum FavoritesScript {
               node.style.fontSize = size + 'px';
             }
           }
-          function showWelcome() {
-            if (welcomeShown || !document.body) return;
+          function showWelcome(again) {
+            if ((welcomeShown && !again) || welcomeOpen || !document.body) return;
             welcomeShown = welcomeOpen = true;
             try { sessionStorage.setItem(WELCOME_SESSION_KEY, '1'); } catch (e) {}
             var w = el('div', 'sr-fav-root sr-welcome',
-              '<h1 class="sr-welcome-title">This is Soulection Radio</h1>' +
+              '<h1 class="sr-welcome-title">This is Soulection Radio.</h1>' +
               '<div class="sr-welcome-sub">Every show, still playing when your screen is off, plus a few extras:</div>' +
               helpListHTML() +
               '<label class="sr-welcome-check"><input type="checkbox"><span>Don’t show again</span></label>' +
@@ -2159,7 +2190,7 @@ enum FavoritesScript {
             var card = el('div', 'sr-ready sr-hello',
               '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
-                  '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">This is Soulection Radio</span></div></div></div>' +
+                  '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">This is Soulection Radio.</span></div></div></div>' +
                 '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
               '</div>');
             var playBtn = card.querySelector('.sr-ready-play');
@@ -2592,7 +2623,6 @@ enum FavoritesScript {
           // Mixtape: endless random songs from random shows. Each one goes straight into
           // Likes and History.
           // ---------------------------------------------------------------------------
-          var MIX_KEY = 'sr-mixtape-pending';
           var mixNext = null; // a promise for the next song, fetched ahead of time
           function isMixtape() { return !!(playlist && playlist.source === 'mixtape'); }
           function renderTape() {
@@ -2981,7 +3011,6 @@ enum FavoritesScript {
             fp.root.style.clipPath = prevClip;
             return out;
           }
-          function finalCoverRect() { return finalRects().cover; }
           function startMorph() {
             endMorph();
             if (reduceMotion) return;
@@ -3455,12 +3484,6 @@ enum FavoritesScript {
             fpTimer = null;
           }
 
-          function songBounds(st) {
-            if (!st || !st.tracks || st.index == null || st.index < 0) return null;
-            var cur = st.tracks[st.index];
-            var nxt = st.tracks[st.index + 1];
-            return cur ? { start: cur.start, end: nxt ? nxt.start : st.duration } : null;
-          }
           function nextSong() {
             if (playlist) return nextFavorite();
             var st = npState();
@@ -3880,7 +3903,7 @@ enum FavoritesScript {
               discardStandby();
               prepareStandby(f);
             }
-            // With the app open, a switch that hasn't happened after 5 seconds goes through the
+            // With the app open, a switch that hasn't happened after 4 seconds goes through the
             // show's page instead (like pressing Next), rather than leaving the old show playing.
             var canUsePage = pageFallbackFor !== f.id;
             function usePage() {
@@ -3894,7 +3917,7 @@ enum FavoritesScript {
             }
             function kick() {
               if (handing !== h) return;
-              if (canUsePage && !document.hidden && Date.now() - h.started > 5000) return usePage();
+              if (canUsePage && !document.hidden && Date.now() - h.started > 4000) return usePage();
               var sb = standby;
               if (!sb || sb.f.id !== f.id) { prepareStandby(f); return; }
               if (!sb.win || !sb.loaded) {
@@ -3903,6 +3926,8 @@ enum FavoritesScript {
                 return;
               }
               // Loaded and told to play, but still not playing after 3 seconds: load it again.
+              // (Not sooner: a player that's still buffering would be thrown away and have to
+              // start over, which makes a slow connection slower.)
               if (!h.kickedSince) h.kickedSince = Date.now();
               else if (Date.now() - h.kickedSince > 3000 && h.reloads < 2) { reload(); return; }
               h.win = sb.win; h.frame = sb.frame; h.info = sb.info;
@@ -3927,9 +3952,25 @@ enum FavoritesScript {
               else openEpisodeAndPlay(f);
             }, 30000);
           }
+          // How long switches to another show take on this phone (seconds, at most 4): a
+          // running average of the last few, kept between launches.
+          var SWITCH_KEY = 'sr-switch-ms';
+          function switchLead() {
+            var ms = 0;
+            try { ms = parseFloat(localStorage.getItem(SWITCH_KEY)) || 0; } catch (e) {}
+            return Math.min(4, Math.max(0, ms / 1000));
+          }
+          function noteSwitchTime(ms) {
+            if (!(ms > 0)) return;
+            ms = Math.min(8000, ms);
+            var old = 0;
+            try { old = parseFloat(localStorage.getItem(SWITCH_KEY)) || 0; } catch (e) {}
+            try { localStorage.setItem(SWITCH_KEY, String(Math.round(old ? old * 0.6 + ms * 0.4 : ms))); } catch (e) {}
+          }
           function finishHandoff() {
             var h = handing;
             handing = null;
+            noteSwitchTime(Date.now() - h.started);
             clearTimeout(h.timer);
             clearInterval(h.poke);
             if (standby && standby.win === h.win) standby = null; // it's in charge now
@@ -4155,13 +4196,18 @@ enum FavoritesScript {
             if (direct && direct.id === f.id && !direct.heard) return;
             if (playingNumber !== number) return endPlaylist(false);
             var end = f.end != null ? f.end : (st.duration || Infinity);
-            var left = end - st.t;
-            if (left < 3.2 && left > 0.4 && !st.paused && !blending && !document.hidden && upcoming()) {
+            var nextShow = upcoming();
+            // With the screen off, a switch to another show starts a little before the end, by
+            // about as long as switches have been taking on this phone (so the next song comes
+            // in on time instead of the old show playing on).
+            var left = end - st.t - (nextShow && document.hidden ? switchLead() : 0);
+            if (left < 3.2 && left > 0.4 && !st.paused && !blending && !document.hidden && nextShow) {
               blending = true;
               native({ op: 'blendOut', seconds: Math.max(0.5, left - 0.4) });
             }
             if (left <= 0.4) return nextFavorite();
-            if (left < 30 && !st.paused) { prepareStandby(upcoming()); ensureStandbyLoaded(); }
+            // The next show is loaded well ahead, so a slow connection has time to get it ready.
+            if (left < 90 && !st.paused) { prepareStandby(nextShow); ensureStandbyLoaded(); }
             // Playback updates arrive about once a second; check again right at the end.
             if (left < 2.5 && !endTimer && !st.paused) {
               endTimer = setTimeout(function () {
@@ -4267,10 +4313,9 @@ enum FavoritesScript {
               if (reveal && reveal.url) revealSong(reveal.url, reveal.start, showNumber(reveal.show), null);
             } catch (e) {}
             try {
-              // "Continue where you left off" is gone: drop any spot saved by older builds
-              // (here and in the app's backup), then show the welcome mini player.
+              // Drop the spot older builds saved for "continue where you left off" (since
+              // removed), then show the welcome mini player.
               localStorage.removeItem('sr-last-spot');
-              native({ op: 'spot', spot: null });
               setTimeout(function () { showHelloCard(); }, 1200);
             } catch (e) {}
             try {

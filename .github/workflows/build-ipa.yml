@@ -71,16 +71,26 @@ jobs:
 
       # Stamp the build's date and time into the app (shown at the bottom of the help
       # window), so testers can say which build they have.
+      # The version comes from CFBundleShortVersionString in the Info.plist named by
+      # infoPath in xtool.yml (shown as "Version 1.0 · Oct 27, 2026 1:05 PM").
       - name: Stamp build info
+        id: info
+        env:
+          APP_NAME: ${{ steps.app.outputs.name }}
         run: |
-          label=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
-          cat > Sources/SoulectionRadio/BuildInfo.swift <<EOF
+          plist=$(awk -F': *' '$1 == "infoPath" { print $2 }' xtool.yml | tr -d "\"' \r")
+          version=$(plutil -extract CFBundleShortVersionString raw "$plist" 2>/dev/null || echo "")
+          when=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
+          label="$when"
+          if [ -n "$version" ]; then label="Version $version · $when"; fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          cat > "Sources/$APP_NAME/BuildInfo.swift" <<EOF
           /// Written by the Build IPA workflow.
           enum BuildInfo {
               static let label = "$label"
           }
           EOF
-          cat Sources/SoulectionRadio/BuildInfo.swift
+          cat "Sources/$APP_NAME/BuildInfo.swift"
 
       # Builds for arm64-apple-ios (the default triple). Without --sign the
       # app is left unsigned; --ipa zips it into Payload/ as xtool/<App>.ipa.
@@ -138,6 +148,9 @@ jobs:
 
       # Every build of main is also published as the "latest" GitHub Release, so testers
       # can download the IPA from a plain link (no GitHub login; artifacts need one).
+      # The title carries the app's version ("Soulection Radio 1.0"); the notes come from
+      # RELEASE_NOTES.md plus the build time. A release left as a draft (it happened once)
+      # is published at the end, so the download link always works.
       - name: Publish as latest release
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         env:
@@ -145,9 +158,16 @@ jobs:
           APP_NAME: ${{ steps.app.outputs.name }}
           stamp: ${{ steps.stamp.outputs.stamp }}
           label: ${{ steps.stamp.outputs.label }}
+          version: ${{ steps.info.outputs.version }}
         run: |
+          title="Soulection Radio${version:+ $version}"
+          {
+            if [ -f RELEASE_NOTES.md ]; then cat RELEASE_NOTES.md; echo; fi
+            echo "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME-$stamp.ipa below and install it with Sideloadly or AltStore; the README has the steps."
+          } > release-notes.txt
           gh release delete latest --yes --cleanup-tag || true
           gh release create latest "xtool/$APP_NAME-$stamp.ipa" \
-            --title "Latest build ($label)" \
-            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME-$stamp.ipa below and install it with Sideloadly or AltStore; see the README for the steps." \
+            --title "$title" \
+            --notes-file release-notes.txt \
             --latest
+          gh release edit latest --draft=false
