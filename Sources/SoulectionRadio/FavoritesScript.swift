@@ -148,6 +148,10 @@ enum FavoritesScript {
             '.sr-ready-song{font-weight:600}',
             '.sr-ready-times{display:flex;justify-content:space-between;font-size:9px;line-height:12px;color:' + MUTED + '}',
             '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
+            '.sr-hello .sr-ready-row{margin-bottom:0}',
+            '.sr-hello .sr-ready-song{font-weight:600}',
+            '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none;border-radius:1.5px;background:rgba(255,255,255,.06)}',
+            '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
             '.sr-ready-play{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-ready-play svg{display:block;width:28px;height:28px}',
             '.sr-ready-track{position:relative;height:8px;display:flex;align-items:center;margin-bottom:8px}',
@@ -661,13 +665,6 @@ enum FavoritesScript {
               favorites = Array.isArray(list) ? list : [];
               if (opts && typeof opts.build === 'string') buildLabel = opts.build;
               if (opts && Array.isArray(opts.history)) history = opts.history;
-              if (opts && opts.spot && typeof opts.spot.url === 'string') {
-                var localSpot = null;
-                try { localSpot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
-                if (!localSpot || (opts.spot.at || 0) > (localSpot.at || 0)) {
-                  try { localStorage.setItem(LAST_KEY, JSON.stringify(opts.spot)); } catch (e) {}
-                }
-              }
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
                 if (opts.welcome) showWelcome();
@@ -976,13 +973,6 @@ enum FavoritesScript {
             // mini player frozen on the song before it.
             var cur0 = playlist && playlist.current;
             var shown = directShown && activeOurs() ? directShown : (cur0 ? { show: cur0.show, cover: cur0.cover } : null);
-            // Also after the app jumped the site's player (resuming your spot): the site's mini
-            // player freezes on the song it showed then, so the app's copy shows the real song.
-            if (!shown && siteJumped) {
-              var sj = npState();
-              if (sj && sj.number && sj.number === siteJumped.number) shown = { show: sj.show || ('Show #' + sj.number), cover: sj.cover };
-              else if (sj && sj.number && sj.number !== siteJumped.number) siteJumped = null; // another show now
-            }
             var on = !!shown;
             if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
             if (!on) { if (over) over.remove(); return; }
@@ -2075,81 +2065,15 @@ enum FavoritesScript {
             return false; // the page reloads; it picks up again from sessionStorage
           }
           // ---------------------------------------------------------------------------
-          // Pick up where you left off: the show and spot you were last listening to are
-          // remembered, and opening the app later goes back to that show, ready to carry on.
+          // Welcome mini player: before anything plays, the mini player's place shows the
+          // Soulection logo, "Welcome to Soulection Radio" and a play button that starts the
+          // newest show from the beginning. Anything playing replaces it with the real one.
           // ---------------------------------------------------------------------------
-          var LAST_KEY = 'sr-last-spot';
-          var RESUME_KEY = 'sr-resume';
-          var lastSaved = 0;
-          function rememberSpot(st) {
-            if (!st || st.paused !== false || !st.episodeURL || st.t == null || st.t < 30) return;
-            if (st.duration && st.t > st.duration - 60) {
-              try { localStorage.removeItem(LAST_KEY); } catch (e) {}
-              native({ op: 'spot', spot: null });
-              return;
-            }
-            if (Date.now() - lastSaved < 15000) return;
-            lastSaved = Date.now();
-            var t = currentTrack();
-            var cur = playlist && playlist.current;
-            var siteImg = miniPlayer() && miniPlayer().querySelector('img:not(.sr-mo-img)');
-            var cover = (cur && cur.cover) || (directShown && directShown.cover) || (siteImg ? siteImg.src : '');
-            if (cover && !/^https:\/\//.test(cover)) { try { cover = new URL(cover, location.href).href; } catch (e) { cover = ''; } }
-            var spot = {
-              url: st.episodeURL.replace(/\/$/, ''), t: Math.floor(st.t), show: st.show || ('Show #' + st.number),
-              song: t ? t.song : '', artist: t ? t.artist : '', cover: cover || '',
-              duration: st.duration ? Math.floor(st.duration) : 0, at: Date.now()
-            };
-            try { localStorage.setItem(LAST_KEY, JSON.stringify(spot)); } catch (e) {}
-            native({ op: 'spot', spot: spot });
-          }
-          // Opening the app goes to the show you were last listening to, ready to carry on:
-          // nothing plays until you tap play (so it never stops a podcast or other music),
-          // and then it jumps to where you stopped.
-          var pendingSpot = null;
-          var siteJumped = null; // {number}: the app jumped the site's player within this show
-          function savedSpot() {
-            var spot = null;
-            try { spot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
-            if (!spot || !spot.url || Date.now() - spot.at > 14 * 86400000) return null;
-            return spot;
-          }
-          function readySpot(spot, tries) {
-            // Wait for the site to finish loading: changing the page before then makes it
-            // redraw everything.
-            if (!isHydrated()) {
-              if ((tries || 0) < 60) setTimeout(function () { readySpot(spot, (tries || 0) + 1); }, 250);
-              return;
-            }
-            spot = spot || savedSpot();
-            if (!spot) return;
-            var st = npState();
-            if (st && st.paused === false) return; // already playing something
-            var here = location.pathname.replace(/\/$/, '');
-            // Only from the home page (not when a notification or link opened a show).
-            if (here !== spot.url && here !== '') return;
-            if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
-            pendingSpot = spot;
-            revealSong(spot.url, spot.t, showNumber(spot.show), null);
-            showReadyCard(spot);
-          }
-
-          // The ready card: looks like the site's mini player (which only exists once
-          // something plays), with your last song at your spot. Play carries on from there.
-          var readyCard = null;
+          var readyCard = null; // the welcome mini player while nothing plays
           function hideReadyCard() {
             if (!readyCard) return;
             try { readyCard.remove(); } catch (e) {}
             readyCard = null;
-          }
-          function showReadyCard(spot) {
-            hideReadyCard();
-            if (!spot || miniPlayer()) return;
-            ensureStyle();
-            var card = el('div', 'sr-ready', cardMarkup());
-            fillReadyCard(card, spot);
-            document.body.appendChild(card);
-            readyCard = card;
           }
           function cardMarkup() {
             return '<div class="sr-ready-row">' +
@@ -2167,44 +2091,48 @@ enum FavoritesScript {
                 '<div class="sr-ready-times"><span class="sr-ready-el"></span><span class="sr-ready-dur"></span></div>' +
               '</div>';
           }
-          function fillReadyCard(card, spot) {
-            var put = function (sel, v) { card.querySelector(sel).textContent = v || ''; };
-            put('.sr-ready-show', spot.show);
-            put('.sr-ready-song', spot.song || 'Where you left off');
-            put('.sr-ready-artist', spot.artist);
-            put('.sr-ready-el', clock(spot.t));
-            put('.sr-ready-dur', spot.duration ? clock(spot.duration) : '');
-            var img = card.querySelector('.sr-ready-img');
-            if (spot.cover && /^https:\/\//.test(spot.cover)) img.src = spot.cover; else img.remove();
-            var frac = spot.duration ? Math.min(1, Math.max(0, spot.t / spot.duration)) : 0;
-            card.querySelector('.sr-ready-fill').style.width = (frac * 100) + '%';
-            card.querySelector('.sr-ready-knob').style.left = 'calc(8px + (100% - 16px) * ' + frac.toFixed(4) + ')';
-            var play = card.querySelector('.sr-ready-play');
-            play.setAttribute('aria-label', 'Continue ' + (spot.show || 'the show') + ' from ' + clock(spot.t));
-            play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot); });
-            // Tap the card (or pull it up) to carry on and open the big player; the play button
-            // just plays.
-            card.addEventListener('click', function (e) {
-              if (e.target.closest && e.target.closest('.sr-ready-play')) return;
+          function showHelloCard(tries) {
+            // Wait for the site to finish loading: changing the page before then makes it
+            // redraw everything.
+            if (!isHydrated()) {
+              if ((tries || 0) < 60) setTimeout(function () { showHelloCard((tries || 0) + 1); }, 250);
+              return;
+            }
+            if (readyCard || liveCard || miniPlayer()) return;
+            var st = npState();
+            if (st && st.paused === false) return; // something is already playing
+            ensureStyle();
+            var card = el('div', 'sr-ready sr-hello',
+              '<div class="sr-ready-row">' +
+                '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
+                  '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">Welcome to Soulection Radio</span></div></div></div>' +
+                '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
+              '</div>');
+            card.querySelector('.sr-ready-play').addEventListener('click', function (e) {
               e.preventDefault(); e.stopPropagation();
-              startFromSpot(spot, true);
+              playNewestShow(this);
             });
-            var y0 = null;
-            card.addEventListener('touchstart', function (e) {
-              if (e.touches.length !== 1 || (e.target.closest && e.target.closest('.sr-ready-play'))) return;
-              y0 = e.touches[0].clientY;
-              card.classList.add('sr-touching');
-            }, { passive: true });
-            card.addEventListener('touchmove', function (e) {
-              if (y0 == null) return;
-              if (y0 - e.touches[0].clientY > 30) { y0 = null; card.classList.remove('sr-touching'); startFromSpot(spot, true); }
-            }, { passive: true });
-            var letGo = function () { y0 = null; card.classList.remove('sr-touching'); };
-            card.addEventListener('touchend', letGo, { passive: true });
-            card.addEventListener('touchcancel', letGo, { passive: true });
-            var info = card.querySelector('.sr-ready-info');
-            keyClickable(info, 'Show where you left off: ' + (spot.song || spot.show || ''));
-            info.setAttribute('aria-label', 'Continue and open the player: ' + (spot.song || spot.show || ''));
+            document.body.appendChild(card);
+            readyCard = card;
+          }
+          // The newest show from the very beginning (like the dice, but always the latest).
+          function playNewestShow(btn) {
+            if (btn && btn.getAttribute('aria-busy') === 'true') return;
+            if (btn) btn.setAttribute('aria-busy', 'true');
+            var fromPage = function () {
+              var a = document.querySelector('main a[href^="/episodes/"], a[href^="/episodes/"]');
+              return a ? a.getAttribute('href').replace(/\/$/, '') : null;
+            };
+            allEpisodes().then(function (list) { return list[0] || fromPage(); }, fromPage).then(function (path) {
+              if (btn) btn.removeAttribute('aria-busy');
+              if (!path) return showToast("Couldn't find the newest show.");
+              endPlaylist(false);
+              closeSheet();
+              closePlayer();
+              var here = location.pathname.replace(/\/$/, '');
+              var oldHeading = here === path ? null : episodeHeading();
+              if (goTo(path, RANDOM_KEY, path)) startShowFromTop(path, oldHeading);
+            });
           }
 
           // ---------------------------------------------------------------------------
@@ -2271,59 +2199,6 @@ enum FavoritesScript {
               pb.setAttribute('aria-label', paused ? 'Play' : 'Pause');
             }
           }
-          // Play on the ready card: start the song you were on, then jump to your spot.
-          var openWhenPlaying = 0; // until when: open the big player once the music starts
-          function startFromSpot(spot, open) {
-            hideReadyCard();
-            pendingSpot = null;
-            if (open) openWhenPlaying = Date.now() + 15000;
-            if (playlist) endPlaylist(false);
-            if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
-            var deadline = Date.now() + 10000;
-            (function tryStart() {
-              var rows = location.pathname.replace(/\/$/, '') === spot.url ? pageRows() : [];
-              var best = null;
-              rows.forEach(function (r) { if (r.start <= spot.t + 1 && (!best || r.start > best.start)) best = r; });
-              if (!best && rows.length) best = rows[0];
-              var btn = best && best.row.querySelector(':scope > button');
-              if (!btn) {
-                if (Date.now() < deadline) setTimeout(tryStart, 250);
-                else showToast("Couldn't open that show.");
-                return;
-              }
-              btn.click();
-              // Then to the exact second (the song starts at its beginning).
-              var seeks = 0, until = Date.now() + 12000;
-              (function settle() {
-                var st = npState();
-                var here = st && st.paused === false && st.t != null &&
-                  ((st.episodeURL && st.episodeURL.replace(/\/$/, '') === spot.url) || (st.number && st.number === showNumber(spot.show)));
-                if (here && Math.abs(st.t - spot.t) <= 4) return;
-                if (here && seeks < 3) { seeks++; siteJumped = { number: showNumber(spot.show) }; var n = np(); n && n.seek(spot.t); }
-                if (Date.now() < until) setTimeout(settle, here ? 1500 : 400);
-              })();
-            })();
-          }
-          // The first play of that show jumps to the saved spot. Playing anything else (or a
-          // song in its tracklist) forgets it.
-          function followPendingSpot(st) {
-            var spot = pendingSpot;
-            if (!spot || !st || st.paused !== false) return;
-            pendingSpot = null;
-            if (playlist && playlist.current) return;
-            var sameShow = (st.episodeURL && st.episodeURL.replace(/\/$/, '') === spot.url) ||
-              (st.number && st.number === showNumber(spot.show));
-            if (!sameShow || st.t == null || st.t > 5) return;
-            var n = np();
-            if (!n) return;
-            siteJumped = { number: showNumber(spot.show) };
-            n.seek(spot.t);
-            setTimeout(function () {
-              var now = npState();
-              if (now && now.t != null && now.t < spot.t - 5) { var m = np(); m && m.seek(spot.t); }
-            }, 1500);
-          }
-
           // Opens a song's show page and scrolls to the song, flashing its row.
           var REVEAL_KEY = 'sr-reveal-song';
           function showSongInShow(f) {
@@ -4025,11 +3900,6 @@ enum FavoritesScript {
             }
           }
 
-          // Picking a song in a tracklist yourself: the site's own mini player is right again.
-          document.addEventListener('click', function (e) {
-            var t = e.isTrusted && e.target;
-            if (siteJumped && t && t.closest && t.closest('.col-span-full.grid > button')) siteJumped = null;
-          }, true);
           // Starting a normal episode (tapping a tracklist row yourself) ends playlist mode.
           document.addEventListener('click', function (e) {
             if (!e.isTrusted || !playlist) return;
@@ -4044,13 +3914,6 @@ enum FavoritesScript {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
             if (readyCard && e.detail && e.detail.paused === false) hideReadyCard();
             renderLiveCard();
-            if (openWhenPlaying && e.detail && e.detail.paused === false && playerCard()) {
-              var due = openWhenPlaying > Date.now();
-              openWhenPlaying = 0;
-              if (due) setTimeout(openPlayer, 300);
-            }
-            followPendingSpot(e.detail);
-            rememberSpot(e.detail);
             followPlayback(e.detail);
             followListening(e.detail);
             followSleep(e.detail);
@@ -4133,13 +3996,11 @@ enum FavoritesScript {
               if (reveal && reveal.url) revealSong(reveal.url, reveal.start, showNumber(reveal.show), null);
             } catch (e) {}
             try {
-              var resume = JSON.parse(sessionStorage.getItem(RESUME_KEY) || 'null');
-              sessionStorage.removeItem(RESUME_KEY);
-              if (resume && resume.url) setTimeout(function () { readySpot(resume); }, 500);
-              else if (!sessionStorage.getItem('sr-resume-offered')) {
-                sessionStorage.setItem('sr-resume-offered', '1');
-                setTimeout(function () { readySpot(); }, 1500);
-              }
+              // "Continue where you left off" is gone: drop any spot saved by older builds
+              // (here and in the app's backup), then show the welcome mini player.
+              localStorage.removeItem('sr-last-spot');
+              native({ op: 'spot', spot: null });
+              setTimeout(function () { showHelloCard(); }, 1200);
             } catch (e) {}
             try {
               var randomPath = sessionStorage.getItem(RANDOM_KEY);
