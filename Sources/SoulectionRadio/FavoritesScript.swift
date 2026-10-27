@@ -3505,9 +3505,9 @@ enum FavoritesScript {
                 return;
               }
             }
-            // Show pages with long tracklists can be slow: give the page up to 12 seconds before
-            // switching in the app's own player instead.
-            var deadline = Date.now() + 12000;
+            // Give the page up to 4 seconds, then switch in the app's own player instead (the
+            // app shows its own mini player for it when the site has none).
+            var deadline = Date.now() + 4000;
             var wantNumber = showNumber(f.show);
             (function tryClick() {
               if (!playlist || playlist.current !== f) return;
