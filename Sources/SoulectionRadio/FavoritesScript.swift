@@ -2445,11 +2445,17 @@ enum FavoritesScript {
           }
           // Picks a random song (not a voice-over, and not the last song) from a random show.
           // `avoid` is the song playing now: the pick always comes from a different show.
+          // Only songs with real times count: many older shows list every song at 00:00:00,
+          // and a song that seems zero seconds long would be skipped straight away.
+          var MIN_SONG = 30; // seconds
+          var untimedShows = {}; // shows found without usable times (not picked again)
           function randomSong(tries, avoid) {
             tries = tries || 0;
             var avoidNumber = avoid ? showNumber(avoid.show) : null;
             return loadEpisodes().then(function (paths) {
               if (!paths.length) throw new Error('no shows');
+              var usable = paths.filter(function (p) { return !untimedShows[p]; });
+              if (usable.length) paths = usable;
               var others = avoid ? paths.filter(function (p) { return p !== avoid.episodeURL; }) : paths;
               if (others.length) paths = others;
               else avoidNumber = null; // only one show: it has to be that one
@@ -2458,8 +2464,12 @@ enum FavoritesScript {
                 var doc = new DOMParser().parseFromString(html, 'text/html');
                 var rows = pageRows(doc);
                 var picks = [];
-                for (var i = 0; i < rows.length - 1; i++) if (!rows[i].vo) picks.push(i);
-                if (!picks.length) throw new Error('no tracklist');
+                for (var i = 0; i < rows.length - 1; i++) {
+                  if (rows[i].vo) continue;
+                  var len = rows[i + 1].start - rows[i].start;
+                  if (rows[i].start > 0 && len >= MIN_SONG && len < 1800) picks.push(i);
+                }
+                if (!picks.length) { untimedShows[path] = true; throw new Error('no timed songs'); }
                 var i2 = picks[Math.floor(Math.random() * picks.length)];
                 var row = rows[i2];
                 var h1 = doc.querySelector('#episode-card-header h1, main h1');
@@ -2477,7 +2487,7 @@ enum FavoritesScript {
                 return item;
               });
             }).catch(function (err) {
-              if (tries < 6) return randomSong(tries + 1, avoid);
+              if (tries < 12) return randomSong(tries + 1, avoid);
               throw err;
             });
           }
@@ -2506,7 +2516,10 @@ enum FavoritesScript {
             });
           }
           // Adds the next random song to the Mixtape and plays it.
+          var mixAdvancing = false; // one next song at a time (updates keep coming while it loads)
           function mixtapeAdvance() {
+            if (mixAdvancing) return;
+            mixAdvancing = true;
             var list = playlist;
             var now = list && list.current;
             var pending = mixNext || randomSong(0, now);
@@ -2517,13 +2530,14 @@ enum FavoritesScript {
               if (now && showNumber(item.show) === showNumber(now.show)) return randomSong(0, now);
               return item;
             }).then(function (item) {
+              mixAdvancing = false;
               if (playlist !== list) return; // stopped meanwhile
               list.items.push(item);
               list.ids.push(item.id);
               list.pos = list.ids.length - 1;
               playCurrent();
               prefetchMix();
-            }).catch(function () { if (playlist === list) endPlaylist(true); });
+            }).catch(function () { mixAdvancing = false; if (playlist === list) endPlaylist(true); });
           }
           // Every Mixtape song goes straight into Likes (History records it as it plays).
           function mixtapeLike(f) {
@@ -3169,6 +3183,7 @@ enum FavoritesScript {
           function endPlaylist(pause) {
             if (!playlist) return;
             playlist = null;
+            mixAdvancing = false;
             arriving = null;
             try { sessionStorage.removeItem(PENDING_KEY); } catch (e) {}
             var n = np();
