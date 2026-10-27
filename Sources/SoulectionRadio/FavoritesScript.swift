@@ -1890,7 +1890,7 @@ enum FavoritesScript {
           function renderSleepStatus() {
             if (!sleepPanel) return;
             var html = !sleep ? 'Off'
-              : sleep.type === 'time' ? '<span class="sr-sleep-count">' + esc(sleepText()) + '</span>left · fades out at the end'
+              : sleep.type === 'time' ? '<span class="sr-sleep-count">' + esc(sleepText()) + '</span>'
               : sleep.type === 'song' ? 'Fades out at the end of this song' : 'Fades out at the end of this show';
             if (sleepPanel.status.innerHTML !== html) sleepPanel.status.innerHTML = html;
           }
@@ -2115,7 +2115,8 @@ enum FavoritesScript {
             document.body.appendChild(card);
             readyCard = card;
           }
-          // The newest show from the very beginning (like the dice, but always the latest).
+          // The newest show from the very beginning, played right here: the page you're on
+          // stays, the app's own player plays it and the mini player shows it.
           function playNewestShow(btn) {
             if (btn && btn.getAttribute('aria-busy') === 'true') return;
             if (btn) btn.setAttribute('aria-busy', 'true');
@@ -2127,12 +2128,26 @@ enum FavoritesScript {
               if (btn) btn.removeAttribute('aria-busy');
               if (!path) return showToast("Couldn't find the newest show.");
               endPlaylist(false);
-              closeSheet();
-              closePlayer();
-              var here = location.pathname.replace(/\/$/, '');
-              var oldHeading = here === path ? null : episodeHeading();
-              if (goTo(path, RANDOM_KEY, path)) startShowFromTop(path, oldHeading);
+              playShowHere(path);
             });
+          }
+          // Plays a show from 0:00 in the app's own player without opening its page.
+          function playShowHere(path) {
+            var n = np();
+            if (!n || !n.setActiveFrame) return showToast("Couldn't start the show.");
+            episodeInfo(path).then(function (info) {
+              if (!info.link) return showToast("Couldn't start the show.");
+              retireOurs();
+              var frame = makeFrame(playerURL(info.link, 0, false));
+              var m = np();
+              m.setActiveFrame(frame.contentWindow);
+              var f = { show: 'Show #' + info.number, cover: info.cover, episodeURL: path };
+              directShown = directInfo(f, info);
+              m.setDirect(directShown);
+              direct = { number: directShown.number, id: null, heard: true };
+              hideReadyCard();
+              schedule();
+            }).catch(function () { showToast("Couldn't start the show."); });
           }
 
           // ---------------------------------------------------------------------------
