@@ -150,7 +150,7 @@ enum FavoritesScript {
             '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
             '.sr-hello .sr-ready-row{margin-bottom:0}',
             '.sr-hello .sr-ready-song{font-weight:600}',
-            '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none;border-radius:1.5px;background:rgba(255,255,255,.06)}',
+            '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
             '.sr-ready-play{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-ready-play svg{display:block;width:28px;height:28px}',
