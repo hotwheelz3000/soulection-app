@@ -1959,9 +1959,65 @@ enum FavoritesScript {
                 .then(function (t) { add(episodePathsIn(t)); })
                 .catch(function () {});
             }
-            return Promise.all([get('/sitemap.xml'), get('/')]).then(function () {
+            return Promise.all([allEpisodes().then(add, function () {}), get('/sitemap.xml'), get('/')]).then(function () {
               episodeList = Object.keys(found);
               return episodeList;
+            });
+          }
+          // Every show, from the site's own database (the same request the site makes, with
+          // the public read key in the site's code). The home page alone only has the newest
+          // few, and the site no longer has a sitemap. The address and key are read from the
+          // site's code each time it's needed (and remembered), so a change there is picked up.
+          var DB_KEY = 'sr-db';
+          function siteDatabase(fresh) {
+            if (!fresh) {
+              try {
+                var saved = JSON.parse(localStorage.getItem(DB_KEY) || 'null');
+                if (saved && saved.base && saved.key) return Promise.resolve(saved);
+              } catch (e) {}
+            }
+            var pattern = /"(https:\/\/[a-z0-9]+\.supabase\.co)","(eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+)"/;
+            function scriptsIn(doc) {
+              return [].slice.call(doc.querySelectorAll('script[src]')).map(function (sc) {
+                try { return new URL(sc.getAttribute('src'), location.href).href; } catch (e) { return ''; }
+              }).filter(function (u) { return u.indexOf(location.origin + '/') === 0; });
+            }
+            function search(list, i) {
+              if (i >= list.length) return Promise.reject(new Error('no database'));
+              return fetch(list[i], { credentials: 'same-origin' }).then(function (r) { return r.ok ? r.text() : ''; }).then(function (code) {
+                var m = pattern.exec(code);
+                if (!m) return search(list, i + 1);
+                var db = { base: m[1], key: m[2] };
+                try { localStorage.setItem(DB_KEY, JSON.stringify(db)); } catch (e) {}
+                return db;
+              }, function () { return search(list, i + 1); });
+            }
+            // This page's scripts first, then the home page's (the list is loaded there).
+            return search(scriptsIn(document), 0).catch(function () {
+              return fetch('/', { credentials: 'same-origin' }).then(function (r) { return r.text(); }).then(function (html) {
+                var seen = {};
+                scriptsIn(document).forEach(function (u) { seen[u] = true; });
+                var more = scriptsIn(new DOMParser().parseFromString(html, 'text/html')).filter(function (u) { return !seen[u]; });
+                return search(more, 0);
+              });
+            });
+          }
+          function allEpisodes(retried) {
+            return siteDatabase(retried).then(function (db) {
+              return fetch(db.base + '/rest/v1/episodes?select=id&order=release_date.desc&limit=5000', {
+                headers: { apikey: db.key, Authorization: 'Bearer ' + db.key }
+              }).then(function (r) {
+                if (!r.ok) throw new Error('database ' + r.status);
+                return r.json();
+              });
+            }).then(function (rows) {
+              if (!Array.isArray(rows)) throw new Error('not a list');
+              return rows.filter(function (e) { return e && /^[0-9a-fA-F-]{36}$/.test(e.id || ''); })
+                .map(function (e) { return '/episodes/' + e.id; });
+            }).catch(function (err) {
+              // A saved key that stopped working: look it up again once.
+              if (!retried) { try { localStorage.removeItem(DB_KEY); } catch (e) {} return allEpisodes(true); }
+              throw err;
             });
           }
           function episodeHeading() { return text(document.querySelector('#episode-card-header h1, main h1')); }
@@ -2344,7 +2400,7 @@ enum FavoritesScript {
                 return item;
               });
             }).catch(function (err) {
-              if (tries < 4) return randomSong(tries + 1, avoid);
+              if (tries < 6) return randomSong(tries + 1, avoid);
               throw err;
             });
           }
