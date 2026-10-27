@@ -976,6 +976,13 @@ enum FavoritesScript {
             // mini player frozen on the song before it.
             var cur0 = playlist && playlist.current;
             var shown = directShown && activeOurs() ? directShown : (cur0 ? { show: cur0.show, cover: cur0.cover } : null);
+            // Also after the app jumped the site's player (resuming your spot): the site's mini
+            // player freezes on the song it showed then, so the app's copy shows the real song.
+            if (!shown && siteJumped) {
+              var sj = npState();
+              if (sj && sj.number && sj.number === siteJumped.number) shown = { show: sj.show || ('Show #' + sj.number), cover: sj.cover };
+              else if (sj && sj.number && sj.number !== siteJumped.number) siteJumped = null; // another show now
+            }
             var on = !!shown;
             if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
             if (!on) { if (over) over.remove(); return; }
@@ -2100,6 +2107,7 @@ enum FavoritesScript {
           // nothing plays until you tap play (so it never stops a podcast or other music),
           // and then it jumps to where you stopped.
           var pendingSpot = null;
+          var siteJumped = null; // {number}: the app jumped the site's player within this show
           function savedSpot() {
             var spot = null;
             try { spot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
@@ -2291,7 +2299,7 @@ enum FavoritesScript {
                 var here = st && st.paused === false && st.t != null &&
                   ((st.episodeURL && st.episodeURL.replace(/\/$/, '') === spot.url) || (st.number && st.number === showNumber(spot.show)));
                 if (here && Math.abs(st.t - spot.t) <= 4) return;
-                if (here && seeks < 3) { seeks++; var n = np(); n && n.seek(spot.t); }
+                if (here && seeks < 3) { seeks++; siteJumped = { number: showNumber(spot.show) }; var n = np(); n && n.seek(spot.t); }
                 if (Date.now() < until) setTimeout(settle, here ? 1500 : 400);
               })();
             })();
@@ -2308,6 +2316,7 @@ enum FavoritesScript {
             if (!sameShow || st.t == null || st.t > 5) return;
             var n = np();
             if (!n) return;
+            siteJumped = { number: showNumber(spot.show) };
             n.seek(spot.t);
             setTimeout(function () {
               var now = npState();
@@ -4001,6 +4010,11 @@ enum FavoritesScript {
             }
           }
 
+          // Picking a song in a tracklist yourself: the site's own mini player is right again.
+          document.addEventListener('click', function (e) {
+            var t = e.isTrusted && e.target;
+            if (siteJumped && t && t.closest && t.closest('.col-span-full.grid > button')) siteJumped = null;
+          }, true);
           // Starting a normal episode (tapping a tracklist row yourself) ends playlist mode.
           document.addEventListener('click', function (e) {
             if (!e.isTrusted || !playlist) return;
