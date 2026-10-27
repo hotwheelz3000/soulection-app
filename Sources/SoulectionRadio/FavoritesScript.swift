@@ -260,6 +260,10 @@ enum FavoritesScript {
             '.sr-np-tv svg{display:block;width:100%;height:100%}',
             '.sr-np-tv-play{display:flex;align-items:center;justify-content:center;border-radius:9999px;overflow:visible}',
             '.sr-np-tv-play svg{width:47%;height:47%}',
+            '.sr-np-tv-play > div{position:absolute;inset:0;display:flex;align-items:center;justify-content:center;border-radius:9999px}',
+            '.sr-np-tv-play .sr-pb{background:#fff;color:' + BG + ';opacity:0}',
+            '.sr-np-tv-dual{display:grid}',
+            '.sr-np-tv-dual > span{grid-area:1/1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
             '.sr-np-tv-track{overflow:visible;border-radius:9999px;background:' + TRACK + '}',
             '.sr-np-tv-track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}',
             '.sr-np-tv-track b{position:absolute;top:50%;border-radius:50%;transform:translate(-50%,-50%)}',
@@ -2184,6 +2188,35 @@ enum FavoritesScript {
             }).catch(failed);
           }
 
+          // The welcome player becomes the real mini player: one solid card that grows from
+          // the welcome player's height to its full height, while the welcome words fade out
+          // and the song's info fades in.
+          function handOver(hello, live) {
+            if (reduceMotion) { try { hello.remove(); } catch (e) {} return; }
+            var d = Math.max(0, live.getBoundingClientRect().height - hello.getBoundingClientRect().height);
+            var ease = 'cubic-bezier(.2,.8,.2,1)';
+            hello.style.zIndex = '31';
+            hello.style.pointerEvents = 'none';
+            hello.style.background = 'transparent';
+            var parts = [].slice.call(live.children);
+            parts.forEach(function (c) { c.style.opacity = '0'; });
+            var clip = function (top) { var v = 'inset(' + top + 'px 0 0 0 round 9px)'; live.style.clipPath = v; live.style.webkitClipPath = v; };
+            clip(d);
+            void live.offsetHeight;
+            live.style.transition = 'clip-path .36s ' + ease + ',-webkit-clip-path .36s ' + ease;
+            clip(0);
+            parts.forEach(function (c) { c.style.transition = 'opacity .28s ease .12s'; c.style.opacity = '1'; });
+            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .18s ease'; c.style.opacity = '0'; });
+            hello.style.transition = 'border-color .3s ease';
+            hello.style.borderColor = 'transparent';
+            setTimeout(function () {
+              try { hello.remove(); } catch (e) {}
+              live.style.transition = '';
+              live.style.clipPath = ''; live.style.webkitClipPath = '';
+              parts.forEach(function (c) { c.style.transition = ''; c.style.opacity = ''; });
+            }, 480);
+          }
+
           // ---------------------------------------------------------------------------
           // Safety net: music is playing but the site has no mini player to show it (the
           // app's own player took over before the site ever played, or the site removed its
@@ -2205,8 +2238,9 @@ enum FavoritesScript {
             }
             if (!liveCard) {
               ensureStyle();
-              hideReadyCard(); // fades out underneath as this fades in
-              liveCard = el('div', 'sr-ready sr-live-card sr-fade-in', cardMarkup());
+              var hello = readyCard; // the welcome player turns into this one (see handOver)
+              readyCard = null;
+              liveCard = el('div', 'sr-ready sr-live-card' + (hello ? '' : ' sr-fade-in'), cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
               // Tapping anywhere but play opens the big player.
@@ -2220,6 +2254,7 @@ enum FavoritesScript {
               info.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               if (miniTouchMove) liveCard.addEventListener('touchmove', miniTouchMove, { passive: false });
               document.body.appendChild(liveCard);
+              if (hello) handOver(hello, liveCard);
             }
             var shown = oursOn && directShown ? directShown : null;
             var t = currentTrack();
@@ -2847,7 +2882,17 @@ enum FavoritesScript {
               if (!to[k] || !from[k]) return;
               var n = el('div', 'sr-np-tv');
               var bs = getComputedStyle(big), ms = getComputedStyle(mini);
-              n.textContent = big.textContent;
+              // When the two players word it differently (the mini player's "2:01:58" total,
+              // the big one's "-2:01:57" left), the mini words fade into the big ones mid-way
+              // instead of switching at the start.
+              var w0 = (mini.textContent || '').trim(), w1 = (big.textContent || '').trim();
+              var dual = w0 && w0 !== w1;
+              if (dual) {
+                n.classList.add('sr-np-tv-dual');
+                n.innerHTML = '<span></span><span></span>';
+                n.firstChild.textContent = w0;
+                n.lastChild.textContent = w1;
+              } else n.textContent = w1;
               var rgb = function (c) { var x = /(\d+)\D+(\d+)\D+(\d+)/.exec(c || ''); return x ? [+x[1], +x[2], +x[3]] : [180, 180, 180]; };
               // Everything about the text blends from the mini player's look to the big one's:
               // size, color, boldness and line height (the box heights, so the letters sit
@@ -2855,7 +2900,7 @@ enum FavoritesScript {
               m.nodes[k] = {
                 n: n, f0: parseFloat(ms.fontSize) || 12, f1: parseFloat(bs.fontSize) || 16,
                 c0: rgb(ms.color), c1: rgb(bs.color), w0: ms.fontWeight, w1: bs.fontWeight,
-                lh0: from[k].height, lh1: to[k].height
+                lh0: from[k].height, lh1: to[k].height, dual: dual
               };
               document.body.appendChild(n);
               hide(big); hide(mini);
@@ -2882,15 +2927,16 @@ enum FavoritesScript {
             if (to.track && from.track) {
               var t = el('div', 'sr-np-tv sr-np-tv-track', '<i></i><b></b>');
               var siteKnob = parts.track && parts.track.querySelector('[role="slider"], .sr-mo-knob, .sr-ready-knob');
+              var kr = siteKnob && siteKnob.getBoundingClientRect();
               var kc = siteKnob ? getComputedStyle(siteKnob).backgroundColor : 'rgb(234, 88, 12)';
               var km = /(\d+)\D+(\d+)\D+(\d+)/.exec(kc) || [0, 234, 88, 12];
-              m.nodes.track = { n: t, knob: [+km[1], +km[2], +km[3]] };
+              m.nodes.track = { n: t, knob: [+km[1], +km[2], +km[3]], k0: kr && kr.width ? kr.width : 14 };
               document.body.appendChild(t);
               hide(fp.track); hide(parts.track);
             }
             // The play button: an icon in the mini player, the white circle in the big one.
             if (to.play && from.play) {
-              var pb = el('div', 'sr-np-tv sr-np-tv-play', fp.play.innerHTML);
+              var pb = el('div', 'sr-np-tv sr-np-tv-play', '<div class="sr-pa">' + fp.play.innerHTML + '</div><div class="sr-pb">' + fp.play.innerHTML + '</div>');
               m.nodes.play = { n: pb };
               document.body.appendChild(pb);
               hide(fp.play); hide(parts.play);
@@ -2934,6 +2980,12 @@ enum FavoritesScript {
               st.lineHeight = lerp(x.lh0, x.lh1, et).toFixed(2) + 'px';
               st.color = 'rgb(' + [0, 1, 2].map(function (i) { return Math.round(lerp(x.c0[i], x.c1[i], et)); }).join(',') + ')';
               st.fontWeight = et < 0.5 ? x.w0 : x.w1;
+              if (x.dual) {
+                var wk = Math.max(0, Math.min(1, (et - 0.3) / 0.4));
+                wk = wk * wk * (3 - 2 * wk);
+                x.n.firstChild.style.opacity = (1 - wk).toFixed(3);
+                x.n.lastChild.style.opacity = wk.toFixed(3);
+              }
             };
             var box = function (n, x, y, w, h) {
               var st = n.style;
@@ -2995,7 +3047,8 @@ enum FavoritesScript {
             // Bar and times: always below the artist.
             var by = ty + lerp((f.track ? f.track.top : titleTop0) - titleTop0, (t.track ? t.track.top : titleTop1) - titleTop1, e);
             if (N.track) {
-              var tr = N.track, th = lerp(Math.max(1, f.track.height > 8 ? 1 : f.track.height), t.track.height, e);
+              // (A mini bar's box can be taller than the line it draws: start from the line.)
+              var tr = N.track, th = lerp(f.track.height >= 4 ? 1 : Math.max(1, f.track.height), t.track.height, e);
               box(tr.n, lerp(f.track.left, t.track.left, e), by + (lerp(f.track.height, t.track.height, e) - th) / 2, lerp(f.track.width, t.track.width, e), th);
               var st = npState() || {};
               var frac = st.duration ? Math.max(0, Math.min(1, (st.t || 0) / st.duration)) : 0;
@@ -3003,7 +3056,7 @@ enum FavoritesScript {
               fill.style.width = (frac * 100) + '%';
               fill.style.opacity = e.toFixed(3);
               knob.style.left = (frac * 100) + '%';
-              var ks = lerp(14, 12, e);
+              var ks = lerp(tr.k0, 12, e);
               knob.style.width = knob.style.height = ks + 'px';
               knob.style.background = 'rgb(' + tr.knob.map(function (c) { return Math.round(lerp(c, 255, e)); }).join(',') + ')';
             }
@@ -3030,11 +3083,15 @@ enum FavoritesScript {
               box(N.play.n, cx - size / 2, cy - size / 2, size, size);
               // The white circle eases in over the last fifth of the opening (and out over the
               // first fifth of closing) while the icon darkens to match the big button.
-              var ck = Math.max(0, Math.min(1, (e - 0.8) / 0.2));
+              // The bare icon cross-fades into the big round button (white circle, dark icon)
+              // over the last part of the opening, eased at both ends.
+              var ck = Math.max(0, Math.min(1, (e - 0.7) / 0.3));
               ck = ck * ck * (3 - 2 * ck);
-              N.play.n.style.background = 'rgba(255,255,255,' + ck.toFixed(3) + ')';
-              var c = Math.round(lerp(lerp(180, 255, es), 26, ck)); // grey to white, then dark on the circle
-              N.play.n.style.color = 'rgb(' + c + ',' + c + ',' + c + ')';
+              var pa = N.play.n.firstChild, pbig = N.play.n.lastChild;
+              var c = Math.round(lerp(180, 255, es));
+              pa.style.color = 'rgb(' + c + ',' + c + ',' + c + ')';
+              pa.style.opacity = (1 - ck).toFixed(3);
+              pbig.style.opacity = ck.toFixed(3);
               // Previous and next stay level with it.
               var shift = (cy - cy1).toFixed(1);
               ['.sr-np-prev', '.sr-np-next'].forEach(function (sel) { var b = fp.root.querySelector(sel); if (b) b.style.transform = 'translateY(' + shift + 'px)'; });
@@ -3069,7 +3126,7 @@ enum FavoritesScript {
               (c.bottom * k).toFixed(1) + 'px ' + (c.left * k).toFixed(1) + 'px round ' + (c.radius * k).toFixed(1) + 'px)';
             root.clipPath = clip;
             root.webkitClipPath = clip;
-            var solid = Math.min(1, e / 0.25);
+            var solid = morph ? 1 : Math.min(1, e / 0.25);
             root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
             fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
             // What only the big player has fades in over the last part, rising a little.
