@@ -2997,14 +2997,16 @@ enum FavoritesScript {
             tt('el'); tt('dur');
             // Play: from the mini player's spot to the middle under the bar, growing late.
             if (N.play) {
-              var es = Math.pow(e, 1.8);
+              // Just the icon while it moves (no white circle), growing evenly with the pull;
+              // the big player's circle is there once it's fully open.
+              var es = e;
               var size = lerp(Math.min(f.play.width, f.play.height), t.play.width, es);
               var cx = lerp(f.play.left + f.play.width / 2, t.play.left + t.play.width / 2, Math.pow(e, .8));
               var cy0 = f.play.top + f.play.height / 2, cy1 = t.play.top + t.play.height / 2;
               var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, 1.15));
               box(N.play.n, cx - size / 2, cy - size / 2, size, size);
-              N.play.n.style.background = 'rgba(255,255,255,' + es.toFixed(3) + ')';
-              var c0 = 180, c1 = 26, c = Math.round(lerp(c0, c1, es));
+              N.play.n.style.background = 'none';
+              var c = Math.round(lerp(180, 255, es)); // the mini player's grey to white
               N.play.n.style.color = 'rgb(' + c + ',' + c + ',' + c + ')';
               // Previous and next stay level with it.
               var shift = (cy - cy1).toFixed(1);
