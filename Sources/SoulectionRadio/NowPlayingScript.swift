@@ -114,9 +114,11 @@ enum NowPlayingScript {
 
             function currentState() {
               var player = miniPlayer();
-              if (!player) return null;
+              // No site mini player: still known when the app's own player is playing a show
+              // (Mixtape, Likes or History can switch to it before the site ever played).
+              if (!player && !(direct && activeFrame)) return null;
               var showLine = '';
-              var lines = player.querySelectorAll('.content-col > div');
+              var lines = player ? player.querySelectorAll('.content-col > div') : [];
               if (lines.length) showLine = text(lines[0]);
               var playerSong = lines.length > 1 ? text(lines[1]) : '';
               if (direct) { showLine = direct.show || ('Show #' + direct.number); playerSong = ''; }
@@ -144,14 +146,14 @@ enum NowPlayingScript {
                 if (ft) t = ft.t + (ft.paused ? 0 : (Date.now() - ft.at) / 1000);
               } else if (frameTime && Date.now() - frameTime.at < 3000) {
                 t = frameTime.t + (frameTime.paused ? 0 : (Date.now() - frameTime.at) / 1000);
-              } else {
+              } else if (player) {
                 var slider = player.querySelector('[role="slider"][aria-valuenow]');
                 var v = slider && parseFloat(slider.getAttribute('aria-valuenow'));
                 if (!isNaN(v)) t = v;
               }
 
               var album = showLine.split(' | ')[0].trim() || (number ? 'Show #' + number : 'Soulection Radio');
-              var img = player.querySelector('img');
+              var img = player ? player.querySelector('img') : null;
               var artwork = direct ? (direct.cover || '') : (img && img.src ? img.src : '');
               var title = '';
               var artist = '';
@@ -182,7 +184,7 @@ enum NowPlayingScript {
                 album = override.album;
                 artwork = abs(override.artwork) || artwork;
               }
-              var slider2 = player.querySelector('[role="slider"][aria-valuemax]');
+              var slider2 = player ? player.querySelector('[role="slider"][aria-valuemax]') : null;
               var duration = slider2 ? parseFloat(slider2.getAttribute('aria-valuemax')) : NaN;
               var activeTime = activeFrame ? timeOf(activeFrame) : null;
               if (activeFrame) duration = activeTime && activeTime.duration ? activeTime.duration : NaN;

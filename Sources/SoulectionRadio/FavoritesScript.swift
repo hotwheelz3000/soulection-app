@@ -2102,8 +2102,13 @@ enum FavoritesScript {
             hideReadyCard();
             if (!spot || miniPlayer()) return;
             ensureStyle();
-            var card = el('div', 'sr-ready',
-              '<div class="sr-ready-row">' +
+            var card = el('div', 'sr-ready', cardMarkup());
+            fillReadyCard(card, spot);
+            document.body.appendChild(card);
+            readyCard = card;
+          }
+          function cardMarkup() {
+            return '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info">' +
                   '<img class="sr-ready-img" alt="">' +
                   '<div class="sr-ready-texts">' +
@@ -2116,7 +2121,9 @@ enum FavoritesScript {
               '<div aria-hidden="true">' +
                 '<div class="sr-ready-track"><div class="sr-ready-fill"></div><div class="sr-ready-knob"></div></div>' +
                 '<div class="sr-ready-times"><span class="sr-ready-el"></span><span class="sr-ready-dur"></span></div>' +
-              '</div>');
+              '</div>';
+          }
+          function fillReadyCard(card, spot) {
             var put = function (sel, v) { card.querySelector(sel).textContent = v || ''; };
             put('.sr-ready-show', spot.show);
             put('.sr-ready-song', spot.song || 'Where you left off');
@@ -2137,8 +2144,65 @@ enum FavoritesScript {
               e.stopPropagation();
               if (goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) revealSong(spot.url, spot.t, showNumber(spot.show), null);
             });
-            document.body.appendChild(card);
-            readyCard = card;
+          }
+
+          // ---------------------------------------------------------------------------
+          // Safety net: music is playing but the site has no mini player to show it (the
+          // app's own player took over before the site ever played, or the site removed its
+          // player). The app shows its own live one in the same place until the site's is back.
+          // ---------------------------------------------------------------------------
+          var liveCard = null;
+          var PAUSE_ICON = '<svg viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M6 5h4v14H6zM14 5h4v14h-4z"/></svg>';
+          function playerCard() { return miniPlayer() || liveCard; }
+          function renderLiveCard() {
+            if (!isHydrated()) return;
+            var st = npState();
+            var cur = playlist && playlist.current;
+            var oursOn = !!activeOurs();
+            var want = !miniPlayer() && !readyCard && st && st.t != null && (st.paused === false || oursOn || !!cur);
+            if (!want) {
+              if (liveCard) { try { liveCard.remove(); } catch (e) {} liveCard = null; }
+              return;
+            }
+            if (!liveCard) {
+              ensureStyle();
+              liveCard = el('div', 'sr-ready sr-live-card', cardMarkup());
+              var play = liveCard.querySelector('.sr-ready-play');
+              play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
+              var info = liveCard.querySelector('.sr-ready-info');
+              keyClickable(info, 'Open player');
+              info.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
+              if (miniTouchMove) liveCard.addEventListener('touchmove', miniTouchMove, { passive: false });
+              document.body.appendChild(liveCard);
+            }
+            var shown = oursOn && directShown ? directShown : null;
+            var t = currentTrack();
+            var show = (cur && cur.show) || (shown && shown.show) || st.show || (st.number ? 'Show #' + st.number : '');
+            var song = cur ? cur.song : (t ? t.song : (st.title || ''));
+            var artist = cur ? cur.artist : (t ? t.artist : (st.artist || ''));
+            var cover = (cur && cur.cover) || (shown && shown.cover) || st.artwork || '';
+            var put = function (sel, v) { var n = liveCard.querySelector(sel); v = v || ''; if (n.textContent !== v) n.textContent = v; };
+            put('.sr-ready-show', show);
+            put('.sr-ready-song', song);
+            put('.sr-ready-artist', artist);
+            put('.sr-ready-el', clock(st.t || 0));
+            put('.sr-ready-dur', st.duration ? clock(st.duration) : '');
+            var img = liveCard.querySelector('.sr-ready-img');
+            if (cover && /^https:\/\//.test(cover)) {
+              if (img.getAttribute('src') !== cover) img.src = cover;
+              img.style.display = '';
+            } else img.style.display = 'none';
+            var frac = st.duration ? Math.min(1, Math.max(0, (st.t || 0) / st.duration)) : 0;
+            liveCard.querySelector('.sr-ready-fill').style.width = (frac * 100) + '%';
+            liveCard.querySelector('.sr-ready-knob').style.left = 'calc(8px + (100% - 16px) * ' + frac.toFixed(4) + ')';
+            var paused = isPaused();
+            var pb = liveCard.querySelector('.sr-ready-play');
+            var want2 = paused ? 'play' : 'pause';
+            if (pb.getAttribute('data-icon') !== want2) {
+              pb.setAttribute('data-icon', want2);
+              pb.innerHTML = paused ? PLAY : PAUSE_ICON;
+              pb.setAttribute('aria-label', paused ? 'Play' : 'Pause');
+            }
           }
           // Play on the ready card: start the song you were on, then jump to your spot.
           function startFromSpot(spot) {
@@ -2465,7 +2529,7 @@ enum FavoritesScript {
               y0 = null; mode = null;
               if (e.touches.length !== 1 || isOpen() || isPlayerOpen()) return;
               var t = e.target;
-              var player = miniPlayer();
+              var player = playerCard();
               var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"], [role="slider"]'));
               if (!onPlayer) return;
               player.classList.add('sr-touching');
@@ -2490,7 +2554,7 @@ enum FavoritesScript {
               setProgress(Math.max(0, Math.min(1, -dy / (fpTravel || window.innerHeight))));
             };
             var end = function () {
-              var mp = miniPlayer();
+              var mp = playerCard();
               if (mp) setTimeout(function () { mp.classList.remove('sr-touching'); }, 120);
               if (y0 == null) return;
               y0 = null;
@@ -2574,6 +2638,7 @@ enum FavoritesScript {
           }
           function miniShowLine() {
             var player = miniPlayer();
+            if (!player && liveCard) return text(liveCard.querySelector('.sr-ready-show'));
             var lines = player ? player.querySelectorAll('.content-col > div') : [];
             return lines.length ? text(lines[0]) : '';
           }
@@ -2673,7 +2738,7 @@ enum FavoritesScript {
             };
           }
           function thumbRect() {
-            var player = miniPlayer();
+            var player = playerCard();
             var img = player && player.querySelector('img');
             var r = img && img.getBoundingClientRect();
             return r && r.width ? r : null;
@@ -2714,7 +2779,7 @@ enum FavoritesScript {
           // and the full player's text and controls fade in over the last stretch.
           var fpFrom = null; // the mini player card: {top, left, right, bottom, radius}
           function miniCard() {
-            var mini = miniPlayer();
+            var mini = playerCard();
             var W = window.innerWidth, H = window.innerHeight;
             if (!mini) return { top: H - 120, left: 0, right: 0, bottom: 0, radius: 0 };
             var r = mini.getBoundingClientRect();
@@ -2782,7 +2847,7 @@ enum FavoritesScript {
           }
           // Shows the player (at the current progress) so a drag or animation can move it.
           function beginPlayerDrag() {
-            if (!miniPlayer()) return false;
+            if (!playerCard()) return false;
             buildPlayer();
             if (!fp) return false;
             cancelAnimationFrame(fpAnim);
@@ -2889,7 +2954,7 @@ enum FavoritesScript {
 
           function renderPlayer() {
             if (!fp || !isPlayerOpen()) return;
-            if (!miniPlayer()) return closePlayer();
+            if (!playerCard()) return closePlayer();
             var st = npState() || {};
             var t = currentTrack();
             var song = t ? t.song : (st.title || '');
@@ -3578,6 +3643,7 @@ enum FavoritesScript {
           window.addEventListener('soulection-nowplaying', function (e) {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
             if (readyCard && e.detail && e.detail.paused === false) hideReadyCard();
+            renderLiveCard();
             followPendingSpot(e.detail);
             rememberSpot(e.detail);
             followPlayback(e.detail);
@@ -3626,6 +3692,7 @@ enum FavoritesScript {
             renderPlayingRow();
             renderNewBadges();
             renderMiniPlayer(miniPlayer());
+            renderLiveCard();
             announceSong();
             renderTab();
             if (isOpen()) renderSheet();
