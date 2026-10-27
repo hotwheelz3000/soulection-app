@@ -43,6 +43,18 @@ extension Favorite {
     }
 }
 
+/// Where you were last listening: a show and a time in it. Opening the app goes back there.
+struct LastSpot: Codable, Equatable, Sendable {
+    var url: String
+    var t: Double
+    var show: String
+    var song: String?
+    var artist: String?
+    var cover: String?
+    var duration: Double?
+    var at: Double // when it was saved (ms since 1970)
+}
+
 /// The file written by Export and read by Import.
 struct FavoritesBackup: Codable {
     var app = "SoulectionRadio"
@@ -51,6 +63,8 @@ struct FavoritesBackup: Codable {
     var favorites: [Favorite]
     /// Listening history (newest last). Missing in backups made before history existed.
     var history: [Favorite]?
+    /// Where you were last listening. Missing in older backups.
+    var lastSpot: LastSpot?
 }
 
 /// Favorites live in the app's UserDefaults rather than the website's storage, so
@@ -60,6 +74,7 @@ final class FavoritesStore {
     private static let key = "Favorites.v1"
     private static let sinceBackupKey = "Favorites.addedSinceBackup"
     private static let historyKey = "History.v1"
+    private static let spotKey = "LastSpot.v1"
     /// Keep this many songs in the listening history.
     static let historyLimit = 500
     /// Remind to back up after this many new favorites since the last export.
@@ -69,6 +84,8 @@ final class FavoritesStore {
     private(set) var favorites: [Favorite]
     /// Songs listened to, oldest first. `favoritedAt` holds when it was played.
     private(set) var history: [Favorite]
+    /// Where you were last listening (kept here too, so it goes into the backup).
+    private(set) var spot: LastSpot?
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -84,6 +101,30 @@ final class FavoritesStore {
         } else {
             history = []
         }
+        if let data = defaults.data(forKey: Self.spotKey) {
+            spot = try? JSONDecoder().decode(LastSpot.self, from: data)
+        }
+    }
+
+    /// The page saves your spot every few seconds while playing (nil when a show ends).
+    func setSpot(_ newSpot: LastSpot?) {
+        spot = newSpot
+        if let newSpot, let data = try? JSONEncoder().encode(newSpot) {
+            defaults.set(data, forKey: Self.spotKey)
+        } else {
+            defaults.removeObject(forKey: Self.spotKey)
+        }
+    }
+
+    /// From a backup: only if it's newer than the spot already here.
+    func adoptSpot(_ incoming: LastSpot?) {
+        guard let incoming, incoming.at > (spot?.at ?? 0) else { return }
+        setSpot(incoming)
+    }
+
+    func spotJSON() -> String {
+        guard let spot, let data = try? JSONEncoder().encode(spot) else { return "null" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     /// Records a song as just played: moves it to the newest spot instead of duplicating it.
@@ -180,7 +221,7 @@ final class FavoritesStore {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history))
+        return try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history, lastSpot: spot))
     }
 
     var isEmpty: Bool { favorites.isEmpty && history.isEmpty }
@@ -196,13 +237,13 @@ final class FavoritesStore {
     }
 
     /// Reads a backup file: the Export format, or a plain list of favorites.
-    static func readBackup(_ data: Data) -> (favorites: [Favorite], history: [Favorite])? {
+    static func readBackup(_ data: Data) -> (favorites: [Favorite], history: [Favorite], spot: LastSpot?)? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         if let backup = try? decoder.decode(FavoritesBackup.self, from: data) {
-            return (backup.favorites, backup.history ?? [])
+            return (backup.favorites, backup.history ?? [], backup.lastSpot)
         }
-        if let list = try? decoder.decode([Favorite].self, from: data) { return (list, []) }
+        if let list = try? decoder.decode([Favorite].self, from: data) { return (list, [], nil) }
         return nil
     }
 
@@ -233,7 +274,8 @@ final class FavoritesStore {
 /// "notifyPermission" (ask once for new-show notifications), "haptic" (with `kind`),
 /// "share" (with `text`, `url`), "openURL" (Spotify / Apple Music search links only),
 /// "blendOut" (with `seconds`: dip the volume before a switch to another show) or
-/// "blendIn" (bring it back up). Anything else ("get") just sends the list back.
+/// "blendIn" (bring it back up), "spot" (with `spot`: where you are listening, or null).
+/// Anything else ("get") just sends the list back.
 /// App → page: `window.__soulectionFavorites.receive([...], {backupDue, history})` and
 /// `window.__soulectionFavorites.toast(text)`.
 @MainActor
@@ -445,7 +487,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         return true
     }
 
-    private func readBackup(at url: URL) -> (favorites: [Favorite], history: [Favorite])? {
+    private func readBackup(at url: URL) -> (favorites: [Favorite], history: [Favorite], spot: LastSpot?)? {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
@@ -505,6 +547,17 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             store.removeFromHistory(id: id)
         case "historyClear":
             store.clearHistory()
+        case "spot":
+            // Saved often while playing: no reply and no backup write of its own (the next
+            // backup, written when a song starts or a like changes, carries it).
+            if let raw = body["spot"], JSONSerialization.isValidJSONObject(raw),
+               let data = try? JSONSerialization.data(withJSONObject: raw),
+               let spot = try? JSONDecoder().decode(LastSpot.self, from: data) {
+                store.setSpot(spot)
+            } else {
+                store.setSpot(nil)
+            }
+            return
         case "sleepStart":
             guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
             startSleepTimer(seconds: seconds)
@@ -812,7 +865,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         let welcome = UserDefaults.standard.bool(forKey: Self.welcomeSeenKey) ? "false" : "true"
         let build = (try? JSONEncoder().encode(BuildInfo.label)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build)});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build), spot: \(store.spotJSON())});",
             completionHandler: nil
         )
     }
@@ -922,6 +975,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                 return
             }
             let restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
+            store.adoptSpot(incoming.spot)
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
             send()
             noteSaveBackBackup(restored: restored)
@@ -943,6 +997,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         }
         let added = store.merge(incoming.favorites)
         let addedHistory = incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history)
+        store.adoptSpot(incoming.spot)
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         scheduleAutoBackup()
         send()

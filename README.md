@@ -43,7 +43,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Mixtape:** the cassette plays endless random songs, each from a different show than the one before. Each song is added to your Likes as soon as it's picked (even if you skip it) and to History once it plays; remove any you don't want.
 - **Sleep timer:** the zZZ at the top (or in the full player). 5, 15 or 30 minutes, 1 hour, end of song, end of show, or your own time. While a timer runs, **Add 5 more minutes** extends it. The music fades out and pauses, even with the screen off.
 - **New show notifications:** when a new show is posted you get "New show: Soulection Radio #751" ("Tap to listen."), and the newest show gets a **NEW** label until you open it. The app asks once if it can send notifications. iOS decides when the background check runs (usually within a few hours of a new show), and it doesn't run if you swipe the app away.
-- **Pick up where you left off:** opening the app goes to the show you were last listening to. Nothing plays until you tap play (so it won't stop a podcast or other music), and then it carries on from where you stopped. Tapping a song in the tracklist plays that song instead.
+- **Pick up where you left off:** opening the app goes to the show you were last listening to, with a mini player showing that song at your spot. Nothing plays until you tap play (so it won't stop a podcast or other music), and then it carries on from where you stopped. Tapping a song in the tracklist plays that song instead. Your spot is saved in the iCloud backup too.
 - **Help:** a welcome screen explains each button when you open the app (tick **Don't show again** to hide it). Tap **?** at the top any time, or press and hold a top-bar icon for its name. The bottom of the help window shows which build you have.
 
 **Accessibility**
@@ -53,7 +53,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - Soulection's own pages (tracklists, search) are theirs; the app raises their grey text to the same contrast but can't change the rest.
 
 **Backup to iCloud Drive**
-- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Create one**. Pick a folder in iCloud Drive (for example "Soulection") and tap **Save** (and **Replace** if a backup is already there). From then on, `Soulection Radio Backup.json` is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
+- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Create one**. Pick a folder in iCloud Drive (for example "Soulection") and tap **Save** (and **Replace** if a backup is already there). From then on, `Soulection Radio Backup.json` is updated every time your Likes or History change (it also keeps the show and spot you were last listening to). It lives outside the app, so it survives deleting the app or switching phones.
 - **After a reinstall:** the app offers to restore. Tap **Pick backup file**, choose `Soulection Radio Backup.json`, then save it back to the same folder (**Save**, then **Replace**) so auto-backup keeps going.
 - **Manual backups:** **Export** saves a one-off copy anywhere; **Import** adds one back. If auto-backup is off (or failing), the app reminds you every 4 new likes.
 

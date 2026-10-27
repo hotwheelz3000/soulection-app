@@ -130,6 +130,30 @@ enum FavoritesScript {
             '.sr-mo-text{display:flex;flex-direction:column;justify-content:center;min-width:0;overflow:hidden}',
             '.sr-mo-text > div{flex-shrink:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-mo-song{font-weight:700}',
+            // Song and artist share one line: a long title is shortened ("…") so the artist
+            // always shows (the site's mini player, the app's copy and the ready card).
+            '.content-col > div:nth-child(2),.sr-mo-line,.sr-ready-line{display:flex!important;align-items:baseline}',
+            '.content-col > div:nth-child(2) > span,.sr-mo-line > span,.sr-ready-line > span{white-space:nowrap;flex:0 0 auto}',
+            '.content-col > div:nth-child(2) > span:first-child,.sr-mo-song,.sr-ready-song{flex:0 1 auto!important;min-width:0;overflow:hidden;text-overflow:ellipsis}',
+            '.content-col > div:nth-child(2) > span:last-child:not(:first-child),.sr-mo-artist,.sr-ready-artist{max-width:55%;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-mo-artist,.sr-ready-artist{margin-left:.3em}',
+            // Ready to carry on: a mini player for where you left off, before anything plays.
+            '.sr-ready{position:fixed;left:0;right:0;bottom:0;z-index:30;box-sizing:border-box;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;padding:12px;font-family:' + FONT + ';color:' + TEXT + '}',
+            '.sr-ready-row{display:flex;align-items:center;justify-content:space-between;gap:16px;margin-bottom:16px}',
+            '.sr-ready-info{display:flex;align-items:center;gap:16px;min-width:0;flex:1 1 auto;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-ready-img{width:48px;height:48px;border-radius:1.5px;object-fit:cover;flex:none}',
+            '.sr-ready-texts{display:flex;flex-direction:column;gap:4px;min-width:0}',
+            '.sr-ready-show{font-size:9px;line-height:12px;color:' + MUTED + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-ready-line{font-size:12px;line-height:18px;min-width:0;overflow:hidden}',
+            '.sr-ready-song{font-weight:600}',
+            '.sr-ready-times{display:flex;justify-content:space-between;font-size:9px;line-height:12px;color:' + MUTED + '}',
+            '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
+            '.sr-ready-play{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-ready-play svg{display:block;width:28px;height:28px}',
+            '.sr-ready-track{position:relative;height:8px;display:flex;align-items:center;margin-bottom:8px}',
+            '.sr-ready-track::before{content:"";position:absolute;left:0;right:0;height:1px;background:' + TRACK + '}',
+            '.sr-ready-fill{position:absolute;left:0;height:1px;background:' + TEXT + '}',
+            '.sr-ready-knob{position:absolute;top:50%;width:16px;height:16px;margin-top:-8px;border-radius:50%;background:rgb(234, 88, 12);transform:translateX(-50%)}',
             '.sr-mo-bar{display:flex;align-items:center}',
             '.sr-mo-track{position:relative;flex:1;overflow:hidden}',
             '.sr-mo-fill{position:absolute;left:0;top:0;bottom:0;width:0}',
@@ -604,6 +628,13 @@ enum FavoritesScript {
               favorites = Array.isArray(list) ? list : [];
               if (opts && typeof opts.build === 'string') buildLabel = opts.build;
               if (opts && Array.isArray(opts.history)) history = opts.history;
+              if (opts && opts.spot && typeof opts.spot.url === 'string') {
+                var localSpot = null;
+                try { localSpot = JSON.parse(localStorage.getItem(LAST_KEY) || 'null'); } catch (e) {}
+                if (!localSpot || (opts.spot.at || 0) > (localSpot.at || 0)) {
+                  try { localStorage.setItem(LAST_KEY, JSON.stringify(opts.spot)); } catch (e) {}
+                }
+              }
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
                 if (opts.welcome) showWelcome();
@@ -1067,6 +1098,7 @@ enum FavoritesScript {
 
           function renderMiniPlayer(player) {
             if (!player) return;
+            if (readyCard) hideReadyCard(); // the site's own player is here now
             hideMiniClose(player);
             fullWidthMini(player);
             if (!player.querySelector(':scope > .sr-grab')) {
@@ -1952,16 +1984,25 @@ enum FavoritesScript {
           var lastSaved = 0;
           function rememberSpot(st) {
             if (!st || st.paused !== false || !st.episodeURL || st.t == null || st.t < 30) return;
-            if (st.duration && st.t > st.duration - 60) { try { localStorage.removeItem(LAST_KEY); } catch (e) {} return; }
+            if (st.duration && st.t > st.duration - 60) {
+              try { localStorage.removeItem(LAST_KEY); } catch (e) {}
+              native({ op: 'spot', spot: null });
+              return;
+            }
             if (Date.now() - lastSaved < 15000) return;
             lastSaved = Date.now();
             var t = currentTrack();
-            try {
-              localStorage.setItem(LAST_KEY, JSON.stringify({
-                url: st.episodeURL, t: Math.floor(st.t), show: st.show || ('Show #' + st.number),
-                song: t ? t.song : '', at: Date.now()
-              }));
-            } catch (e) {}
+            var cur = playlist && playlist.current;
+            var siteImg = miniPlayer() && miniPlayer().querySelector('img:not(.sr-mo-img)');
+            var cover = (cur && cur.cover) || (directShown && directShown.cover) || (siteImg ? siteImg.src : '');
+            if (cover && !/^https:\/\//.test(cover)) { try { cover = new URL(cover, location.href).href; } catch (e) { cover = ''; } }
+            var spot = {
+              url: st.episodeURL.replace(/\/$/, ''), t: Math.floor(st.t), show: st.show || ('Show #' + st.number),
+              song: t ? t.song : '', artist: t ? t.artist : '', cover: cover || '',
+              duration: st.duration ? Math.floor(st.duration) : 0, at: Date.now()
+            };
+            try { localStorage.setItem(LAST_KEY, JSON.stringify(spot)); } catch (e) {}
+            native({ op: 'spot', spot: spot });
           }
           // Opening the app goes to the show you were last listening to, ready to carry on:
           // nothing plays until you tap play (so it never stops a podcast or other music),
@@ -1973,7 +2014,13 @@ enum FavoritesScript {
             if (!spot || !spot.url || Date.now() - spot.at > 14 * 86400000) return null;
             return spot;
           }
-          function readySpot(spot) {
+          function readySpot(spot, tries) {
+            // Wait for the site to finish loading: changing the page before then makes it
+            // redraw everything.
+            if (!isHydrated()) {
+              if ((tries || 0) < 60) setTimeout(function () { readySpot(spot, (tries || 0) + 1); }, 250);
+              return;
+            }
             spot = spot || savedSpot();
             if (!spot) return;
             var st = npState();
@@ -1984,6 +2031,89 @@ enum FavoritesScript {
             if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
             pendingSpot = spot;
             revealSong(spot.url, spot.t, showNumber(spot.show), null);
+            showReadyCard(spot);
+          }
+
+          // The ready card: looks like the site's mini player (which only exists once
+          // something plays), with your last song at your spot. Play carries on from there.
+          var readyCard = null;
+          function hideReadyCard() {
+            if (!readyCard) return;
+            try { readyCard.remove(); } catch (e) {}
+            readyCard = null;
+          }
+          function showReadyCard(spot) {
+            hideReadyCard();
+            if (!spot || miniPlayer()) return;
+            ensureStyle();
+            var card = el('div', 'sr-ready',
+              '<div class="sr-ready-row">' +
+                '<div class="sr-ready-info">' +
+                  '<img class="sr-ready-img" alt="">' +
+                  '<div class="sr-ready-texts">' +
+                    '<div class="sr-ready-show"></div>' +
+                    '<div class="sr-ready-line"><span class="sr-ready-song"></span><span class="sr-ready-artist"></span></div>' +
+                  '</div>' +
+                '</div>' +
+                '<button type="button" class="sr-ready-play">' + PLAY + '</button>' +
+              '</div>' +
+              '<div aria-hidden="true">' +
+                '<div class="sr-ready-track"><div class="sr-ready-fill"></div><div class="sr-ready-knob"></div></div>' +
+                '<div class="sr-ready-times"><span class="sr-ready-el"></span><span class="sr-ready-dur"></span></div>' +
+              '</div>');
+            var put = function (sel, v) { card.querySelector(sel).textContent = v || ''; };
+            put('.sr-ready-show', spot.show);
+            put('.sr-ready-song', spot.song || 'Where you left off');
+            put('.sr-ready-artist', spot.artist);
+            put('.sr-ready-el', clock(spot.t));
+            put('.sr-ready-dur', spot.duration ? clock(spot.duration) : '');
+            var img = card.querySelector('.sr-ready-img');
+            if (spot.cover && /^https:\/\//.test(spot.cover)) img.src = spot.cover; else img.remove();
+            var frac = spot.duration ? Math.min(1, Math.max(0, spot.t / spot.duration)) : 0;
+            card.querySelector('.sr-ready-fill').style.width = (frac * 100) + '%';
+            card.querySelector('.sr-ready-knob').style.left = 'calc(8px + (100% - 16px) * ' + frac.toFixed(4) + ')';
+            var play = card.querySelector('.sr-ready-play');
+            play.setAttribute('aria-label', 'Continue ' + (spot.show || 'the show') + ' from ' + clock(spot.t));
+            play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot); });
+            var info = card.querySelector('.sr-ready-info');
+            keyClickable(info, 'Show where you left off: ' + (spot.song || spot.show || ''));
+            info.addEventListener('click', function (e) {
+              e.stopPropagation();
+              if (goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) revealSong(spot.url, spot.t, showNumber(spot.show), null);
+            });
+            document.body.appendChild(card);
+            readyCard = card;
+          }
+          // Play on the ready card: start the song you were on, then jump to your spot.
+          function startFromSpot(spot) {
+            hideReadyCard();
+            pendingSpot = null;
+            if (playlist) endPlaylist(false);
+            if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
+            var deadline = Date.now() + 10000;
+            (function tryStart() {
+              var rows = location.pathname.replace(/\/$/, '') === spot.url ? pageRows() : [];
+              var best = null;
+              rows.forEach(function (r) { if (r.start <= spot.t + 1 && (!best || r.start > best.start)) best = r; });
+              if (!best && rows.length) best = rows[0];
+              var btn = best && best.row.querySelector(':scope > button');
+              if (!btn) {
+                if (Date.now() < deadline) setTimeout(tryStart, 250);
+                else showToast("Couldn't open that show.");
+                return;
+              }
+              btn.click();
+              // Then to the exact second (the song starts at its beginning).
+              var seeks = 0, until = Date.now() + 12000;
+              (function settle() {
+                var st = npState();
+                var here = st && st.paused === false && st.t != null &&
+                  ((st.episodeURL && st.episodeURL.replace(/\/$/, '') === spot.url) || (st.number && st.number === showNumber(spot.show)));
+                if (here && Math.abs(st.t - spot.t) <= 4) return;
+                if (here && seeks < 3) { seeks++; var n = np(); n && n.seek(spot.t); }
+                if (Date.now() < until) setTimeout(settle, here ? 1500 : 400);
+              })();
+            })();
           }
           // The first play of that show jumps to the saved spot. Playing anything else (or a
           // song in its tracklist) forgets it.
@@ -3391,6 +3521,7 @@ enum FavoritesScript {
 
           window.addEventListener('soulection-nowplaying', function (e) {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
+            if (readyCard && e.detail && e.detail.paused === false) hideReadyCard();
             followPendingSpot(e.detail);
             rememberSpot(e.detail);
             followPlayback(e.detail);
@@ -3419,6 +3550,14 @@ enum FavoritesScript {
             return false;
           }
 
+          function ensureStyle() {
+            if (document.getElementById('sr-fav-style')) return;
+            var style = el('style');
+            style.id = 'sr-fav-style';
+            style.textContent = CSS;
+            (document.head || document.documentElement).appendChild(style);
+          }
+
           function render() {
             renderPending = false;
             if (!document.body) return;
@@ -3426,12 +3565,7 @@ enum FavoritesScript {
               setTimeout(schedule, 200);
               return;
             }
-            if (!document.getElementById('sr-fav-style')) {
-              var style = el('style');
-              style.id = 'sr-fav-style';
-              style.textContent = CSS;
-              (document.head || document.documentElement).appendChild(style);
-            }
+            ensureStyle();
             renderRowHearts();
             renderPlayingRow();
             renderNewBadges();
@@ -3453,7 +3587,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
