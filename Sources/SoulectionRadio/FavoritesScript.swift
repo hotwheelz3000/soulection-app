@@ -2874,6 +2874,13 @@ enum FavoritesScript {
           function startMorph() {
             endMorph();
             if (reduceMotion) return;
+            try { buildMorph(); } catch (err) {
+              // Something unexpected: put everything back rather than leave pieces hidden.
+              if (pendingMorph) { morph = pendingMorph; pendingMorph = null; endMorph(); }
+            }
+          }
+          var pendingMorph = null;
+          function buildMorph() {
             var to = finalRects(), parts = miniParts(), from = {};
             Object.keys(parts).forEach(function (k) { if (parts[k]) from[k] = parts[k].getBoundingClientRect(); });
             // Icons are measured themselves, not their buttons (which have invisible padding),
@@ -2888,7 +2895,7 @@ enum FavoritesScript {
                 from.play = { left: cx - size / 2, top: cy - size / 2, width: size, height: size, right: cx + size / 2, bottom: cy + size / 2 };
               }
             }
-            var m = { from: from, to: to, nodes: {}, hidden: [] };
+            var m = pendingMorph = { from: from, to: to, nodes: {}, hidden: [] };
             var hide = function (n) { if (!n) return; m.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
             // The cover.
             var fromCover = from.cover || thumbRect();
@@ -2912,7 +2919,7 @@ enum FavoritesScript {
               document.body.appendChild(n);
               hide(big); hide(mini);
             };
-            text('show', fp.show, parts.show);
+            // (The show name isn't one of them: it fades in with "Playing from".)
             text('title', fp.title, parts.title);
             text('artist', fp.artist, parts.artist);
             text('el', fp.elapsed, parts.el);
@@ -2922,6 +2929,9 @@ enum FavoritesScript {
             if (to.heart && from.heart) {
               var h = el('div', 'sr-np-tv', (fp.heart.querySelector('svg') || fp.heart).outerHTML);
               h.style.color = getComputedStyle(fp.heart).color;
+              // A liked heart is filled by a style on its button: copy that too.
+              var hsvg = h.querySelector('svg');
+              if (hsvg && fp.heart.getAttribute('aria-pressed') === 'true') hsvg.style.fill = 'currentColor';
               h.style.overflow = 'visible';
               m.nodes.heart = { n: h };
               document.body.appendChild(h);
@@ -2952,6 +2962,15 @@ enum FavoritesScript {
               hide(fp.root.querySelector('.sr-np-handle')); hide(parts.grab);
             }
             morph = m;
+            pendingMorph = null;
+          }
+          // Self-repair: with the player open and nothing moving, nothing of it should be hidden.
+          function healPlayer() {
+            if (morph || fpAnim || !fp || fpP < 0.99) return;
+            [fp.cover, fp.show, fp.title, fp.artist, fp.heart, fp.play, fp.track, fp.elapsed, fp.left].forEach(function (n) {
+              if (n && n.style.visibility === 'hidden') n.style.visibility = '';
+            });
+            document.querySelectorAll('.sr-np-tv, .sr-np-morph').forEach(function (n) { n.remove(); });
           }
           function endMorph() {
             if (!morph) return;
@@ -3300,6 +3319,7 @@ enum FavoritesScript {
           function renderPlayer() {
             if (!fp || !isPlayerOpen()) return;
             if (!playerCard()) return closePlayer();
+            healPlayer();
             var st = npState() || {};
             var t = currentTrack();
             var song = t ? t.song : (st.title || '');
