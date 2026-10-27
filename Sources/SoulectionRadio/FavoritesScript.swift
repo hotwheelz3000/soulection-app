@@ -2886,12 +2886,16 @@ enum FavoritesScript {
               // the big one's "-2:01:57" left), the mini words fade into the big ones mid-way
               // instead of switching at the start.
               var w0 = (mini.textContent || '').trim(), w1 = (big.textContent || '').trim();
-              var dual = w0 && w0 !== w1;
+              // The same goes for boldness: the font only comes in set weights, so the regular
+              // words fade into the bold ones instead of switching half way.
+              var dual = w0 && (w0 !== w1 || ms.fontWeight !== bs.fontWeight);
               if (dual) {
                 n.classList.add('sr-np-tv-dual');
                 n.innerHTML = '<span></span><span></span>';
                 n.firstChild.textContent = w0;
                 n.lastChild.textContent = w1;
+                n.firstChild.style.fontWeight = ms.fontWeight;
+                n.lastChild.style.fontWeight = bs.fontWeight;
               } else n.textContent = w1;
               var rgb = function (c) { var x = /(\d+)\D+(\d+)\D+(\d+)/.exec(c || ''); return x ? [+x[1], +x[2], +x[3]] : [180, 180, 180]; };
               // Everything about the text blends from the mini player's look to the big one's:
@@ -2979,7 +2983,7 @@ enum FavoritesScript {
               st.fontSize = lerp(x.f0, x.f1, et).toFixed(2) + 'px';
               st.lineHeight = lerp(x.lh0, x.lh1, et).toFixed(2) + 'px';
               st.color = 'rgb(' + [0, 1, 2].map(function (i) { return Math.round(lerp(x.c0[i], x.c1[i], et)); }).join(',') + ')';
-              st.fontWeight = et < 0.5 ? x.w0 : x.w1;
+              if (!x.dual) st.fontWeight = et < 0.5 ? x.w0 : x.w1;
               if (x.dual) {
                 var wk = Math.max(0, Math.min(1, (et - 0.3) / 0.4));
                 wk = wk * wk * (3 - 2 * wk);
@@ -3030,16 +3034,20 @@ enum FavoritesScript {
             }
             var titleTop0 = f.title ? f.title.top : (t.title ? t.title.top : 0);
             var titleTop1 = t.title ? t.title.top : 0;
-            // Artist: drops under the title first, then slides left.
+            // Artist: rides along with the title, easing from beside it (mini player) to
+            // under it (big player) in one smooth move.
             if (N.artist) {
-              var ar = N.artist, ea = Math.pow(e, .6);
-              look(ar, ea);
+              var ar = N.artist, ea = e * e * (3 - 2 * e);
+              look(ar, e);
               ar.n.style.maxWidth = lerp(f.artist.width, t.artist.width, Math.pow(e, .35)) + 'px';
-              box(ar.n, lerp(f.artist.left, t.artist.left, Math.pow(e, 1.8)), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
+              var tl0 = f.title ? f.title.left : f.artist.left, tl1 = t.title ? t.title.left : t.artist.left;
+              var tx = lerp(tl0, tl1, e);
+              box(ar.n, tx + lerp(f.artist.left - tl0, t.artist.left - tl1, ea), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
             }
             // Heart: to the right of the title.
             if (N.heart) {
-              var hy = lerp(f.heart.top, t.heart.top, e);
+              // It rises early, so the play button can pass underneath it.
+              var hy = lerp(f.heart.top, t.heart.top, Math.pow(e, .5));
               hy = lerp(hy, ty + (t.heart.top - titleTop1), under);
               var hs = lerp(f.heart.width, t.heart.width, e);
               box(N.heart.n, lerp(f.heart.left, t.heart.left, e), hy, hs, hs);
@@ -3077,9 +3085,11 @@ enum FavoritesScript {
               // the big player's circle is there once it's fully open.
               var es = e;
               var size = lerp(Math.min(f.play.width, f.play.height), t.play.width, es);
-              var cx = lerp(f.play.left + f.play.width / 2, t.play.left + t.play.width / 2, Math.pow(e, .8));
+              // It settles to its row first and slides across late, passing under the heart
+              // (which rises early) instead of through it.
+              var cx = lerp(f.play.left + f.play.width / 2, t.play.left + t.play.width / 2, Math.pow(e, 1.8));
               var cy0 = f.play.top + f.play.height / 2, cy1 = t.play.top + t.play.height / 2;
-              var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, 1.15));
+              var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, .5));
               box(N.play.n, cx - size / 2, cy - size / 2, size, size);
               // The white circle eases in over the last fifth of the opening (and out over the
               // first fifth of closing) while the icon darkens to match the big button.
