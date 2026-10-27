@@ -2,6 +2,7 @@ import AVFoundation
 import AVKit
 import Foundation
 import MediaPlayer
+import SafariServices
 import UIKit
 import UniformTypeIdentifiers
 import WebKit
@@ -916,30 +917,76 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     }
 
     /// The Music app can't open to a search, so look the song up in Apple's public catalog
-    /// (the iTunes Search API: only the song and artist are sent) and open that exact song.
-    /// No match or no connection: the Apple Music web search.
+    /// (the iTunes Search API: only the song and artist are sent) and open that exact song,
+    /// but only when both the title and the artist really match. Otherwise (or with no
+    /// connection) Apple Music's search for it shows in a sheet inside the app.
     private func openInAppleMusic(song: String, artist: String) {
         let terms = [song, artist].filter { !$0.isEmpty }.joined(separator: " ")
-        let web = URL(string: "https://music.apple.com/us/search?term=" + Self.encoded(terms))
         let country = (Locale.current.region?.identifier ?? "US").lowercased()
-        guard let lookup = URL(string: "https://itunes.apple.com/search?media=music&entity=song&limit=5&country=\(country)&term=" + Self.encoded(terms))
+        let search = URL(string: "https://music.apple.com/\(country)/search?term=" + Self.encoded(terms))
+        guard let lookup = URL(string: "https://itunes.apple.com/search?media=music&entity=song&limit=25&country=\(country)&term=" + Self.encoded(terms))
         else { return }
         Task { @MainActor in
-            var target = web
+            var exact: URL?
             if let (data, _) = try? await URLSession.shared.data(from: lookup),
                let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                let results = json["results"] as? [[String: Any]] {
-                // Prefer a result by the same artist; otherwise the top match.
-                let wanted = artist.lowercased()
-                let pick = results.first { ($0["artistName"] as? String)?.lowercased().contains(wanted) == true && !wanted.isEmpty }
-                    ?? results.first
+                let pick = results.first {
+                    Self.sameSong(($0["trackName"] as? String) ?? "", song) &&
+                        Self.sameArtist(($0["artistName"] as? String) ?? "", artist)
+                }
                 if let raw = pick?["trackViewUrl"] as? String, let url = URL(string: raw),
                    url.scheme == "https", url.host?.hasSuffix("apple.com") == true {
-                    target = url
+                    exact = url
                 }
             }
-            if let target { _ = await UIApplication.shared.open(target) }
+            if let exact {
+                _ = await UIApplication.shared.open(exact)
+            } else if let search {
+                self.showInSheet(search)
+            }
         }
+    }
+
+    /// Lowercase, no accents or punctuation, single spaces.
+    private static func plain(_ text: String) -> String {
+        let folded = text.folding(options: [.caseInsensitive, .diacriticInsensitive], locale: nil)
+        let kept = folded.unicodeScalars.map { CharacterSet.alphanumerics.contains($0) ? Character($0) : " " }
+        return String(kept).split(separator: " ").joined(separator: " ")
+    }
+
+    /// The title without bracketed extras ("(Remix)", "[feat. ...]") and "feat." parts.
+    private static func coreTitle(_ text: String) -> String {
+        var t = text.replacingOccurrences(of: #"\s*[\(\[][^\)\]]*[\)\]]"#, with: "", options: .regularExpression)
+        t = t.replacingOccurrences(of: #"(?i)\s+(feat\.?|ft\.?|featuring)\s+.*$"#, with: "", options: .regularExpression)
+        return plain(t)
+    }
+
+    private static func sameSong(_ found: String, _ wanted: String) -> Bool {
+        let a = coreTitle(found), b = coreTitle(wanted)
+        guard !a.isEmpty, !b.isEmpty else { return false }
+        return a == b || a.hasPrefix(b + " ") || b.hasPrefix(a + " ")
+    }
+
+    /// Any of the site's artists ("Konshens x Musiq Soulchild") in Apple's artist name.
+    private static func sameArtist(_ found: String, _ wanted: String) -> Bool {
+        let have = " " + plain(found) + " "
+        let names = wanted.components(separatedBy: CharacterSet(charactersIn: ",&+/"))
+            .flatMap { $0.components(separatedBy: " x ") }
+            .flatMap { $0.components(separatedBy: " X ") }
+            .map { plain($0.replacingOccurrences(of: #"(?i)\b(feat\.?|ft\.?|featuring|and|with)\b"#, with: " ", options: .regularExpression)) }
+            .filter { $0.count >= 2 }
+        return names.contains { have.contains(" " + $0 + " ") }
+    }
+
+    /// A web page in a sheet over the app (Safari's own viewer).
+    private func showInSheet(_ url: URL) {
+        guard let presenter = presenter() else { return }
+        let sheet = SFSafariViewController(url: url)
+        sheet.preferredControlTintColor = .white
+        sheet.preferredBarTintColor = UIColor(white: 0.1, alpha: 1)
+        sheet.dismissButtonStyle = .close
+        presenter.present(sheet, animated: true)
     }
 
     // MARK: Share
