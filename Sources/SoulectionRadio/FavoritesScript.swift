@@ -329,10 +329,14 @@ enum FavoritesScript {
             '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .36s cubic-bezier(.2,.8,.2,1)}',
             // Like a thought bubble: starts small, round and soft, floats up as it opens, then
             // sharpens into the box and stops still.
-            // From the full player's ... in the top right corner: it grows out of that corner,
-            // drifting down from it into place.
-            '.sr-note.sr-tiles.sr-from-right{transform-origin:right top;animation-name:sr-pop-r}',
-            '@keyframes sr-pop-r{0%{opacity:0;transform:translateY(-14px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
+            // The full player's ... : just the buttons, no box, in the space under the top row.
+            // They come out of the ... one after another, right to left.
+            '.sr-np-actions{position:absolute;left:24px;right:24px;z-index:2;display:flex;justify-content:space-around;transition:opacity .15s ease}',
+            '.sr-np-actions.sr-closing{opacity:0}',
+            '.sr-np-act{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;color:' + TEXT + ';font-family:' + FONT + ';font-size:11px;line-height:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;animation:sr-act-in .22s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-np-act svg{width:22px;height:22px}',
+            '.sr-np-act:active{color:#fff}',
+            '@keyframes sr-act-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}',
             '@keyframes sr-pop{0%{opacity:0;transform:translateY(18px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
@@ -524,10 +528,10 @@ enum FavoritesScript {
 
           // Share, or find the song on Spotify / Apple Music.
           var menuTrigger = null; // the ... button whose menu is open
-          function songActions(f, extra, trigger) {
-            if (trigger && menuTrigger === trigger && note) { hideNote(); return; } // tap again: close
+          // Share, Spotify, Apple Music for a song: [label, action, icon, spoken label].
+          function songButtons(f) {
             var q = (f.song || '') + ' ' + (f.artist || '');
-            var buttons = [
+            return [
               ['Share', function () {
                 var url = 'https://radio.soulection.com' + (f.episodeURL || '');
                 var when = f.start != null ? ' at ' + clock(f.start) : '';
@@ -536,12 +540,15 @@ enum FavoritesScript {
               ['Spotify', function () { native({ op: 'openURL', url: 'https://open.spotify.com/search/' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Spotify'],
               ['Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Apple Music']
             ];
+          }
+          function songActions(f, extra, trigger) {
+            if (trigger && menuTrigger === trigger && note) { hideNote(); return; } // tap again: close
+            var buttons = songButtons(f);
             (extra || []).forEach(function (b) { buttons.push(b); });
             noteWithButtons('<div class="sr-note-title">' + esc(f.song || '') + '</div><div>' + esc(f.artist || '') + '</div>', buttons);
             if (!note) return;
             var menu = note;
             menu.classList.add('sr-tiles');
-            if (trigger && trigger.classList.contains('sr-np-more')) menu.classList.add('sr-from-right');
             // The ... button stays lit while its menu is open; tapping it again, tapping
             // anywhere else, or Escape closes the menu.
             var outside = function (e) {
@@ -2720,7 +2727,8 @@ enum FavoritesScript {
                   f = { song: 'Soulection Radio ' + showName.replace(/^Show /, ''), artist: 'Soulection', show: st.show, episodeURL: st.episodeURL, start: st.t != null ? Math.floor(st.t) : null };
                 }
               }
-              if (f) songActions(f, null, this); else showToast('Play a show first.');
+              if (npMenu) { closeNpActions(); return; } // tap again: close
+              if (f) openNpActions(f, this); else showToast('Play a show first.');
             });
             fp.heart.addEventListener('click', function () {
               var t = currentTrack();
@@ -2922,8 +2930,70 @@ enum FavoritesScript {
           });
           setInterval(function () { if (!document.hidden) healScrollLock(); }, 2000);
 
+          // The full player's ... row: Share, Spotify, Apple Music, transparent, under the top row.
+          var npMenu = null; // {box, trigger, outside, key}
+          function openNpActions(f, trigger) {
+            closeNpActions(true);
+            var inner = fp && fp.root.querySelector('.sr-np-inner');
+            var top = fp && fp.root.querySelector('.sr-np-top');
+            if (!inner || !top) return;
+            var box = el('div', 'sr-np-actions');
+            box.setAttribute('role', 'group');
+            box.setAttribute('aria-label', 'Share or find this song');
+            var list = songButtons(f);
+            list.forEach(function (b, i) {
+              var btn = el('button', 'sr-np-act', b[2] + '<span>' + esc(b[0]) + '</span>');
+              btn.type = 'button';
+              if (b[3]) btn.setAttribute('aria-label', b[3]);
+              btn.style.animationDelay = ((list.length - 1 - i) * 60) + 'ms'; // right one first
+              btn.addEventListener('click', function (e) {
+                e.stopPropagation();
+                closeNpActions();
+                b[1]();
+              });
+              box.appendChild(btn);
+            });
+            inner.appendChild(box);
+            // Centred in the space between the top row and the cover (the band you see there).
+            var ir = inner.getBoundingClientRect();
+            var below = top.getBoundingClientRect().bottom - ir.top;
+            var cover = fp.root.querySelector('.sr-np-cover');
+            var cr = cover && cover.getBoundingClientRect();
+            var gap = cr && cr.height ? cr.top - ir.top - below : 0;
+            var y = below + Math.max(4, (gap - box.offsetHeight) / 2);
+            box.style.top = Math.round(y) + 'px';
+            var m = npMenu = { box: box, trigger: trigger };
+            m.outside = function (e) {
+              if (box.contains(e.target) || (trigger && trigger.contains(e.target))) return;
+              closeNpActions();
+            };
+            m.key = function (e) {
+              if (e.key !== 'Escape') return;
+              e.stopPropagation();
+              closeNpActions();
+              if (trigger) try { trigger.focus({ preventScroll: true }); } catch (err) {}
+            };
+            setTimeout(function () { if (npMenu === m) document.addEventListener('click', m.outside, true); }, 0);
+            document.addEventListener('keydown', m.key, true);
+            if (trigger) { trigger.classList.add('sr-on'); trigger.setAttribute('aria-expanded', 'true'); }
+            var first = box.querySelector('button');
+            if (first) setTimeout(function () { try { first.focus({ preventScroll: true }); } catch (e) {} }, 60);
+          }
+          function closeNpActions(instant) {
+            var m = npMenu;
+            if (!m) return;
+            npMenu = null;
+            document.removeEventListener('click', m.outside, true);
+            document.removeEventListener('keydown', m.key, true);
+            if (m.trigger) { m.trigger.classList.remove('sr-on'); m.trigger.setAttribute('aria-expanded', 'false'); }
+            if (instant) { m.box.remove(); return; }
+            m.box.classList.add('sr-closing');
+            setTimeout(function () { m.box.remove(); }, 160);
+          }
+
           function finishClose() {
             endMorph();
+            closeNpActions(true);
             if (!fp) return;
             dialogClosed(fp.root);
             fp.root.classList.remove('sr-open');
