@@ -1,6 +1,6 @@
-/// When this copy of the app was built. The Build IPA workflow rewrites this file with the
-/// build's date and time (Los Angeles) before building; local builds say "Development build".
-/// Shown at the bottom of the help window, so testers can say which build they have.
+/// The app's version ("Version 1.0"), shown at the bottom of the help window. The Build IPA
+/// workflow rewrites this file from the version in the Info.plist before building; local
+/// builds say "Development build".
 enum BuildInfo {
     static let label = "Development build"
 }

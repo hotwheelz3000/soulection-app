@@ -72,7 +72,7 @@ jobs:
       # Stamp the build's date and time into the app (shown at the bottom of the help
       # window), so testers can say which build they have.
       # The version comes from CFBundleShortVersionString in the Info.plist named by
-      # infoPath in xtool.yml (shown as "Version 1.0 · Oct 27, 2026 1:05 PM").
+      # infoPath in xtool.yml (shown in Help as "Version 1.0").
       - name: Stamp build info
         id: info
         env:
@@ -80,9 +80,7 @@ jobs:
         run: |
           plist=$(awk -F': *' '$1 == "infoPath" { print $2 }' xtool.yml | tr -d "\"' \r")
           version=$(plutil -extract CFBundleShortVersionString raw "$plist" 2>/dev/null || echo "")
-          when=$(TZ=America/Los_Angeles date '+%b %-d, %Y %-I:%M %p')
-          label="$when"
-          if [ -n "$version" ]; then label="Version $version · $when"; fi
+          label="Version ${version:-unknown}"
           echo "version=$version" >> "$GITHUB_OUTPUT"
           cat > "Sources/$APP_NAME/BuildInfo.swift" <<EOF
           /// Written by the Build IPA workflow.

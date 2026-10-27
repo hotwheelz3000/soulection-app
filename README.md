@@ -44,7 +44,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Sleep timer:** the zZZ at the top (or in the full player). 5, 15 or 30 minutes, 1 hour, end of song, end of show, or your own time. While a timer runs, **+5 min** next to the countdown extends it. The music fades out and pauses, even with the screen off.
 - **New show notifications:** when a new show is posted you get "New show: Soulection Radio #751" ("Tap to listen."), and new shows get a **NEW** label until you open them. The app asks once if it can send notifications. iOS decides when the background check runs (usually within a few hours of a new show), and it doesn't run if you swipe the app away.
 - **Welcome player:** when you open the app, the mini player says "This is Soulection Radio." Its play button starts the newest show from the beginning, right where you are (the page doesn't change), or pick anything else to play.
-- **Help:** a welcome screen explains each button when you open the app (tick **Don't show again** to hide it). Tap **?** at the top any time, or press and hold a top-bar icon for its name. **Show welcome screen** at the bottom of the help window brings the welcome screen back, and under it you can see which version and build you have.
+- **Help:** a welcome screen explains each button when you open the app (tick **Don't show again** to hide it). Tap **?** at the top any time, or press and hold a top-bar icon for its name. **Show welcome screen** at the bottom of the help window brings the welcome screen back, and under it you can see which version you have.
 
 **Accessibility**
 - The app's own features (Likes, History, the players, the sleep timer, help and messages) aim to meet **WCAG 2.2 AA**: text contrast of at least 4.5:1, labels for VoiceOver, a tap alternative for every swipe, and full keyboard use (Tab, Enter or Space, Escape closes panels).
@@ -67,7 +67,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 
 ## Feedback
 
-Found a bug or have an idea? [Open an issue](https://github.com/hotwheelz3000/soulection-app/issues) and include the version and build shown at the bottom of the help window (**?**). A screenshot or screen recording helps a lot.
+Found a bug or have an idea? [Open an issue](https://github.com/hotwheelz3000/soulection-app/issues) and include the version shown at the bottom of the help window (**?**). A screenshot or screen recording helps a lot.
 
 ## How it was made
 
@@ -90,7 +90,7 @@ I'm a beginner developer. I built this by describing what I wanted to Claude Cod
   - `Favorites.swift`: saves likes and history in the app, auto-backup to iCloud Drive and restore, Export/Import, the sleep timer's countdown and fade, the volume dip between shows, AirPlay, sharing, Spotify/Apple Music links, haptics, and resuming after phone calls.
   - `NewShows.swift`: new-show notifications: the background check of the home page, the notification permission, and opening the show when a notification is tapped.
   - `SoulectionRadioApp.swift`: background audio setup, without interrupting other apps at launch.
-  - `BuildInfo.swift`: the version and build time shown in the help window (written by the workflow from the version in `SoulectionRadio-Info.plist`).
+  - `BuildInfo.swift`: the version shown in the help window (written by the workflow from the version in `SoulectionRadio-Info.plist`).
   - `ContentView.swift` and `PageAppearance.swift`: the screen that holds the web view, and matching the page's background color.
 - **Icon:** `Resources/AppIcon.png` (`scripts/fetch-app-icon.py` can fetch one from the site).
 - **App settings:** `xtool.yml` (build name, bundle ID, icon) and `SoulectionRadio-Info.plist` (home screen name "Soulection", version, background audio, background checks for new shows, dark mode).
