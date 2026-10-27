@@ -330,13 +330,12 @@ enum FavoritesScript {
             // Like a thought bubble: starts small, round and soft, floats up as it opens, then
             // sharpens into the box and stops still.
             // The full player's ... : just the buttons, no box, in the space under the top row.
-            // They come out of the ... one after another, right to left.
+            // They show all at once, with no animation.
             '.sr-np-actions{position:absolute;left:24px;right:24px;z-index:2;display:flex;justify-content:space-around;transition:opacity .15s ease}',
             '.sr-np-actions.sr-closing{opacity:0}',
-            '.sr-np-act{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;color:' + TEXT + ';font-family:' + FONT + ';font-size:11px;line-height:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent;animation:sr-act-in .22s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-np-act{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:6px 10px;display:flex;flex-direction:column;align-items:center;gap:4px;color:' + TEXT + ';font-family:' + FONT + ';font-size:11px;line-height:14px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-act svg{width:22px;height:22px}',
             '.sr-np-act:active{color:#fff}',
-            '@keyframes sr-act-in{from{opacity:0;transform:translateX(14px)}to{opacity:1;transform:none}}',
             '@keyframes sr-pop{0%{opacity:0;transform:translateY(18px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
@@ -2945,7 +2944,6 @@ enum FavoritesScript {
               var btn = el('button', 'sr-np-act', b[2] + '<span>' + esc(b[0]) + '</span>');
               btn.type = 'button';
               if (b[3]) btn.setAttribute('aria-label', b[3]);
-              btn.style.animationDelay = ((list.length - 1 - i) * 60) + 'ms'; // right one first
               btn.addEventListener('click', function (e) {
                 e.stopPropagation();
                 closeNpActions();
