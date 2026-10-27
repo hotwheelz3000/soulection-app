@@ -2122,6 +2122,7 @@ enum FavoritesScript {
           // Fades the welcome mini player out (the real one fades in on top at the same time).
           function hideReadyCard() {
             if (!readyCard) return;
+            dropWarm(); // something else is playing: the newest show isn't needed
             var card = readyCard;
             readyCard = null;
             card.style.pointerEvents = 'none';
@@ -2176,17 +2177,109 @@ enum FavoritesScript {
             if (!reduceMotion) card.classList.add('sr-rise-in');
             document.body.appendChild(card);
             readyCard = card;
+            warmNewest();
           }
           // The newest show from the very beginning, played right here: the page you're on
           // stays, the app's own player plays it and the mini player shows it.
-          function playNewestShow(btn) {
-            if (btn && btn.getAttribute('aria-busy') === 'true') return;
-            if (btn) btn.setAttribute('aria-busy', 'true');
+          // The newest show's page: one quick question to the site's database (just the newest
+          // one), else the first show linked on the page.
+          function newestShowPath() {
             var fromPage = function () {
               var a = document.querySelector('main a[href^="/episodes/"], a[href^="/episodes/"]');
               return a ? a.getAttribute('href').replace(/\/$/, '') : null;
             };
-            allEpisodes().then(function (list) { return list[0] || fromPage(); }, fromPage).then(function (path) {
+            return siteDatabase().then(function (db) {
+              return fetch(db.base + '/rest/v1/episodes?select=id&order=release_date.desc&limit=1', {
+                headers: { apikey: db.key, Authorization: 'Bearer ' + db.key }
+              }).then(function (r) { if (!r.ok) throw new Error('database ' + r.status); return r.json(); });
+            }).then(function (rows) {
+              var id = Array.isArray(rows) && rows[0] && rows[0].id;
+              if (!/^[0-9a-fA-F-]{36}$/.test(id || '')) throw new Error('no id');
+              return '/episodes/' + id;
+            }).catch(function () {
+              return allEpisodes().then(function (list) { return list[0] || fromPage(); }, fromPage);
+            });
+          }
+
+          // Getting the newest show ready while the welcome player is up: its SoundCloud link,
+          // and SoundCloud's player loaded and waiting (paused, silent), so tapping play only
+          // has to start the sound.
+          var warm = null; // {path, info, frame, win, loaded}
+          function warmNewest() {
+            if (warm || !readyCard) return;
+            var mine = warm = { path: null, info: null, frame: null, win: null, loaded: false };
+            newestShowPath().then(function (path) {
+              if (warm !== mine || !path) throw new Error('gone');
+              mine.path = path;
+              return episodeInfo(path);
+            }).then(function (info) {
+              if (warm !== mine || !readyCard || !info.link) throw new Error('gone');
+              mine.info = info;
+              mine.frame = makeFrame(playerURL(info.link, 0, true));
+              mine.win = mine.frame.contentWindow;
+              mine.frame.addEventListener('load', function () { mine.loaded = true; });
+              var n = np();
+              if (n && n.setStandby) n.setStandby(mine.win, true);
+              var cover = info.cover;
+              if (cover) { var pre = new Image(); pre.src = cover; mine.coverImage = pre; }
+            }).catch(function () { if (warm === mine && !mine.frame) warm = null; });
+          }
+          function dropWarm() {
+            var w = warm;
+            warm = null;
+            if (w && w.frame && w.frame !== activeOurs()) removeFrame(w.frame);
+          }
+          // Starts the show that was got ready. Returns false if it isn't ready yet.
+          function playWarm(btn) {
+            var w = warm, n = np();
+            if (!w || !w.frame || !w.info || !n || !n.setActiveFrame || ours.indexOf(w.frame) < 0) return false;
+            warm = null;
+            endPlaylist(false);
+            discardStandby();
+            ours.slice().forEach(function (fr) { if (fr !== w.frame) removeFrame(fr); });
+            var path = w.path, info = w.info, win = w.win;
+            n.setStandby(win, false);
+            n.setActiveFrame(win);
+            directShown = directInfo({ show: 'Show #' + info.number, cover: info.cover, episodeURL: path }, info);
+            n.setDirect(directShown);
+            direct = { number: directShown.number, id: null, heard: true };
+            // Start it through SoundCloud's player and directly, again each moment until it plays
+            // (it may still be finishing loading). After 6 seconds, load it fresh instead.
+            var started = Date.now(), done = false;
+            var onTime = function (e) {
+              var d = e.detail || {};
+              if (d.win === win && d.paused === false) finish();
+            };
+            var finish = function () {
+              if (done) return;
+              done = true;
+              clearInterval(poke);
+              window.removeEventListener('soulection-frametime', onTime);
+            };
+            var kick = function () {
+              if (done) return;
+              if (Date.now() - started > 6000) {
+                finish();
+                if (activeOurs() === w.frame && !lastPlayingAtRecent()) playShowHere(path);
+                return;
+              }
+              try { win.postMessage(JSON.stringify({ method: 'play' }), '*'); } catch (e) {}
+              n.toFrame(win, { play: true, unmute: true });
+            };
+            window.addEventListener('soulection-frametime', onTime);
+            var poke = setInterval(kick, 600);
+            kick();
+            schedule();
+            return true;
+          }
+          function lastPlayingAtRecent() { return Date.now() - lastPlayingAt < 3000; }
+
+          function playNewestShow(btn) {
+            if (btn && btn.getAttribute('aria-busy') === 'true') return;
+            if (btn) btn.setAttribute('aria-busy', 'true');
+            if (playWarm(btn)) return;
+            dropWarm();
+            newestShowPath().then(function (path) {
               if (!path) { if (btn) btn.removeAttribute('aria-busy'); return showToast("Couldn't find the newest show."); }
               endPlaylist(false);
               playShowHere(path);
@@ -2270,6 +2363,7 @@ enum FavoritesScript {
               ensureStyle();
               var hello = readyCard; // the welcome player turns into this one (see handOver)
               readyCard = null;
+              if (hello) dropWarm(); // (unless it's the one playing now)
               liveCard = el('div', 'sr-ready sr-live-card' + (hello ? '' : ' sr-fade-in'), cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
