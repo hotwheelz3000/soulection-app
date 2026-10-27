@@ -234,6 +234,10 @@ enum FavoritesScript {
             '.sr-sleep .sr-sheet{min-height:0}',
             '.sr-sleep-title{font-size:13px;line-height:18px;font-weight:600;letter-spacing:.06em;text-transform:uppercase;color:' + MUTED + ';margin:0}',
             '.sr-sleep-status{font-size:12px;line-height:16px;color:' + MUTED + ';margin-top:3px}',
+            '.sr-sleep-now{display:flex;align-items:center;justify-content:space-between;gap:12px}',
+            '.sr-sleep-plus{-webkit-appearance:none;appearance:none;flex:none;margin:6px 0 0;padding:8px 14px;border:1px solid ' + BORDER + ';border-radius:9999px;background:none;color:' + TEXT + ';font-family:' + FONT + ';font-size:14px;line-height:18px;font-weight:600;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-sleep-plus:active{background:' + HOVER + '}',
+            '.sr-sleep-plus[hidden]{display:none}',
             '.sr-sleep-count{display:block;font-size:40px;line-height:46px;font-weight:600;color:#fff;font-variant-numeric:tabular-nums;letter-spacing:-.01em;margin-top:4px}',
             '.sr-sleep-row{display:flex;align-items:center;gap:12px;width:100%;min-height:52px;padding:0;margin:0;background:none;border:0;border-bottom:1px solid ' + BORDER + ';-webkit-appearance:none;appearance:none;font-family:' + FONT + ';font-size:17px;line-height:22px;color:' + TEXT + ';text-align:left;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-sleep-row:last-child{border-bottom:0}',
@@ -1856,9 +1860,24 @@ enum FavoritesScript {
             head.appendChild(el('div', 'sr-sheet-grab'));
             head.appendChild(el('h2', 'sr-sleep-title', 'Sleep timer'));
             head.appendChild(closeButton(function () { closeSleep(); }));
+            // The countdown, with "+5 min" beside it while a timer runs.
+            var now = el('div', 'sr-sleep-now');
             var status = el('div', 'sr-sleep-status');
             status.setAttribute('aria-live', 'polite');
-            head.appendChild(status);
+            now.appendChild(status);
+            var plus = el('button', 'sr-sleep-plus', '+5 min');
+            plus.type = 'button';
+            plus.setAttribute('aria-label', 'Add 5 more minutes');
+            plus.hidden = true;
+            plus.addEventListener('click', function () {
+              if (!sleep || sleep.type !== 'time') return;
+              setSleep({ type: 'time', endsAt: Math.max(Date.now(), sleep.endsAt) + 5 * 60000 });
+              haptic('light');
+              renderSleepStatus();
+              announce('Sleep timer: ' + sleepText() + ' left.');
+            });
+            now.appendChild(plus);
+            head.appendChild(now);
             var list = el('div', 'sr-list');
             panel.appendChild(head);
             panel.appendChild(list);
@@ -1878,7 +1897,7 @@ enum FavoritesScript {
               panel.style.transition = '';
               if (dragging && dy > 90) closeSleep(); else panel.style.transform = '';
             });
-            sleepPanel = { root: root, backdrop: backdrop, panel: panel, list: list, status: status };
+            sleepPanel = { root: root, backdrop: backdrop, panel: panel, list: list, status: status, plus: plus };
           }
           function row(label, onTap, extra) {
             var r = el('button', 'sr-sleep-row', '<span class="sr-grow">' + esc(label) + '</span>');
@@ -1893,6 +1912,8 @@ enum FavoritesScript {
               : sleep.type === 'time' ? '<span class="sr-sleep-count">' + esc(sleepText()) + '</span>'
               : sleep.type === 'song' ? 'Fades out at the end of this song' : 'Fades out at the end of this show';
             if (sleepPanel.status.innerHTML !== html) sleepPanel.status.innerHTML = html;
+            var timed = !!(sleep && sleep.type === 'time');
+            if (sleepPanel.plus.hidden === timed) sleepPanel.plus.hidden = !timed;
           }
           function renderSleep() {
             var list = sleepPanel.list;
@@ -1901,14 +1922,6 @@ enum FavoritesScript {
               var off = row('Turn off timer', function () { setSleep(null); closeSleep(); showToast('Sleep timer off.'); });
               off.classList.add('sr-sleep-off');
               list.appendChild(off);
-              if (sleep.type === 'time') {
-                list.appendChild(row('Add 5 more minutes', function () {
-                  setSleep({ type: 'time', endsAt: Math.max(Date.now(), sleep.endsAt) + 5 * 60000 });
-                  haptic('light');
-                  renderSleep();
-                  announce('Sleep timer: ' + sleepText() + ' left.');
-                }));
-              }
             }
             [5, 15, 30, 60].forEach(function (m) {
               list.appendChild(row(m === 60 ? '1 hour' : m + ' minutes', function () { startTimer(m); }));

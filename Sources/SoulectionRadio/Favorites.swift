@@ -681,7 +681,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private var fadeTask: Task<Void, Never>?
     private var volumeBeforeFade: Float?
     private lazy var volumeView: MPVolumeView = {
-        let view = MPVolumeView(frame: CGRect(x: -2000, y: -2000, width: 10, height: 10))
+        // Inside the screen (iOS only treats it as "the app's own volume control", and so
+        // hides its volume pill, when it's on screen), but 1 point and nearly see-through.
+        let view = MPVolumeView(frame: CGRect(x: 0, y: 0, width: 1, height: 1))
         view.alpha = 0.011
         view.isUserInteractionEnabled = false
         return view
@@ -706,7 +708,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         let began = Date()
         fadeTask = Task { @MainActor [weak self] in
             while !Task.isCancelled {
-                try? await Task.sleep(for: .milliseconds(250))
+                try? await Task.sleep(for: .milliseconds(100)) // small steps: smooth to the ear
                 guard let self, !Task.isCancelled else { return }
                 let progress = min(1, Date().timeIntervalSince(began) / max(seconds, 0.1))
                 // Ease out so the drop feels even to the ear.
