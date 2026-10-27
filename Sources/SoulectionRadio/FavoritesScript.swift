@@ -459,22 +459,31 @@ enum FavoritesScript {
               node.querySelectorAll('button, [href], input, [tabindex]:not([tabindex="-1"])'),
               function (n) { return !n.disabled && !n.hidden && n.offsetParent !== null; });
           }
+          // Keyboard or touch? With a keyboard, focus goes to a panel's first button (and shows
+          // its outline); with touch, to the panel itself, so no outline flashes around a button.
+          var usingKeyboard = false;
+          document.addEventListener('keydown', function (e) { if (e.key === 'Tab' || e.key.indexOf('Arrow') === 0) usingKeyboard = true; }, true);
+          ['pointerdown', 'touchstart'].forEach(function (t) { document.addEventListener(t, function () { usingKeyboard = false; }, { capture: true, passive: true }); });
+          function focusInside(panel, first) {
+            if (usingKeyboard && first) { try { first.focus({ preventScroll: true }); } catch (e) {} return; }
+            if (!panel.hasAttribute('tabindex')) panel.setAttribute('tabindex', '-1');
+            panel.style.outline = 'none';
+            try { panel.focus({ preventScroll: true }); } catch (e) {}
+          }
           function dialogOpened(panel, close) {
             dialogClosed(panel, true);
             panel.setAttribute('aria-modal', 'true');
             dialogs.push({ panel: panel, close: close, back: document.activeElement });
             setTimeout(function () {
               var first = panel.querySelector('.sr-x') || focusables(panel)[0];
-              if (first && dialogs.length && dialogs[dialogs.length - 1].panel === panel) {
-                try { first.focus({ preventScroll: true }); } catch (e) {}
-              }
+              if (dialogs.length && dialogs[dialogs.length - 1].panel === panel) focusInside(panel, first);
             }, 60);
           }
           function dialogClosed(panel, quiet) {
             for (var i = dialogs.length - 1; i >= 0; i--) {
               if (dialogs[i].panel !== panel) continue;
               var d = dialogs.splice(i, 1)[0];
-              if (!quiet && d.back && d.back.focus && d.back.isConnected) {
+              if (!quiet && usingKeyboard && d.back && d.back.focus && d.back.isConnected) {
                 try { d.back.focus({ preventScroll: true }); } catch (e) {}
               }
             }
@@ -1318,7 +1327,7 @@ enum FavoritesScript {
               row.appendChild(btn);
             });
             var firstBtn = row.querySelector('button');
-            if (firstBtn) setTimeout(function () { try { firstBtn.focus({ preventScroll: true }); } catch (e) {} }, 60);
+            if (firstBtn) setTimeout(function () { focusInside(n, firstBtn); }, 60);
           }
 
           function renderSheet() {
@@ -2844,7 +2853,8 @@ enum FavoritesScript {
             fp.inner.style.transform = 'none';
             var R = function (n) { var r = n && n.getBoundingClientRect(); return r && r.width ? r : null; };
             var out = {
-              cover: R(fp.cover), show: R(fp.show), title: R(fp.title), artist: R(fp.artist), heart: R(fp.heart),
+              cover: R(fp.cover), show: R(fp.show), title: R(fp.title), artist: R(fp.artist),
+              heart: R(fp.heart.querySelector('svg')) || R(fp.heart),
               play: R(fp.play), track: R(fp.track), el: R(fp.elapsed), dur: R(fp.left),
               grab: R(fp.root.querySelector('.sr-np-handle'))
             };
@@ -2859,6 +2869,18 @@ enum FavoritesScript {
             if (reduceMotion) return;
             var to = finalRects(), parts = miniParts(), from = {};
             Object.keys(parts).forEach(function (k) { if (parts[k]) from[k] = parts[k].getBoundingClientRect(); });
+            // Icons are measured themselves, not their buttons (which have invisible padding),
+            // so they start at exactly the mini player's size and end at the big player's.
+            var icon = function (n) { var g = n && n.querySelector('svg'); var r = g && g.getBoundingClientRect(); return r && r.width ? r : null; };
+            if (parts.heart) from.heart = icon(parts.heart) || from.heart;
+            if (parts.play) {
+              // The play traveller draws its icon at 47% of its size (as the big button does).
+              var pi = icon(parts.play);
+              if (pi) {
+                var size = pi.width / 0.47, cx = pi.left + pi.width / 2, cy = pi.top + pi.height / 2;
+                from.play = { left: cx - size / 2, top: cy - size / 2, width: size, height: size, right: cx + size / 2, bottom: cy + size / 2 };
+              }
+            }
             var m = { from: from, to: to, nodes: {}, hidden: [] };
             var hide = function (n) { if (!n) return; m.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
             // The cover.
@@ -2891,7 +2913,7 @@ enum FavoritesScript {
             if (m.nodes.dur) m.nodes.dur.n.style.textAlign = 'right';
             // The heart.
             if (to.heart && from.heart) {
-              var h = el('div', 'sr-np-tv', fp.heart.innerHTML);
+              var h = el('div', 'sr-np-tv', (fp.heart.querySelector('svg') || fp.heart).outerHTML);
               h.style.color = getComputedStyle(fp.heart).color;
               h.style.overflow = 'visible';
               m.nodes.heart = { n: h };
@@ -3218,7 +3240,7 @@ enum FavoritesScript {
             document.addEventListener('keydown', m.key, true);
             if (trigger) { trigger.classList.add('sr-on'); trigger.setAttribute('aria-expanded', 'true'); }
             var first = box.querySelector('button');
-            if (first) setTimeout(function () { try { first.focus({ preventScroll: true }); } catch (e) {} }, 60);
+            if (first) setTimeout(function () { if (npMenu === m) focusInside(box, first); }, 60);
           }
           function closeNpActions() {
             var m = npMenu;
