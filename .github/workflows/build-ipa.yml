@@ -147,7 +147,7 @@ jobs:
           label: ${{ steps.stamp.outputs.label }}
         run: |
           gh release delete latest --yes --cleanup-tag || true
-          gh release create latest "xtool/$APP_NAME.ipa" "xtool/$APP_NAME-$stamp.ipa" \
+          gh release create latest "xtool/$APP_NAME-$stamp.ipa" \
             --title "Latest build ($label)" \
-            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME-$stamp.ipa below (or $APP_NAME.ipa) and install it with Sideloadly or AltStore; see the README for the steps." \
+            --notes "Built from ${GITHUB_SHA::7} on $label (Los Angeles time). Download $APP_NAME-$stamp.ipa below and install it with Sideloadly or AltStore; see the README for the steps." \
             --latest

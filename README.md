@@ -6,15 +6,15 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 ## Download
 
-**[Download the latest SoulectionRadio.ipa](https://github.com/hotwheelz3000/soulection-app/releases/latest/download/SoulectionRadio.ipa)** · [all releases](https://github.com/hotwheelz3000/soulection-app/releases)
+**[Download the latest build](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
 
-Every change to the app is built automatically and published there, usually within a few minutes. Each release (and each build's download on the Actions page) also has a copy named with its build time (for example `SoulectionRadio-2026-10-26-1541.ipa`); download that one on an iPhone so a new build never gets saved as "SoulectionRadio.ipa 2".
+Every change to the app is built automatically and published there, usually within a few minutes. The file is named with its build time (for example `SoulectionRadio-2026-10-26-1541.ipa`), so a new build never gets saved over or next to an older one as "SoulectionRadio.ipa 2".
 
 ## How to install
 
 The app isn't on the App Store, so you install it yourself with your own Apple ID. It takes a few minutes. You need iOS 17 or later.
 
-1. **Download `SoulectionRadio.ipa`** from the link above.
+1. **Download the `.ipa` file** from the link above.
 2. **Install it with a sideloading app** such as [Sideloadly](https://sideloadly.io) (Mac or Windows) or [AltStore](https://altstore.io). Sign in with your Apple ID when it asks.
 3. **Trust it on your iPhone.** Go to **Settings → General → VPN & Device Management**, tap your Apple ID, then **Trust**. If iOS asks, turn on **Developer Mode** in **Settings → Privacy & Security** and restart.
 
