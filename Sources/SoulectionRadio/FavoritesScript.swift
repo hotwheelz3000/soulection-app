@@ -154,6 +154,16 @@ enum FavoritesScript {
             '.sr-fade-in{animation:sr-fade-in .26s ease both}',
             '.sr-fade-out{transition:opacity .24s ease;opacity:0}',
             '@keyframes sr-fade-in{from{opacity:0}to{opacity:1}}',
+            // The welcome player rises into place; hearts grow in when a song is first known;
+            // the big player's song name fades in when it changes.
+            '.sr-rise-in{animation:sr-rise-in .26s cubic-bezier(.2,.8,.2,1) both}',
+            '@keyframes sr-rise-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}',
+            '.sr-heart-in{animation:sr-fade-in .32s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-heart-in svg{animation:sr-heart-pop .32s cubic-bezier(.2,.8,.2,1) both}',
+            '@keyframes sr-heart-pop{from{transform:scale(.5)}to{transform:none}}',
+            '.sr-heart-mini.sr-heart-in{overflow:hidden;animation-name:sr-heart-grow}',
+            '@keyframes sr-heart-grow{from{opacity:0;max-width:0;padding-left:0;padding-right:0}to{opacity:1;max-width:48px}}',
+            '.sr-swap-in{animation:sr-fade-in .3s ease both}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -1176,9 +1186,25 @@ enum FavoritesScript {
               if (playBtn) playBtn.style.order = '2';
             }
             var t = songNow();
-            if (!t) { if (!b.hidden) b.hidden = true; return; }
-            if (b.hidden) b.hidden = false;
+            revealHeart(b, !!t, true);
+            if (!t) return;
             setHeart(b, !!byId(t.id), t.song);
+          }
+
+          // Shows or hides a heart; one that shows up (a song just became known) grows in
+          // instead of popping. (Not while the player is moving: a copy of it travels then.)
+          function revealHeart(b, on, animate) {
+            if (!on) {
+              if (!b.hidden) b.hidden = true;
+              b.classList.remove('sr-heart-in');
+              return;
+            }
+            if (!b.hidden) return;
+            b.hidden = false;
+            if (!animate || reduceMotion || morph || fpAnim) return;
+            b.classList.remove('sr-heart-in');
+            void b.offsetWidth;
+            b.classList.add('sr-heart-in');
           }
 
           // ---------------------------------------------------------------------------
@@ -2146,6 +2172,7 @@ enum FavoritesScript {
               if (e.target.closest && e.target.closest('.sr-ready-play')) playNewestShow(playBtn);
             }, { passive: false });
             card.addEventListener('click', function (e) { e.stopPropagation(); });
+            if (!reduceMotion) card.classList.add('sr-rise-in');
             document.body.appendChild(card);
             readyCard = card;
           }
@@ -2203,10 +2230,12 @@ enum FavoritesScript {
             var clip = function (top) { var v = 'inset(' + top + 'px 0 0 0 round 9px)'; live.style.clipPath = v; live.style.webkitClipPath = v; };
             clip(d);
             void live.offsetHeight;
-            live.style.transition = 'clip-path .36s ' + ease + ',-webkit-clip-path .36s ' + ease;
+            // One step at a time: the welcome words fade out, the card grows, then the show's
+            // info fades in (the two sets of words never overlap).
+            live.style.transition = 'clip-path .34s ' + ease + ' .11s,-webkit-clip-path .34s ' + ease + ' .11s';
             clip(0);
-            parts.forEach(function (c) { c.style.transition = 'opacity .28s ease .12s'; c.style.opacity = '1'; });
-            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .18s ease'; c.style.opacity = '0'; });
+            parts.forEach(function (c) { c.style.transition = 'opacity .24s ease .3s'; c.style.opacity = '1'; });
+            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .15s ease'; c.style.opacity = '0'; });
             hello.style.transition = 'border-color .3s ease';
             hello.style.borderColor = 'transparent';
             setTimeout(function () {
@@ -2214,7 +2243,7 @@ enum FavoritesScript {
               live.style.transition = '';
               live.style.clipPath = ''; live.style.webkitClipPath = '';
               parts.forEach(function (c) { c.style.transition = ''; c.style.opacity = ''; });
-            }, 480);
+            }, 600);
           }
 
           // ---------------------------------------------------------------------------
@@ -3348,8 +3377,14 @@ enum FavoritesScript {
             var song = t ? t.song : (st.title || '');
             var artist = t ? t.artist : (st.artist || '');
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
-            if (fp.title.textContent !== song) fp.title.textContent = song;
-            if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
+            var settled = fpP >= 0.99 && !morph && !fpAnim && !reduceMotion;
+            if (fp.title.textContent !== song || fp.artist.textContent !== artist) {
+              // A new song: its name fades in rather than switching at once.
+              var swap = settled && fp.title.textContent ? fp.title.parentNode : null;
+              fp.title.textContent = song;
+              fp.artist.textContent = artist;
+              if (swap) { swap.classList.remove('sr-swap-in'); void swap.offsetWidth; swap.classList.add('sr-swap-in'); }
+            }
             var curShow = playlist && playlist.current ? playlist.current.show : '';
             var show = (directShown && activeOurs() && directShown.show) || curShow || miniShowLine() || st.show || '';
             // A moment without a name (the site redrawing its player) keeps the last one.
@@ -3361,7 +3396,7 @@ enum FavoritesScript {
               fp.bg.style.backgroundImage = 'url("' + cover.replace(/"/g, '%22') + '")';
             }
             var hs = songNow();
-            fp.heart.hidden = !hs;
+            revealHeart(fp.heart, !!hs, settled);
             if (hs) setHeart(fp.heart, !!byId(hs.id), hs.song);
             var paused = isPaused();
             var icon = paused ? 'play' : 'pause';
