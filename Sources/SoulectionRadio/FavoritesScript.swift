@@ -2922,9 +2922,15 @@ enum FavoritesScript {
               var n = el('div', 'sr-np-tv');
               var bs = getComputedStyle(big), ms = getComputedStyle(mini);
               n.textContent = big.textContent;
-              n.style.fontWeight = bs.fontWeight;
-              n.style.color = bs.color;
-              m.nodes[k] = { n: n, f0: parseFloat(ms.fontSize) || 12, f1: parseFloat(bs.fontSize) || 16 };
+              var rgb = function (c) { var x = /(\d+)\D+(\d+)\D+(\d+)/.exec(c || ''); return x ? [+x[1], +x[2], +x[3]] : [180, 180, 180]; };
+              // Everything about the text blends from the mini player's look to the big one's:
+              // size, color, boldness and line height (the box heights, so the letters sit
+              // exactly where each player draws them).
+              m.nodes[k] = {
+                n: n, f0: parseFloat(ms.fontSize) || 12, f1: parseFloat(bs.fontSize) || 16,
+                c0: rgb(ms.color), c1: rgb(bs.color), w0: ms.fontWeight, w1: bs.fontWeight,
+                lh0: from[k].height, lh1: to[k].height
+              };
               document.body.appendChild(n);
               hide(big); hide(mini);
             };
@@ -2995,6 +3001,14 @@ enum FavoritesScript {
           var lerp = function (a, b, t) { return a + (b - a) * t; };
           function placeMorph(e) {
             var m = morph, f = m.from, t = m.to, N = m.nodes, W = window.innerWidth;
+            // Text look at this point of the pull (size, color, boldness, line height).
+            var look = function (x, et) {
+              var st = x.n.style;
+              st.fontSize = lerp(x.f0, x.f1, et).toFixed(2) + 'px';
+              st.lineHeight = lerp(x.lh0, x.lh1, et).toFixed(2) + 'px';
+              st.color = 'rgb(' + [0, 1, 2].map(function (i) { return Math.round(lerp(x.c0[i], x.c1[i], et)); }).join(',') + ')';
+              st.fontWeight = et < 0.5 ? x.w0 : x.w1;
+            };
             var box = function (n, x, y, w, h) {
               var st = n.style;
               st.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
@@ -3031,8 +3045,9 @@ enum FavoritesScript {
             if (coverBottom != null && t.title && t.cover) ty = lerp(ty, Math.max(ty, coverBottom + (t.title.top - t.cover.bottom)), under);
             if (N.title) {
               var ti = N.title;
-              ti.n.style.fontSize = lerp(ti.f0, ti.f1, e) + 'px';
-              ti.n.style.maxWidth = lerp(f.title.width, t.title.width, e) + 'px';
+              look(ti, e);
+              // Keeps its full width until late, so it doesn't cut off ("...") before it shrinks.
+              ti.n.style.maxWidth = lerp(f.title.width, t.title.width, Math.pow(e, .35)) + 'px';
               box(ti.n, lerp(f.title.left, t.title.left, e), ty);
             }
             var titleTop0 = f.title ? f.title.top : (t.title ? t.title.top : 0);
@@ -3040,8 +3055,8 @@ enum FavoritesScript {
             // Artist: drops under the title first, then slides left.
             if (N.artist) {
               var ar = N.artist, ea = Math.pow(e, .6);
-              ar.n.style.fontSize = lerp(ar.f0, ar.f1, ea) + 'px';
-              ar.n.style.maxWidth = lerp(f.artist.width, t.artist.width, e) + 'px';
+              look(ar, ea);
+              ar.n.style.maxWidth = lerp(f.artist.width, t.artist.width, Math.pow(e, .35)) + 'px';
               box(ar.n, lerp(f.artist.left, t.artist.left, Math.pow(e, 1.8)), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
             }
             // Heart: to the right of the title.
@@ -3070,7 +3085,7 @@ enum FavoritesScript {
               var x = N[k];
               if (!x) return;
               var dy0 = f[k].top - (f.track ? f.track.top : f[k].top), dy1 = t[k].top - (t.track ? t.track.top : t[k].top);
-              x.n.style.fontSize = lerp(x.f0, x.f1, e) + 'px';
+              look(x, e);
               var w = lerp(f[k].width, t[k].width, e) + 8;
               x.n.style.width = w + 'px';
               var left = k === 'dur' ? lerp(f[k].right, t[k].right, e) - w : lerp(f[k].left, t[k].left, e);
