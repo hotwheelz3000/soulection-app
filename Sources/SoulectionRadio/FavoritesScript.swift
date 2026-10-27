@@ -1129,18 +1129,21 @@ enum FavoritesScript {
             }
           }
 
+          // The song the players show: the playlist's song while Likes, History or Mixtape
+          // plays, otherwise the one the site is on. Hearts follow the same song.
+          function songNow() {
+            var cur = playlist && playlist.current;
+            if (cur) { var c = {}; for (var k in cur) c[k] = cur[k]; return c; }
+            return currentTrack();
+          }
           function renderMiniPlayer(player) {
             if (!player) return;
             if (readyCard) hideReadyCard(); // the site's own player is here now
             hideMiniClose(player);
             fullWidthMini(player);
-            if (!player.querySelector(':scope > .sr-grab')) {
-              var g = el('button', 'sr-grab');
-              g.type = 'button';
-              g.setAttribute('aria-label', 'Open player');
-              g.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
-              player.appendChild(g);
-            }
+            // No line on the mini player: tapping it (or pulling it up) opens the big player.
+            var oldGrab = player.querySelector(':scope > .sr-grab');
+            if (oldGrab) oldGrab.remove();
             if (miniTouchMove && player.__srMove !== miniTouchMove) {
               player.addEventListener('touchmove', miniTouchMove, { passive: false });
               player.__srMove = miniTouchMove;
@@ -1155,14 +1158,14 @@ enum FavoritesScript {
               b.addEventListener('click', function (e) {
                 e.preventDefault();
                 e.stopPropagation();
-                var t = currentTrack();
+                var t = songNow();
                 if (t) { t.favoritedAt = Date.now(); toggle(t); }
               });
               row.appendChild(b);
               var playBtn = row.querySelector(':scope > button:not(.sr-heart)');
               if (playBtn) playBtn.style.order = '2';
             }
-            var t = currentTrack();
+            var t = songNow();
             if (!t) { if (!b.hidden) b.hidden = true; return; }
             if (b.hidden) b.hidden = false;
             setHeart(b, !!byId(t.id), t.song);
@@ -2141,8 +2144,7 @@ enum FavoritesScript {
             readyCard = card;
           }
           function cardMarkup() {
-            return '<button type="button" class="sr-grab" aria-label="Open player"></button>' +
-              '<div class="sr-ready-row">' +
+            return '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info">' +
                   '<img class="sr-ready-img" alt="">' +
                   '<div class="sr-ready-texts">' +
@@ -2172,10 +2174,13 @@ enum FavoritesScript {
             var play = card.querySelector('.sr-ready-play');
             play.setAttribute('aria-label', 'Continue ' + (spot.show || 'the show') + ' from ' + clock(spot.t));
             play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot); });
-            // The line: tap it or pull the card up to carry on and open the big player.
-            var grab = card.querySelector('.sr-grab');
-            grab.setAttribute('aria-label', 'Continue and open the player');
-            grab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot, true); });
+            // Tap the card (or pull it up) to carry on and open the big player; the play button
+            // just plays.
+            card.addEventListener('click', function (e) {
+              if (e.target.closest && e.target.closest('.sr-ready-play')) return;
+              e.preventDefault(); e.stopPropagation();
+              startFromSpot(spot, true);
+            });
             var y0 = null;
             card.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1 || (e.target.closest && e.target.closest('.sr-ready-play'))) return;
@@ -2191,10 +2196,7 @@ enum FavoritesScript {
             card.addEventListener('touchcancel', letGo, { passive: true });
             var info = card.querySelector('.sr-ready-info');
             keyClickable(info, 'Show where you left off: ' + (spot.song || spot.show || ''));
-            info.addEventListener('click', function (e) {
-              e.stopPropagation();
-              if (goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) revealSong(spot.url, spot.t, showNumber(spot.show), null);
-            });
+            info.setAttribute('aria-label', 'Continue and open the player: ' + (spot.song || spot.show || ''));
           }
 
           // ---------------------------------------------------------------------------
@@ -2220,7 +2222,12 @@ enum FavoritesScript {
               liveCard = el('div', 'sr-ready sr-live-card', cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
-              liveCard.querySelector('.sr-grab').addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openPlayer(); });
+              // Tapping anywhere but play opens the big player.
+              liveCard.addEventListener('click', function (e) {
+                if (e.target.closest && e.target.closest('.sr-ready-play')) return;
+                e.stopPropagation();
+                openPlayer();
+              });
               var info = liveCard.querySelector('.sr-ready-info');
               keyClickable(info, 'Open player');
               info.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
@@ -2784,7 +2791,7 @@ enum FavoritesScript {
               if (f) openNpActions(f, this); else showToast('Play a show first.');
             });
             fp.heart.addEventListener('click', function () {
-              var t = currentTrack();
+              var t = songNow();
               if (t) { t.favoritedAt = Date.now(); toggle(t); renderPlayer(); }
             });
             attachScrub();
@@ -3300,16 +3307,19 @@ enum FavoritesScript {
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
             if (fp.title.textContent !== song) fp.title.textContent = song;
             if (fp.artist.textContent !== artist) fp.artist.textContent = artist;
-            var show = (directShown && activeOurs() ? directShown.show : miniShowLine()) || st.show || '';
-            if (fp.show.textContent !== show) fp.show.textContent = show;
+            var curShow = playlist && playlist.current ? playlist.current.show : '';
+            var show = (directShown && activeOurs() && directShown.show) || curShow || miniShowLine() || st.show || '';
+            // A moment without a name (the site redrawing its player) keeps the last one.
+            if (show && fp.show.textContent !== show) fp.show.textContent = show;
             var cover = bigCover(st.cover || '');
             if (cover && fp.cover.getAttribute('src') !== cover) {
               fp.cover.src = cover;
               fp.cover.onerror = function () { if (st.cover && fp.cover.src !== st.cover) fp.cover.src = st.cover; };
               fp.bg.style.backgroundImage = 'url("' + cover.replace(/"/g, '%22') + '")';
             }
-            fp.heart.hidden = !t;
-            if (t) setHeart(fp.heart, !!byId(t.id), t.song);
+            var hs = songNow();
+            fp.heart.hidden = !hs;
+            if (hs) setHeart(fp.heart, !!byId(hs.id), hs.song);
             var paused = isPaused();
             var icon = paused ? 'play' : 'pause';
             if (fp.play.getAttribute('data-icon') !== icon) {
