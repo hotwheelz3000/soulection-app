@@ -154,16 +154,15 @@ enum FavoritesScript {
             '.sr-fade-in{animation:sr-fade-in .2s ease both}',
             '.sr-fade-out{transition:opacity .18s ease;opacity:0}',
             '@keyframes sr-fade-in{from{opacity:0}to{opacity:1}}',
-            // The welcome player rises into place; hearts grow in when a song is first known;
-            // the big player's song name fades in when it changes.
+            // The welcome player rises into place; the big player's song name fades in when it
+            // changes.
             '.sr-rise-in{animation:sr-rise-in .2s cubic-bezier(.2,.8,.2,1) both}',
             '@keyframes sr-rise-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}',
-            '.sr-heart-in{animation:sr-fade-in .24s cubic-bezier(.2,.8,.2,1) both}',
-            '.sr-heart-in svg{animation:sr-heart-pop .24s cubic-bezier(.2,.8,.2,1) both}',
-            '@keyframes sr-heart-pop{from{transform:scale(.5)}to{transform:none}}',
-            '.sr-heart-mini.sr-heart-in{overflow:hidden;animation-name:sr-heart-grow}',
-            '@keyframes sr-heart-grow{from{opacity:0;max-width:0;padding-left:0;padding-right:0}to{opacity:1;max-width:48px}}',
             '.sr-swap-in{animation:sr-fade-in .2s ease both}',
+            // Show covers on the site keep their square space while they load, so the list
+            // doesn't shrink and jump when the site adds more shows and the covers reload
+            // (iPhone's browser doesn't hold your place when content above changes size).
+            'main a[href^="/episodes/"] img{aspect-ratio:1/1;height:auto}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -1210,25 +1209,15 @@ enum FavoritesScript {
               if (playBtn) playBtn.style.order = '2';
             }
             var t = songNow();
-            revealHeart(b, !!t, true);
+            revealHeart(b, !!t);
             if (!t) return;
             setHeart(b, !!byId(t.id), t.song);
           }
 
-          // Shows or hides a heart; one that shows up (a song just became known) grows in
-          // instead of popping. (Not while the player is moving: a copy of it travels then.)
-          function revealHeart(b, on, animate) {
-            if (!on) {
-              if (!b.hidden) b.hidden = true;
-              b.classList.remove('sr-heart-in');
-              return;
-            }
-            if (!b.hidden) return;
-            b.hidden = false;
-            if (!animate || reduceMotion || morph || fpAnim) return;
-            b.classList.remove('sr-heart-in');
-            void b.offsetWidth;
-            b.classList.add('sr-heart-in');
+          // Shows a heart when a song is known, hides it when not. No animation: it just appears.
+          function revealHeart(b, on) {
+            if (b.hidden === !on) return;
+            b.hidden = !on;
           }
 
           // ---------------------------------------------------------------------------
@@ -2445,7 +2434,7 @@ enum FavoritesScript {
             var hb = liveCard.querySelector('.sr-heart-mini');
             if (hb) {
               var hsong = songNow();
-              revealHeart(hb, !!hsong, true);
+              revealHeart(hb, !!hsong);
               if (hsong) setHeart(hb, !!byId(hsong.id), hsong.song);
             }
             var paused = isPaused();
@@ -3002,7 +2991,6 @@ enum FavoritesScript {
             var R = function (n) { var r = n && n.getBoundingClientRect(); return r && r.width ? r : null; };
             var out = {
               cover: R(fp.cover), show: R(fp.show), title: R(fp.title), artist: R(fp.artist),
-              heart: R(fp.heart.querySelector('svg')) || R(fp.heart),
               play: R(fp.play), track: R(fp.track), el: R(fp.elapsed), dur: R(fp.left),
               grab: R(fp.root.querySelector('.sr-np-handle'))
             };
@@ -3026,7 +3014,6 @@ enum FavoritesScript {
             // Icons are measured themselves, not their buttons (which have invisible padding),
             // so they start at exactly the mini player's size and end at the big player's.
             var icon = function (n) { var g = n && n.querySelector('svg'); var r = g && g.getBoundingClientRect(); return r && r.width ? r : null; };
-            if (parts.heart) from.heart = icon(parts.heart) || from.heart;
             if (parts.play) {
               // The play traveller draws its icon at 47% of its size (as the big button does).
               var pi = icon(parts.play);
@@ -3085,18 +3072,9 @@ enum FavoritesScript {
             text('el', fp.elapsed, parts.el);
             text('dur', fp.left, parts.dur);
             if (m.nodes.dur) m.nodes.dur.n.style.textAlign = 'right';
-            // The heart.
-            if (to.heart && from.heart) {
-              var h = el('div', 'sr-np-tv', (fp.heart.querySelector('svg') || fp.heart).outerHTML);
-              h.style.color = getComputedStyle(fp.heart).color;
-              // A liked heart is filled by a style on its button: copy that too.
-              var hsvg = h.querySelector('svg');
-              if (hsvg && fp.heart.getAttribute('aria-pressed') === 'true') hsvg.style.fill = 'currentColor';
-              h.style.overflow = 'visible';
-              m.nodes.heart = { n: h };
-              document.body.appendChild(h);
-              hide(fp.heart); hide(parts.heart);
-            }
+            // The heart doesn't travel: it's out of sight while the player moves and is simply
+            // there in its place once the player is fully open (or closed).
+            hide(fp.heart); hide(parts.heart);
             // The bar: thin with the site's knob, then the big player's thicker bar.
             if (to.track && from.track) {
               var t = el('div', 'sr-np-tv sr-np-tv-track', '<i></i><b></b>');
@@ -3214,14 +3192,6 @@ enum FavoritesScript {
               var tx = lerp(tl0, tl1, e);
               box(ar.n, tx + lerp(f.artist.left - tl0, t.artist.left - tl1, ea), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
             }
-            // Heart: to the right of the title.
-            if (N.heart) {
-              // It rises early, so the play button can pass underneath it.
-              var hy = lerp(f.heart.top, t.heart.top, Math.pow(e, .5));
-              hy = lerp(hy, ty + (t.heart.top - titleTop1), under);
-              var hs = lerp(f.heart.width, t.heart.width, e);
-              box(N.heart.n, lerp(f.heart.left, t.heart.left, e), hy, hs, hs);
-            }
             // Bar and times: always below the artist.
             var by = ty + lerp((f.track ? f.track.top : titleTop0) - titleTop0, (t.track ? t.track.top : titleTop1) - titleTop1, e);
             if (N.track) {
@@ -3255,8 +3225,8 @@ enum FavoritesScript {
               // the big player's circle is there once it's fully open.
               var es = e;
               var size = lerp(Math.min(f.play.width, f.play.height), t.play.width, es);
-              // It settles to its row first and slides across late, passing under the heart
-              // (which rises early) instead of through it.
+              // It settles to its row first and slides across late, so it stays clear of the
+              // song info.
               var cx = lerp(f.play.left + f.play.width / 2, t.play.left + t.play.width / 2, Math.pow(e, 1.8));
               var cy0 = f.play.top + f.play.height / 2, cy1 = t.play.top + t.play.height / 2;
               var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, .5));
@@ -3531,7 +3501,7 @@ enum FavoritesScript {
               fp.bg.style.backgroundImage = 'url("' + cover.replace(/"/g, '%22') + '")';
             }
             var hs = songNow();
-            revealHeart(fp.heart, !!hs, settled);
+            revealHeart(fp.heart, !!hs);
             if (hs) setHeart(fp.heart, !!byId(hs.id), hs.song);
             var paused = isPaused();
             var icon = paused ? 'play' : 'pause';
