@@ -325,7 +325,9 @@ enum FavoritesScript {
             '.sr-note .sr-btn svg{width:15px;height:15px;color:inherit}',
             // Song menu: equal tiles, icon above a small label.
             // ...and it pops out from the left, like a word bubble (same place and shape, no bounce).
-            '.sr-note.sr-tiles{transform-origin:left center;animation:sr-pop .22s cubic-bezier(.2,.8,.2,1)}',
+            // The song menu only grows out from the left: no slide as well (two motions at once
+            // made it wobble as it settled). Closing just fades.
+            '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .22s cubic-bezier(.2,.8,.2,1)}',
             '@keyframes sr-pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
