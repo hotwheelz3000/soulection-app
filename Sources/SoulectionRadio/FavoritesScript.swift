@@ -2132,7 +2132,8 @@ enum FavoritesScript {
             readyCard = card;
           }
           function cardMarkup() {
-            return '<div class="sr-ready-row">' +
+            return '<button type="button" class="sr-grab" aria-label="Open player"></button>' +
+              '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info">' +
                   '<img class="sr-ready-img" alt="">' +
                   '<div class="sr-ready-texts">' +
@@ -2162,6 +2163,23 @@ enum FavoritesScript {
             var play = card.querySelector('.sr-ready-play');
             play.setAttribute('aria-label', 'Continue ' + (spot.show || 'the show') + ' from ' + clock(spot.t));
             play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot); });
+            // The line: tap it or pull the card up to carry on and open the big player.
+            var grab = card.querySelector('.sr-grab');
+            grab.setAttribute('aria-label', 'Continue and open the player');
+            grab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); startFromSpot(spot, true); });
+            var y0 = null;
+            card.addEventListener('touchstart', function (e) {
+              if (e.touches.length !== 1 || (e.target.closest && e.target.closest('.sr-ready-play'))) return;
+              y0 = e.touches[0].clientY;
+              card.classList.add('sr-touching');
+            }, { passive: true });
+            card.addEventListener('touchmove', function (e) {
+              if (y0 == null) return;
+              if (y0 - e.touches[0].clientY > 30) { y0 = null; card.classList.remove('sr-touching'); startFromSpot(spot, true); }
+            }, { passive: true });
+            var letGo = function () { y0 = null; card.classList.remove('sr-touching'); };
+            card.addEventListener('touchend', letGo, { passive: true });
+            card.addEventListener('touchcancel', letGo, { passive: true });
             var info = card.querySelector('.sr-ready-info');
             keyClickable(info, 'Show where you left off: ' + (spot.song || spot.show || ''));
             info.addEventListener('click', function (e) {
@@ -2193,6 +2211,7 @@ enum FavoritesScript {
               liveCard = el('div', 'sr-ready sr-live-card', cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
+              liveCard.querySelector('.sr-grab').addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openPlayer(); });
               var info = liveCard.querySelector('.sr-ready-info');
               keyClickable(info, 'Open player');
               info.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
@@ -2229,9 +2248,11 @@ enum FavoritesScript {
             }
           }
           // Play on the ready card: start the song you were on, then jump to your spot.
-          function startFromSpot(spot) {
+          var openWhenPlaying = 0; // until when: open the big player once the music starts
+          function startFromSpot(spot, open) {
             hideReadyCard();
             pendingSpot = null;
+            if (open) openWhenPlaying = Date.now() + 15000;
             if (playlist) endPlaylist(false);
             if (!goTo(spot.url, RESUME_KEY, JSON.stringify(spot))) return;
             var deadline = Date.now() + 10000;
@@ -2797,7 +2818,7 @@ enum FavoritesScript {
             var q = function (sel) { var n = card.querySelector(sel); return n && n.getBoundingClientRect().width ? n : null; };
             if (card === liveCard) {
               return { cover: q('.sr-ready-img'), show: q('.sr-ready-show'), title: q('.sr-ready-song'), artist: q('.sr-ready-artist'),
-                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur') };
+                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur'), grab: q('.sr-grab') };
             }
             if (card.querySelector(':scope > .sr-mini-over')) {
               return { cover: q('.sr-mo-img'), show: q('.sr-mo-show'), title: q('.sr-mo-song'), artist: q('.sr-mo-artist'),
@@ -3942,6 +3963,11 @@ enum FavoritesScript {
             if (e.detail && e.detail.paused === false) lastPlayingAt = Date.now();
             if (readyCard && e.detail && e.detail.paused === false) hideReadyCard();
             renderLiveCard();
+            if (openWhenPlaying && e.detail && e.detail.paused === false && playerCard()) {
+              var due = openWhenPlaying > Date.now();
+              openWhenPlaying = 0;
+              if (due) setTimeout(openPlayer, 300);
+            }
             followPendingSpot(e.detail);
             rememberSpot(e.detail);
             followPlayback(e.detail);
