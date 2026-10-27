@@ -8,7 +8,7 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 **[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
 
-The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with its build time (for example `SoulectionRadio-2026-10-26-1541.ipa`), so a new build never gets saved over or next to an older one as "SoulectionRadio.ipa 2".
+The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-1.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-1.0 2.ipa".
 
 ## How to install
 
