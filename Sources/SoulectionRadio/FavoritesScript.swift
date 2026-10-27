@@ -552,15 +552,15 @@ enum FavoritesScript {
           var menuTrigger = null; // the ... button whose menu is open
           // Share, Spotify, Apple Music for a song: [label, action, icon, spoken label].
           function songButtons(f) {
-            var q = (f.song || '') + ' ' + (f.artist || '');
             return [
               ['Share', function () {
                 var url = 'https://radio.soulection.com' + (f.episodeURL || '');
                 var when = f.start != null ? ' at ' + clock(f.start) : '';
                 native({ op: 'share', text: f.song + (f.artist ? ' by ' + f.artist : '') + ' (' + (f.show || 'Soulection Radio') + when + ')', url: url });
               }, SHARE, 'Share this song'],
-              ['Spotify', function () { native({ op: 'openURL', url: 'https://open.spotify.com/search/' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Spotify'],
-              ['Apple Music', function () { native({ op: 'openURL', url: 'https://music.apple.com/us/search?term=' + encodeURIComponent(q.trim()) }); }, NOTE, 'Find on Apple Music']
+              // The app opens the song in Spotify (its search) or Apple Music (the song itself).
+              ['Spotify', function () { native({ op: 'findSong', service: 'spotify', song: f.song || '', artist: f.artist || '' }); }, NOTE, 'Find on Spotify'],
+              ['Apple Music', function () { native({ op: 'findSong', service: 'apple', song: f.song || '', artist: f.artist || '' }); }, NOTE, 'Find on Apple Music']
             ];
           }
           function songActions(f, extra, trigger) {

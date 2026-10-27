@@ -34,7 +34,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 **Likes and History**
 - **Heart any song** in a show's tracklist or in the player. Your likes are kept in the app, not the website.
 - **Your Likes, in one place:** tap the heart at the top (it opens on **History**; **Likes** is the second tab). Search them with the box at the top. Swipe a song left to remove it (or use its **⋯** button). Tap a song's cover to open its show at that song.
-- **⋯ More:** on any song in Likes or History, and in the full player: share it, or find it on Spotify or Apple Music.
+- **⋯ More:** on any song in Likes or History, and in the full player: share it, or open it on Spotify (its search for the song) or Apple Music (the song itself, looked up in Apple's catalog; only the song and artist are sent).
 - **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 

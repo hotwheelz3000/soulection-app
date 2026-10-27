@@ -272,7 +272,7 @@ final class FavoritesStore {
 /// "backupCreate" / "backupUseFile" (set up auto-backup), "backupFolderOff",
 /// "restoreBackup" (pick a backup to restore), "restoreDismissed", "welcomeSeen",
 /// "notifyPermission" (ask once for new-show notifications), "haptic" (with `kind`),
-/// "share" (with `text`, `url`), "openURL" (Spotify / Apple Music search links only),
+/// "share" (with `text`, `url`), "findSong" (with `service` "spotify" or "apple", `song`, `artist`),
 /// "blendOut" (with `seconds`: dip the volume before a switch to another show) or
 /// "blendIn" (bring it back up), "spot" (with `spot`: where you are listening, or null).
 /// Anything else ("get") just sends the list back.
@@ -595,13 +595,16 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         case "share":
             shareSong(text: body["text"] as? String ?? "", link: body["url"] as? String)
             return
-        case "openURL":
-            // Only Spotify and Apple Music searches (opens their app if it's installed).
-            guard let raw = body["url"] as? String, let url = URL(string: raw),
-                  url.scheme == "https",
-                  ["open.spotify.com", "music.apple.com"].contains(url.host ?? "")
-            else { return }
-            UIApplication.shared.open(url)
+        case "findSong":
+            // Opens a song in Spotify or Apple Music (the app if it's installed).
+            let song = (body["song"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            let artist = (body["artist"] as? String ?? "").trimmingCharacters(in: .whitespacesAndNewlines)
+            guard !song.isEmpty || !artist.isEmpty else { return }
+            switch body["service"] as? String {
+            case "spotify": openInSpotify(song: song, artist: artist)
+            case "apple": openInAppleMusic(song: song, artist: artist)
+            default: break
+            }
             return
         case "sleepCancel":
             sleepTimer?.invalidate()
@@ -891,6 +894,50 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         var top = webView?.window?.rootViewController
         while let next = top?.presentedViewController { top = next }
         return top
+    }
+
+    // MARK: Spotify and Apple Music
+
+    private static func encoded(_ text: String) -> String {
+        text.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? ""
+    }
+
+    /// Spotify's own app link opens its search for the song; their web search link doesn't
+    /// (the app just opens). Without the app, the web search.
+    private func openInSpotify(song: String, artist: String) {
+        let query = Self.encoded([song, artist].filter { !$0.isEmpty }.joined(separator: " "))
+        let web = URL(string: "https://open.spotify.com/search/" + query)
+        guard let app = URL(string: "spotify:search:" + query) else { return }
+        UIApplication.shared.open(app) { opened in
+            if !opened, let web { UIApplication.shared.open(web) }
+        }
+    }
+
+    /// The Music app can't open to a search, so look the song up in Apple's public catalog
+    /// (the iTunes Search API: only the song and artist are sent) and open that exact song.
+    /// No match or no connection: the Apple Music web search.
+    private func openInAppleMusic(song: String, artist: String) {
+        let terms = [song, artist].filter { !$0.isEmpty }.joined(separator: " ")
+        let web = URL(string: "https://music.apple.com/us/search?term=" + Self.encoded(terms))
+        let country = (Locale.current.region?.identifier ?? "US").lowercased()
+        guard let lookup = URL(string: "https://itunes.apple.com/search?media=music&entity=song&limit=5&country=\(country)&term=" + Self.encoded(terms))
+        else { return }
+        Task { @MainActor in
+            var target = web
+            if let (data, _) = try? await URLSession.shared.data(from: lookup),
+               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+               let results = json["results"] as? [[String: Any]] {
+                // Prefer a result by the same artist; otherwise the top match.
+                let wanted = artist.lowercased()
+                let pick = results.first { ($0["artistName"] as? String)?.lowercased().contains(wanted) == true && !wanted.isEmpty }
+                    ?? results.first
+                if let raw = pick?["trackViewUrl"] as? String, let url = URL(string: raw),
+                   url.scheme == "https", url.host?.hasSuffix("apple.com") == true {
+                    target = url
+                }
+            }
+            if let target { UIApplication.shared.open(target) }
+        }
     }
 
     // MARK: Share
