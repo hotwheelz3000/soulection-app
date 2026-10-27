@@ -251,11 +251,12 @@ enum FavoritesScript {
             '.sr-np-tv-track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}',
             '.sr-np-tv-track b{position:absolute;top:50%;border-radius:50%;transform:translate(-50%,-50%)}',
             '.sr-np-tv-grab{border-radius:9999px;background:' + TRACK + '}',
-            '.sr-np-handle{position:absolute;left:50%;top:calc(env(safe-area-inset-top) + 2px);width:36px;height:4px;margin-left:-18px;border-radius:9999px;background:' + TRACK + ';pointer-events:none}',
+            // Where the mini player's line heads as it fades out (never shown itself).
+            '.sr-np-handle{position:absolute;left:50%;top:calc(env(safe-area-inset-top) - 2px);width:36px;height:4px;margin-left:-18px;visibility:hidden;pointer-events:none}',
             '.sr-np[hidden]{display:none}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
-            '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 12px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
+            '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 6px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
             '.sr-np-top{display:flex;align-items:center;gap:8px;flex:none}',
             '.sr-np-from{flex:1;min-width:0;text-align:center;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-from:active .sr-np-show{color:' + ACCENT + '}',
@@ -2942,7 +2943,11 @@ enum FavoritesScript {
               sh.n.style.maxWidth = lerp(f.show.width, t.show.width, e) + 'px';
               box(sh.n, lerp(f.show.left, t.show.left, e), lerp(f.show.top, t.show.top, e));
             }
-            if (N.grab) box(N.grab.n, lerp(f.grab.left + f.grab.width / 2 - 18, t.grab.left, e), lerp(f.grab.top + f.grab.height / 2 - 2, t.grab.top, e), 36, 4);
+            if (N.grab) {
+              box(N.grab.n, lerp(f.grab.left + f.grab.width / 2 - 18, t.grab.left, e), lerp(f.grab.top + f.grab.height / 2 - 2, t.grab.top, e), 36, 4);
+              // It rides the top edge up, then fades away: the open big player has no line.
+              N.grab.n.style.opacity = (1 - Math.max(0, Math.min(1, (e - .7) / .25))).toFixed(3);
+            }
             // Title: moves with the pull, and keeps clear of the growing cover.
             var ty = lerp(f.title ? f.title.top : t.title.top, t.title ? t.title.top : 0, e);
             if (coverBottom != null && t.title && t.cover) ty = lerp(ty, Math.max(ty, coverBottom + (t.title.top - t.cover.bottom)), under);
