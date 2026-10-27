@@ -1720,7 +1720,7 @@ enum FavoritesScript {
             welcomeShown = welcomeOpen = true;
             try { sessionStorage.setItem(WELCOME_SESSION_KEY, '1'); } catch (e) {}
             var w = el('div', 'sr-fav-root sr-welcome',
-              '<h1 class="sr-welcome-title">Welcome to Soulection Radio</h1>' +
+              '<h1 class="sr-welcome-title">This is Soulection Radio</h1>' +
               '<div class="sr-welcome-sub">Every show, still playing when your screen is off, plus a few extras:</div>' +
               helpListHTML() +
               '<label class="sr-welcome-check"><input type="checkbox"><span>Don’t show again</span></label>' +
@@ -2088,7 +2088,7 @@ enum FavoritesScript {
           }
           // ---------------------------------------------------------------------------
           // Welcome mini player: before anything plays, the mini player's place shows the
-          // Soulection logo, "Welcome to Soulection Radio" and a play button that starts the
+          // Soulection logo, "This is Soulection Radio" and a play button that starts the
           // newest show from the beginning. Anything playing replaces it with the real one.
           // ---------------------------------------------------------------------------
           var readyCard = null; // the welcome mini player while nothing plays
@@ -2131,7 +2131,7 @@ enum FavoritesScript {
             var card = el('div', 'sr-ready sr-hello',
               '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
-                  '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">Welcome to Soulection Radio</span></div></div></div>' +
+                  '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">This is Soulection Radio</span></div></div></div>' +
                 '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
               '</div>');
             var playBtn = card.querySelector('.sr-ready-play');
