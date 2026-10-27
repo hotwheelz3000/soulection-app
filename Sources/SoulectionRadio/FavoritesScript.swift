@@ -101,7 +101,7 @@ enum FavoritesScript {
             '.sr-search::placeholder{color:' + MUTED + '}',
             '.sr-sleep-custom{display:flex;align-items:center;gap:10px;min-height:52px;border-bottom:1px solid ' + BORDER + '}',
             '.sr-sleep-custom .sr-sleep-row{flex:1;border-bottom:0}',
-            '.sr-np-more{font-size:24px}',
+            '.sr-np-more{font-size:26px}', // top right, the same size as the close arrow across from it
             '@media (prefers-reduced-motion: reduce){[class*="sr-"],[class*="sr-"] *,[class*="sr-"]::after{animation:none !important;transition:none !important}}',
             // Raise the site's own text greys too (Tailwind classes on radio.soulection.com).
             'html body{color:' + TEXT + '}',
@@ -254,7 +254,6 @@ enum FavoritesScript {
             '.sr-np-icon{-webkit-appearance:none;appearance:none;background:none;border:0;margin:0;padding:8px;color:' + TEXT + ';display:inline-flex;align-items:center;justify-content:center;cursor:pointer;-webkit-tap-highlight-color:transparent;flex:none;font-size:26px;line-height:1}',
             '.sr-np-icon svg{width:1em;height:1em;display:block}',
             '.sr-np-icon:active{opacity:.6}',
-            '.sr-np-spacer{width:42px}',
             '.sr-np-art{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;padding:18px 0}',
             '.sr-np-cover{width:100%;max-width:min(100%,52vh);aspect-ratio:1;object-fit:cover;border-radius:6px;box-shadow:0 18px 40px rgba(0,0,0,.5);background:' + TRACK + '}',
             '.sr-np-meta{display:flex;align-items:center;gap:12px;flex:none}',
@@ -330,6 +329,10 @@ enum FavoritesScript {
             '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .36s cubic-bezier(.2,.8,.2,1)}',
             // Like a thought bubble: starts small, round and soft, floats up as it opens, then
             // sharpens into the box and stops still.
+            // From the full player's ... in the top right corner: it grows out of that corner,
+            // drifting down from it into place.
+            '.sr-note.sr-tiles.sr-from-right{transform-origin:right top;animation-name:sr-pop-r}',
+            '@keyframes sr-pop-r{0%{opacity:0;transform:translateY(-14px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '@keyframes sr-pop{0%{opacity:0;transform:translateY(18px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
@@ -538,6 +541,7 @@ enum FavoritesScript {
             if (!note) return;
             var menu = note;
             menu.classList.add('sr-tiles');
+            if (trigger && trigger.classList.contains('sr-np-more')) menu.classList.add('sr-from-right');
             // The ... button stays lit while its menu is open; tapping it again, tapping
             // anywhere else, or Escape closes the menu.
             var outside = function (e) {
@@ -2659,7 +2663,7 @@ enum FavoritesScript {
                 '<div class="sr-np-top">' +
                   '<button type="button" class="sr-np-icon sr-np-close" aria-label="Close player">' + CHEVRON + '</button>' +
                   '<div class="sr-np-from"><div class="sr-np-from-label">Playing from</div><div class="sr-np-show"></div></div>' +
-                  '<span class="sr-np-icon sr-np-spacer"></span>' +
+                  '<button type="button" class="sr-np-icon sr-np-more" aria-label="Share or find this song" aria-expanded="false">' + MORE + '</button>' +
                 '</div>' +
                 '<div class="sr-np-art"><img class="sr-np-cover" alt=""></div>' +
                 '<div class="sr-np-meta"><div class="sr-np-text"><div class="sr-np-title"></div><div class="sr-np-artist"></div></div></div>' +
@@ -2671,9 +2675,8 @@ enum FavoritesScript {
                   '<button type="button" class="sr-np-icon sr-np-next" aria-label="Next song">' + NEXT + '</button>' +
                 '</div>' +
                 '<div class="sr-np-extras">' +
-                  '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
-                  '<button type="button" class="sr-np-icon sr-np-more" aria-label="Share or find this song" aria-expanded="false">' + MORE + '</button>' +
                   '<button type="button" class="sr-np-icon sr-np-airplay" aria-label="AirPlay">' + AIRPLAY + '</button>' +
+                  '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
                 '</div>' +
               '</div>';
             document.body.appendChild(root);
