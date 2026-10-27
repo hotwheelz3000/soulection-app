@@ -148,22 +148,23 @@ enum FavoritesScript {
             '.sr-ready-song{font-weight:600}',
             '.sr-ready-times{display:flex;justify-content:space-between;font-size:9px;line-height:12px;color:' + MUTED + '}',
             '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
+            '.sr-ready-row .sr-heart-mini{margin-right:-10px}',
             '.sr-hello .sr-ready-row{margin-bottom:0}',
             '.sr-hello .sr-ready-play{transition:opacity .2s ease}',
             '.sr-hello .sr-ready-play[aria-busy="true"]{opacity:.4}',
-            '.sr-fade-in{animation:sr-fade-in .26s ease both}',
-            '.sr-fade-out{transition:opacity .24s ease;opacity:0}',
+            '.sr-fade-in{animation:sr-fade-in .2s ease both}',
+            '.sr-fade-out{transition:opacity .18s ease;opacity:0}',
             '@keyframes sr-fade-in{from{opacity:0}to{opacity:1}}',
             // The welcome player rises into place; hearts grow in when a song is first known;
             // the big player's song name fades in when it changes.
-            '.sr-rise-in{animation:sr-rise-in .26s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-rise-in{animation:sr-rise-in .2s cubic-bezier(.2,.8,.2,1) both}',
             '@keyframes sr-rise-in{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}',
-            '.sr-heart-in{animation:sr-fade-in .32s cubic-bezier(.2,.8,.2,1) both}',
-            '.sr-heart-in svg{animation:sr-heart-pop .32s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-heart-in{animation:sr-fade-in .24s cubic-bezier(.2,.8,.2,1) both}',
+            '.sr-heart-in svg{animation:sr-heart-pop .24s cubic-bezier(.2,.8,.2,1) both}',
             '@keyframes sr-heart-pop{from{transform:scale(.5)}to{transform:none}}',
             '.sr-heart-mini.sr-heart-in{overflow:hidden;animation-name:sr-heart-grow}',
             '@keyframes sr-heart-grow{from{opacity:0;max-width:0;padding-left:0;padding-right:0}to{opacity:1;max-width:48px}}',
-            '.sr-swap-in{animation:sr-fade-in .3s ease both}',
+            '.sr-swap-in{animation:sr-fade-in .2s ease both}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -215,7 +216,7 @@ enum FavoritesScript {
             '.sr-help-icon svg{width:1em;height:1em;display:block}',
             '.sr-help-title{font-size:15px;line-height:20px;font-weight:600;color:#fff}',
             '.sr-help-desc{font-size:13px;line-height:18px;color:' + TEXT + ';margin-top:2px}',
-            '.sr-welcome{position:fixed;inset:0;z-index:65;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 20px);box-sizing:border-box;overflow:hidden;opacity:0;transition:opacity .3s}',
+            '.sr-welcome{position:fixed;inset:0;z-index:65;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 28px) 26px calc(env(safe-area-inset-bottom) + 20px);box-sizing:border-box;overflow:hidden;opacity:0;transition:opacity .22s}',
             '.sr-welcome.sr-show{opacity:1}',
             '.sr-welcome-title{font-size:28px;line-height:1.2;font-weight:600;color:#fff;margin:6px 0 0;white-space:nowrap}',
             '.sr-welcome-check{display:flex;align-items:center;gap:10px;margin-top:14px;font-size:15px;line-height:20px;color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
@@ -323,8 +324,8 @@ enum FavoritesScript {
             '.sr-touching .sr-grab::after,.sr-grab:active::after{background:' + TEXT + '}',
             '.sr-tab{position:fixed;left:50%;bottom:env(safe-area-inset-bottom);z-index:20;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 14px 3px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:9px;line-height:12px;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}',
             '.sr-tab[hidden]{display:none}',
-            '.sr-backdrop{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .25s ease;-webkit-tap-highlight-color:transparent}',
-            '.sr-sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;display:flex;flex-direction:column;min-height:55vh;max-height:85vh;background:' + BG + ';border:1px solid ' + BORDER + ';border-bottom:0;border-radius:9px 9px 0 0;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;font-weight:400;color:' + TEXT + ';transform:translateY(100%);transition:transform .28s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom)}',
+            '.sr-backdrop{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .2s ease;-webkit-tap-highlight-color:transparent}',
+            '.sr-sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;display:flex;flex-direction:column;min-height:55vh;max-height:85vh;background:' + BG + ';border:1px solid ' + BORDER + ';border-bottom:0;border-radius:9px 9px 0 0;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;font-weight:400;color:' + TEXT + ';transform:translateY(100%);transition:transform .22s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom)}',
             '.sr-backdrop[hidden],.sr-sheet[hidden]{display:none}',
             '.sr-open .sr-backdrop{opacity:1}',
             '.sr-open .sr-sheet{transform:none}',
@@ -364,7 +365,7 @@ enum FavoritesScript {
             // ...and it pops out from the left, like a word bubble (same place and shape, no bounce).
             // The song menu only grows out from the left: no slide as well (two motions at once
             // made it wobble as it settled). Closing just fades.
-            '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .36s cubic-bezier(.2,.8,.2,1)}',
+            '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .28s cubic-bezier(.2,.8,.2,1)}',
             // Like a thought bubble: starts small, round and soft, floats up as it opens, then
             // sharpens into the box and stops still.
             // The full player's ... : just the buttons, no box, in the space under the top row.
@@ -2125,7 +2126,7 @@ enum FavoritesScript {
             readyCard = null;
             card.style.pointerEvents = 'none';
             card.classList.add('sr-fade-out');
-            setTimeout(function () { try { card.remove(); } catch (e) {} }, reduceMotion ? 0 : 260);
+            setTimeout(function () { try { card.remove(); } catch (e) {} }, reduceMotion ? 0 : 200);
           }
           function cardMarkup() {
             return '<div class="sr-ready-row">' +
@@ -2232,10 +2233,10 @@ enum FavoritesScript {
             void live.offsetHeight;
             // One step at a time: the welcome words fade out, the card grows, then the show's
             // info fades in (the two sets of words never overlap).
-            live.style.transition = 'clip-path .34s ' + ease + ' .11s,-webkit-clip-path .34s ' + ease + ' .11s';
+            live.style.transition = 'clip-path .26s ' + ease + ' .07s,-webkit-clip-path .26s ' + ease + ' .07s';
             clip(0);
-            parts.forEach(function (c) { c.style.transition = 'opacity .24s ease .3s'; c.style.opacity = '1'; });
-            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .15s ease'; c.style.opacity = '0'; });
+            parts.forEach(function (c) { c.style.transition = 'opacity .18s ease .21s'; c.style.opacity = '1'; });
+            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .1s ease'; c.style.opacity = '0'; });
             hello.style.transition = 'border-color .3s ease';
             hello.style.borderColor = 'transparent';
             setTimeout(function () {
@@ -2243,7 +2244,7 @@ enum FavoritesScript {
               live.style.transition = '';
               live.style.clipPath = ''; live.style.webkitClipPath = '';
               parts.forEach(function (c) { c.style.transition = ''; c.style.opacity = ''; });
-            }, 600);
+            }, 430);
           }
 
           // ---------------------------------------------------------------------------
@@ -2272,9 +2273,20 @@ enum FavoritesScript {
               liveCard = el('div', 'sr-ready sr-live-card' + (hello ? '' : ' sr-fade-in'), cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
+              // A heart for liking the song that's playing (shows up once the song is known).
+              var lh = heartButton('sr-heart-mini');
+              lh.hidden = true;
+              lh.addEventListener('click', function (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                var s2 = songNow();
+                if (s2) { s2.favoritedAt = Date.now(); toggle(s2); renderLiveCard(); }
+              });
+              play.style.order = '2';
+              play.parentNode.insertBefore(lh, play);
               // Tapping anywhere but play opens the big player.
               liveCard.addEventListener('click', function (e) {
-                if (e.target.closest && e.target.closest('.sr-ready-play')) return;
+                if (e.target.closest && e.target.closest('.sr-ready-play, .sr-heart')) return;
                 e.stopPropagation();
                 openPlayer();
               });
@@ -2305,6 +2317,12 @@ enum FavoritesScript {
             var frac = st.duration ? Math.min(1, Math.max(0, (st.t || 0) / st.duration)) : 0;
             liveCard.querySelector('.sr-ready-fill').style.width = (frac * 100) + '%';
             liveCard.querySelector('.sr-ready-knob').style.left = 'calc(8px + (100% - 16px) * ' + frac.toFixed(4) + ')';
+            var hb = liveCard.querySelector('.sr-heart-mini');
+            if (hb) {
+              var hsong = songNow();
+              revealHeart(hb, !!hsong, true);
+              if (hsong) setHeart(hb, !!byId(hsong.id), hsong.song);
+            }
             var paused = isPaused();
             var pb = liveCard.querySelector('.sr-ready-play');
             var want2 = paused ? 'play' : 'pause';
@@ -2833,7 +2851,7 @@ enum FavoritesScript {
             var q = function (sel) { var n = card.querySelector(sel); return n && n.getBoundingClientRect().width ? n : null; };
             if (card === liveCard) {
               return { cover: q('.sr-ready-img'), show: q('.sr-ready-show'), title: q('.sr-ready-song'), artist: q('.sr-ready-artist'),
-                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur'), grab: q('.sr-grab') };
+                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur'), heart: q('.sr-heart-mini'), grab: q('.sr-grab') };
             }
             if (card.querySelector(':scope > .sr-mini-over')) {
               return { cover: q('.sr-mo-img'), show: q('.sr-mo-show'), title: q('.sr-mo-song'), artist: q('.sr-mo-artist'),
@@ -3185,7 +3203,7 @@ enum FavoritesScript {
             }
             fpV = velocity || 0;
             var last = performance.now();
-            var k = 340, c = 2 * Math.sqrt(k); // quick, and settles straight into place (no bounce)
+            var k = 520, c = 2 * Math.sqrt(k); // quick, and settles straight into place (no bounce)
             function step(now) {
               var dt = Math.min(0.032, (now - last) / 1000);
               last = now;
