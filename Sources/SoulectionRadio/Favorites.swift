@@ -936,7 +936,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                     target = url
                 }
             }
-            if let target { UIApplication.shared.open(target) }
+            if let target { _ = await UIApplication.shared.open(target) }
         }
     }
 
