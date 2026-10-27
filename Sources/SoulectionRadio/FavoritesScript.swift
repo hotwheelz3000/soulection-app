@@ -327,8 +327,10 @@ enum FavoritesScript {
             // ...and it pops out from the left, like a word bubble (same place and shape, no bounce).
             // The song menu only grows out from the left: no slide as well (two motions at once
             // made it wobble as it settled). Closing just fades.
-            '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .22s cubic-bezier(.2,.8,.2,1)}',
-            '@keyframes sr-pop{from{opacity:0;transform:scale(.55)}to{opacity:1;transform:none}}',
+            '.sr-note.sr-tiles{transform-origin:left center;transform:none;transition:opacity .2s ease;animation:sr-pop .36s cubic-bezier(.2,.8,.2,1)}',
+            // Like a thought bubble: starts small, round and soft, floats up as it opens, then
+            // sharpens into the box and stops still.
+            '@keyframes sr-pop{0%{opacity:0;transform:translateY(18px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
             '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
             '.sr-note.sr-tiles .sr-btn svg{width:18px;height:18px}',
