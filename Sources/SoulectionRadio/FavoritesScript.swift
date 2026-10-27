@@ -149,6 +149,11 @@ enum FavoritesScript {
             '.sr-ready-times{display:flex;justify-content:space-between;font-size:9px;line-height:12px;color:' + MUTED + '}',
             '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
             '.sr-hello .sr-ready-row{margin-bottom:0}',
+            '.sr-hello .sr-ready-play{transition:opacity .2s ease}',
+            '.sr-hello .sr-ready-play[aria-busy="true"]{opacity:.4}',
+            '.sr-fade-in{animation:sr-fade-in .26s ease both}',
+            '.sr-fade-out{transition:opacity .24s ease;opacity:0}',
+            '@keyframes sr-fade-in{from{opacity:0}to{opacity:1}}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -2083,10 +2088,14 @@ enum FavoritesScript {
           // newest show from the beginning. Anything playing replaces it with the real one.
           // ---------------------------------------------------------------------------
           var readyCard = null; // the welcome mini player while nothing plays
+          // Fades the welcome mini player out (the real one fades in on top at the same time).
           function hideReadyCard() {
             if (!readyCard) return;
-            try { readyCard.remove(); } catch (e) {}
+            var card = readyCard;
             readyCard = null;
+            card.style.pointerEvents = 'none';
+            card.classList.add('sr-fade-out');
+            setTimeout(function () { try { card.remove(); } catch (e) {} }, reduceMotion ? 0 : 260);
           }
           function cardMarkup() {
             return '<div class="sr-ready-row">' +
@@ -2121,10 +2130,18 @@ enum FavoritesScript {
                   '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">Welcome to Soulection Radio</span></div></div></div>' +
                 '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
               '</div>');
-            card.querySelector('.sr-ready-play').addEventListener('click', function (e) {
+            var playBtn = card.querySelector('.sr-ready-play');
+            playBtn.addEventListener('click', function (e) {
               e.preventDefault(); e.stopPropagation();
               playNewestShow(this);
             });
+            // A tap anywhere on it stays with it: nothing underneath lights up or reacts.
+            card.addEventListener('touchend', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.target.closest && e.target.closest('.sr-ready-play')) playNewestShow(playBtn);
+            }, { passive: false });
+            card.addEventListener('click', function (e) { e.stopPropagation(); });
             document.body.appendChild(card);
             readyCard = card;
           }
@@ -2138,8 +2155,7 @@ enum FavoritesScript {
               return a ? a.getAttribute('href').replace(/\/$/, '') : null;
             };
             allEpisodes().then(function (list) { return list[0] || fromPage(); }, fromPage).then(function (path) {
-              if (btn) btn.removeAttribute('aria-busy');
-              if (!path) return showToast("Couldn't find the newest show.");
+              if (!path) { if (btn) btn.removeAttribute('aria-busy'); return showToast("Couldn't find the newest show."); }
               endPlaylist(false);
               playShowHere(path);
             });
@@ -2147,9 +2163,14 @@ enum FavoritesScript {
           // Plays a show from 0:00 in the app's own player without opening its page.
           function playShowHere(path) {
             var n = np();
-            if (!n || !n.setActiveFrame) return showToast("Couldn't start the show.");
+            var failed = function () {
+              var b = readyCard && readyCard.querySelector('.sr-ready-play');
+              if (b) b.removeAttribute('aria-busy');
+              showToast("Couldn't start the show.");
+            };
+            if (!n || !n.setActiveFrame) return failed();
             episodeInfo(path).then(function (info) {
-              if (!info.link) return showToast("Couldn't start the show.");
+              if (!info.link) return failed();
               retireOurs();
               var frame = makeFrame(playerURL(info.link, 0, false));
               var m = np();
@@ -2158,9 +2179,9 @@ enum FavoritesScript {
               directShown = directInfo(f, info);
               m.setDirect(directShown);
               direct = { number: directShown.number, id: null, heard: true };
-              hideReadyCard();
+              // The welcome player stays until the show is really playing (see renderLiveCard).
               schedule();
-            }).catch(function () { showToast("Couldn't start the show."); });
+            }).catch(failed);
           }
 
           // ---------------------------------------------------------------------------
@@ -2176,14 +2197,16 @@ enum FavoritesScript {
             var st = npState();
             var cur = playlist && playlist.current;
             var oursOn = !!activeOurs();
-            var want = !miniPlayer() && !readyCard && st && st.t != null && (st.paused === false || oursOn || !!cur);
+            var want = !miniPlayer() && st && st.t != null && (st.paused === false || oursOn || !!cur) &&
+              (!readyCard || st.paused === false); // the welcome player stays until it really plays
             if (!want) {
               if (liveCard) { try { liveCard.remove(); } catch (e) {} liveCard = null; }
               return;
             }
             if (!liveCard) {
               ensureStyle();
-              liveCard = el('div', 'sr-ready sr-live-card', cardMarkup());
+              hideReadyCard(); // fades out underneath as this fades in
+              liveCard = el('div', 'sr-ready sr-live-card sr-fade-in', cardMarkup());
               var play = liveCard.querySelector('.sr-ready-play');
               play.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); togglePlay(); renderLiveCard(); });
               // Tapping anywhere but play opens the big player.
@@ -3005,8 +3028,12 @@ enum FavoritesScript {
               var cy0 = f.play.top + f.play.height / 2, cy1 = t.play.top + t.play.height / 2;
               var cy = lerp(cy0, by + (cy1 - (t.track ? t.track.top : cy1)), Math.pow(e, 1.15));
               box(N.play.n, cx - size / 2, cy - size / 2, size, size);
-              N.play.n.style.background = 'none';
-              var c = Math.round(lerp(180, 255, es)); // the mini player's grey to white
+              // The white circle eases in over the last fifth of the opening (and out over the
+              // first fifth of closing) while the icon darkens to match the big button.
+              var ck = Math.max(0, Math.min(1, (e - 0.8) / 0.2));
+              ck = ck * ck * (3 - 2 * ck);
+              N.play.n.style.background = 'rgba(255,255,255,' + ck.toFixed(3) + ')';
+              var c = Math.round(lerp(lerp(180, 255, es), 26, ck)); // grey to white, then dark on the circle
               N.play.n.style.color = 'rgb(' + c + ',' + c + ',' + c + ')';
               // Previous and next stay level with it.
               var shift = (cy - cy1).toFixed(1);
