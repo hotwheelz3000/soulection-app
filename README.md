@@ -8,7 +8,7 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 **[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
 
-The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-1.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-1.0 2.ipa".
+The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-2.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-2.0 2.ipa".
 
 ## How to install
 
@@ -25,7 +25,11 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 **Listening**
 - **Keeps playing with the screen off,** and doesn't stop a podcast or music that's already playing when you open it.
 - **Lock screen and Dynamic Island** show the current song, artist and show cover, and update as the songs change. Next and previous jump between songs in the show's tracklist.
-- **Full-size player.** Tap or swipe up on the player at the bottom: big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's tracklist.
+- **Full-size player.** Tap or swipe up on the player at the bottom: big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page.
+- **Songs:** in the full player, tap **Songs** to see the show's song list right there, with the playing song marked. Tap a song to jump to it, or its heart to like it.
+- **Up next:** while Likes, History or Mixtape plays, the full player shows the next song and its show. Tap it to play it now.
+- **Swipe to skip:** swipe the player at the bottom left for the next song, right for the previous one. (VoiceOver users get Previous song and Next song buttons.)
+- **Starting a show:** while a show is starting, the Soulection logo spins where the play button is. If it doesn't start, the app quietly tries again.
 - **The playing song is marked** in a show's tracklist with small moving bars next to its heart.
 - **Smooth switches between shows:** with the app open, when Likes, History or Mixtape moves to a song in another show, the volume dips over the last seconds and comes back up as the new song starts. (The iPhone lets only one player play at a time, so songs can't overlap.) It's skipped with the screen off or in another app, where iOS would show its volume bar, and it stops if you touch the volume yourself.
 - **Phone calls:** the music pauses for a call and starts again when the call ends or you decline it.
@@ -39,7 +43,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **Extras**
-- **Random show:** the dice starts a random episode (any of the 750+ shows) from the very beginning.
+- **Random show:** the dice plays a random episode (any of the 750+ shows) from the very beginning, right where you are (the page doesn't change).
 - **Mixtape:** the cassette plays endless random songs, each from a different show than the one before. Each song is added to your Likes as soon as it's picked (even if you skip it) and to History once it plays; remove any you don't want.
 - **Sleep timer:** the zZZ at the top (or in the full player). 5, 15 or 30 minutes, 1 hour, end of song, end of show, or your own time. While a timer runs, **+5 min** next to the countdown extends it. The music fades out and pauses, even with the screen off.
 - **New show notifications:** when a new show is posted you get "New show: Soulection Radio #751" ("Tap to listen."), and new shows get a **NEW** label until you open them. The app asks once if it can send notifications. iOS decides when the background check runs (usually within a few hours of a new show), and it doesn't run if you swipe the app away.
@@ -53,10 +57,11 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - Soulection's own pages (tracklists, search) are theirs; the app raises their grey text to the same contrast but can't change the rest.
 
 **Backup to iCloud Drive**
-- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, tap **Choose folder**, pick a folder (for example iCloud Drive › Soulection) and tap **Open**. That's it. From then on, `Soulection Radio Backup.json` in that folder is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
-- **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Choose backup folder** and pick the same folder. Your Likes and History come back, and auto-backup is on again.
+- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Choose folder**. In the next screen, tap into the folder you want (for example iCloud Drive, then Soulection), then tap **Open** at the top right. That's it. From then on, `Soulection Radio Backup.json` in that folder is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
+- **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Choose backup folder**, tap into the same folder, then tap **Open**. Your Likes and History come back, and auto-backup is on again.
 - **Already have songs?** A backup in the folder you pick is added to them; nothing is replaced.
-- **If the folder way doesn't work on your phone,** the app says so and walks you through the other way, using the file itself: to turn backup on, tap **Save a backup file**, choose a folder and tap **Save**. To get your songs back, tap **Pick my backup file**, choose `Soulection Radio Backup.json`, then save it back to the same folder (**Save**, then **Replace**).
+- **If you cancel,** the app shows how to choose a folder again, with a **Try again** button.
+- **If the folder way doesn't work on your phone,** the app says so (with iOS's reason) and walks you through the other way, using the file itself: to turn backup on, tap **Save a backup file**, choose a folder and tap **Save**. To get your songs back, tap **Pick my backup file**, choose `Soulection Radio Backup.json`, then save it back to the same folder (**Save**, then **Replace**).
 - **Manual backups:** **Export** saves a one-off copy anywhere; **Import** adds one back. If auto-backup is off (or failing), the app reminds you every 4 new likes.
 
 ## Known limits

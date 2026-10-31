@@ -390,15 +390,24 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return false
         }
         // With a chosen folder, access is granted to the folder; otherwise to the file.
-        let scope = UserDefaults.standard.data(forKey: Self.folderKey) != nil ? (backupFolder() ?? file) : file
+        let inFolder = UserDefaults.standard.data(forKey: Self.folderKey) != nil
+        let scope = inFolder ? (backupFolder() ?? file) : file
         let accessing = scope.startAccessingSecurityScopedResource()
         defer { if accessing { scope.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var writeError: Error?
-        // Write into the file itself: iOS grants access to this one file, not its folder, so
-        // an atomic write (temporary file next to it, then swap) isn't allowed.
-        NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
-            do { try payload.write(to: url) } catch { writeError = error }
+        if inFolder {
+            // The whole folder is ours to write in: save a complete new copy and swap it in
+            // (safest, and what iCloud Drive expects).
+            NSFileCoordinator().coordinate(writingItemAt: file, options: .forReplacing, error: &coordinationError) { url in
+                do { try payload.write(to: url, options: .atomic) } catch { writeError = error }
+            }
+        } else {
+            // Write into the file itself: iOS grants access to this one file, not its folder,
+            // so an atomic write (temporary file next to it, then swap) isn't allowed.
+            NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
+                do { try payload.write(to: url) } catch { writeError = error }
+            }
         }
         // If the iCloud-aware write fails, try a plain one before giving up.
         if coordinationError != nil || writeError != nil {
@@ -452,7 +461,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func folderAccess(_ url: URL) -> (ok: Bool, bookmark: Data?) {
         let accessing = url.startAccessingSecurityScopedResource()
         defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        guard accessing || FileManager.default.isWritableFile(atPath: url.path) else { return (false, nil) }
+        // (Some places don't need the access call; the first save shows whether it works.)
+        _ = accessing
         return (true, try? url.bookmarkData())
     }
 
@@ -502,7 +512,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             if let previousFile { UserDefaults.standard.set(previousFile, forKey: Self.fileKey) }
             liveBackupURL = previousLive
             send()
-            showBackupFallback("refused")
+            showBackupFallback("refused", reason: lastWriteFailure)
             return
         }
         send()
@@ -548,9 +558,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     }
 
     /// Tells the page to show the other way of doing it (pick or save a file), step by step.
-    private func showBackupFallback(_ kind: String) {
+    private func showBackupFallback(_ kind: String, reason: String? = nil) {
+        let why = (try? JSONEncoder().encode(reason ?? "")).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.backupFallback && window.__soulectionFavorites.backupFallback('\(kind)');",
+            "window.__soulectionFavorites && window.__soulectionFavorites.backupFallback && window.__soulectionFavorites.backupFallback('\(kind)', \(why));",
             completionHandler: nil
         )
     }
