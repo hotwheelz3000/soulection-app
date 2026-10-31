@@ -157,9 +157,10 @@ enum FavoritesScript {
             '.sr-ready-times{display:flex;justify-content:space-between;font-size:9px;line-height:12px;color:' + MUTED + '}',
             '.sr-ready-play{flex:none;padding:8px;border-radius:9999px}',
             '.sr-ready-row .sr-heart-mini{margin-right:-10px}',
-            '.sr-hello .sr-ready-row{margin-bottom:0}',
             // While a show is starting, the Soulection logo spins in the play button's place
             // (just the logo: no circle around it). With Reduce Motion it stays still.
+            '.sr-hello-space{visibility:hidden}',
+            '.sr-grab-still{pointer-events:none}',
             '.sr-spin-logo{display:block;width:26px;height:26px;background:currentColor;-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;animation:sr-spin 1s linear infinite}',
             '.sr-np-play.sr-loading{background:transparent;color:#fff}',
             '.sr-np-play .sr-spin-logo{width:44px;height:44px}',
@@ -2277,7 +2278,11 @@ enum FavoritesScript {
                 '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
                   '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">This is Soulection Radio.</span></div></div></div>' +
                 '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
-              '</div>');
+              '</div>' +
+              // The same rows as the show's mini player (bar and times, left empty) and the same
+              // tab, so the card is exactly the same size and nothing jumps when a show starts.
+              '<div class="sr-hello-space" aria-hidden="true"><div class="sr-ready-track"></div><div class="sr-ready-times"><span>&nbsp;</span></div></div>' +
+              '<div class="sr-grab sr-grab-still" aria-hidden="true"></div>');
             var playBtn = card.querySelector('.sr-ready-play');
             playBtn.addEventListener('click', function (e) {
               e.preventDefault(); e.stopPropagation();
@@ -2452,7 +2457,9 @@ enum FavoritesScript {
             hello.style.zIndex = '31';
             hello.style.pointerEvents = 'none';
             hello.style.background = 'transparent';
-            var parts = [].slice.call(live.children);
+            // The tab stays put (both cards have it in the same spot); everything else
+            // cross-fades.
+            var parts = [].slice.call(live.children).filter(function (c) { return !c.classList.contains('sr-grab'); });
             parts.forEach(function (c) { c.style.opacity = '0'; });
             var clip = function (top) { var v = 'inset(' + top + 'px 0 0 0 round 9px)'; live.style.clipPath = v; live.style.webkitClipPath = v; };
             clip(d);
@@ -2462,7 +2469,10 @@ enum FavoritesScript {
             live.style.transition = 'clip-path .26s ' + ease + ' .07s,-webkit-clip-path .26s ' + ease + ' .07s';
             clip(0);
             parts.forEach(function (c) { c.style.transition = 'opacity .18s ease .21s'; c.style.opacity = '1'; });
-            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .1s ease'; c.style.opacity = '0'; });
+            [].slice.call(hello.children).forEach(function (c) {
+              if (c.classList.contains('sr-grab')) { c.style.visibility = 'hidden'; return; }
+              c.style.transition = 'opacity .1s ease'; c.style.opacity = '0';
+            });
             hello.style.transition = 'border-color .3s ease';
             hello.style.borderColor = 'transparent';
             setTimeout(function () {
@@ -3302,22 +3312,46 @@ enum FavoritesScript {
               }
             };
           }
-          // The big player is one card that slides up from the bottom of the screen, following
-          // the finger, and slides back down to close. Nothing inside it moves on its own.
-          function playerTravel() { return Math.max(200, window.innerHeight); }
+          // The big player grows out of the mini player: it starts as exactly the mini player's
+          // card, and its edges open out to the whole screen as it rises with the finger. The
+          // card turns solid over the first stretch (the mini player's info fades away under
+          // it) and the big player's cover and controls fade in over the last stretch. Nothing
+          // flies around inside it. Closing shrinks it back into the mini player.
+          var fpFrom = null; // the mini player card: {top, left, right, bottom, radius}
+          function miniCard() {
+            var mini = playerCard();
+            var W = window.innerWidth, H = window.innerHeight;
+            if (!mini) return { top: H - 120, left: 0, right: 0, bottom: 0, radius: 0 };
+            var r = mini.getBoundingClientRect();
+            var radius = parseFloat(getComputedStyle(mini).borderTopLeftRadius) || 0;
+            return { top: Math.max(0, r.top), left: Math.max(0, r.left), right: Math.max(0, W - r.right), bottom: Math.max(0, H - r.bottom), radius: radius };
+          }
+          // How far a drag travels to open fully: the mini player's top edge to the top.
+          function playerTravel() { return Math.max(120, (fpFrom || miniCard()).top); }
           var fpTravel = 0;
+          var BG_RGB = BG.replace(/^rgb\(|\)$/g, '');
           function setProgress(p) {
             fpP = p;
+            if (!fpFrom) fpFrom = miniCard();
             if (!fpTravel) fpTravel = playerTravel();
-            var e = Math.max(0, Math.min(1, p));
-            var y = 'translate3d(0,' + ((1 - e) * fpTravel).toFixed(1) + 'px,0)';
+            var e = Math.max(0, Math.min(1, p)), k = 1 - e, c = fpFrom;
             var root = fp.root.style;
-            if (root.transform !== y) root.transform = y;
+            if (root.transform !== 'none') root.transform = 'none';
+            var clip = 'inset(' + (c.top * k).toFixed(1) + 'px ' + (c.right * k).toFixed(1) + 'px ' +
+              (c.bottom * k).toFixed(1) + 'px ' + (c.left * k).toFixed(1) + 'px round ' + (c.radius * k).toFixed(1) + 'px)';
+            root.clipPath = clip;
+            root.webkitClipPath = clip;
+            var solid = Math.min(1, e / 0.25);
+            root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
+            fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
+            var show = Math.max(0, Math.min(1, (e - 0.4) / 0.5));
+            fp.inner.style.opacity = show.toFixed(3);
+            fp.inner.style.transform = 'translate3d(0,' + ((1 - show) * 24).toFixed(1) + 'px,0)';
           }
           function animateTo(target, velocity, done) {
             cancelAnimationFrame(fpAnim);
             if (reduceMotion) {
-              // iOS "Reduce Motion": no slide; just open or close.
+              // iOS "Reduce Motion": no growing card; just open or close.
               fpAnim = null;
               setProgress(target);
               if (done) done();
@@ -3350,6 +3384,7 @@ enum FavoritesScript {
             cancelAnimationFrame(fpAnim);
             if (!isPlayerOpen()) {
               closeSheet();
+              fpFrom = miniCard();
               fpTravel = playerTravel();
               fp.root.hidden = false;
               fp.root.classList.add('sr-open');
@@ -3380,6 +3415,7 @@ enum FavoritesScript {
               fp.root.classList.remove('sr-np-songs-open');
               fp.songsBtn.setAttribute('aria-expanded', 'false');
             }
+            fpFrom = miniCard();
             fpTravel = playerTravel();
             animateTo(0, 0, finishClose);
           }
