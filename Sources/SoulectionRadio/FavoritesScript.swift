@@ -159,8 +159,9 @@ enum FavoritesScript {
             '.sr-ready-row .sr-heart-mini{margin-right:-10px}',
             // While a show is starting, the Soulection logo spins in the play button's place
             // (just the logo: no circle around it). With Reduce Motion it stays still.
-            '.sr-hello-space{visibility:hidden}',
-            '.sr-grab-still{pointer-events:none}',
+            '.sr-hello .sr-ready-row{margin-bottom:0}',
+            // A drag that starts on a mini player belongs to it (open or skip), never to the page.
+            '.sr-grab,.sr-live-card,.sr-mini-over{touch-action:none}',
             '.sr-spin-logo{display:block;width:26px;height:26px;background:currentColor;-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;animation:sr-spin 1s linear infinite}',
             '.sr-np-play.sr-loading{background:transparent;color:#fff}',
             '.sr-np-play .sr-spin-logo{width:44px;height:44px}',
@@ -1203,6 +1204,7 @@ enum FavoritesScript {
           function renderMiniPlayer(player) {
             if (!player) return;
             if (readyCard) hideReadyCard(); // the site's own player is here now
+            if (player.style.touchAction !== 'none') player.style.touchAction = 'none';
             hideMiniClose(player);
             fullWidthMini(player);
             // The tab on top of the mini player: swipe up (or tap) to open the big player.
@@ -2278,11 +2280,7 @@ enum FavoritesScript {
                 '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
                   '<div class="sr-ready-texts"><div class="sr-ready-line"><span class="sr-ready-song">This is Soulection Radio.</span></div></div></div>' +
                 '<button type="button" class="sr-ready-play" aria-label="Play the newest show">' + PLAY + '</button>' +
-              '</div>' +
-              // The same rows as the show's mini player (bar and times, left empty) and the same
-              // tab, so the card is exactly the same size and nothing jumps when a show starts.
-              '<div class="sr-hello-space" aria-hidden="true"><div class="sr-ready-track"></div><div class="sr-ready-times"><span>&nbsp;</span></div></div>' +
-              '<div class="sr-grab sr-grab-still" aria-hidden="true"></div>');
+              '</div>');
             var playBtn = card.querySelector('.sr-ready-play');
             playBtn.addEventListener('click', function (e) {
               e.preventDefault(); e.stopPropagation();
@@ -2457,9 +2455,7 @@ enum FavoritesScript {
             hello.style.zIndex = '31';
             hello.style.pointerEvents = 'none';
             hello.style.background = 'transparent';
-            // The tab stays put (both cards have it in the same spot); everything else
-            // cross-fades.
-            var parts = [].slice.call(live.children).filter(function (c) { return !c.classList.contains('sr-grab'); });
+            var parts = [].slice.call(live.children);
             parts.forEach(function (c) { c.style.opacity = '0'; });
             var clip = function (top) { var v = 'inset(' + top + 'px 0 0 0 round 9px)'; live.style.clipPath = v; live.style.webkitClipPath = v; };
             clip(d);
@@ -2469,10 +2465,7 @@ enum FavoritesScript {
             live.style.transition = 'clip-path .26s ' + ease + ' .07s,-webkit-clip-path .26s ' + ease + ' .07s';
             clip(0);
             parts.forEach(function (c) { c.style.transition = 'opacity .18s ease .21s'; c.style.opacity = '1'; });
-            [].slice.call(hello.children).forEach(function (c) {
-              if (c.classList.contains('sr-grab')) { c.style.visibility = 'hidden'; return; }
-              c.style.transition = 'opacity .1s ease'; c.style.opacity = '0';
-            });
+            [].slice.call(hello.children).forEach(function (c) { c.style.transition = 'opacity .1s ease'; c.style.opacity = '0'; });
             hello.style.transition = 'border-color .3s ease';
             hello.style.borderColor = 'transparent';
             setTimeout(function () {
