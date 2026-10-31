@@ -124,7 +124,7 @@ enum FavoritesScript {
             '.sr-appbar[hidden]{display:none}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
-            '.sr-appbar-btn[hidden]{display:none}',
+            '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
             'html.sr-lock .sr-appbar{visibility:hidden}',
             '.sr-heart-top{font-size:23px;padding:8px;margin:0 -4px 0 4px;flex:none;align-self:center}',
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
@@ -716,9 +716,8 @@ enum FavoritesScript {
                 }, ms);
               });
             },
-            pickSavedFile: function (restored) { pickSavedFileNote(restored); },
-            backupFallback: function (kind, reason) { backupFallback(kind, reason); },
-            canGoBack: function (v) { canBack = !!v; if (appBar) appBar.back.hidden = !canBack; },
+            pickSavedFile: function (restored, reason) { pickSavedFileNote(restored, reason); },
+            canGoBack: function (v) { canBack = !!v; setBackState(); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -792,7 +791,7 @@ enum FavoritesScript {
                 '<div>Your newest Likes aren\'t in your backup file yet. Set auto-backup up again to keep them safe.</div>' +
                 '<div class="sr-actions"></div>'
               : '<div class="sr-note-title">Back up your Likes?</div>' +
-                '<div>Choose a folder in iCloud Drive for your backup: tap into it, then tap <b>Open</b> at the top right. Then your Likes and History are safe, even if you delete the app.</div>' +
+                '<div>Save a backup file in iCloud Drive: pick a folder, then tap <b>Save</b>. The app keeps it up to date, so your Likes and History are safe even if you delete the app.</div>' +
                 '<div class="sr-actions"></div>', 0);
             if (!n) { reminded = false; return; }
             // Pushed away by another message before you answered: it can come back.
@@ -801,8 +800,8 @@ enum FavoritesScript {
             var onBtn = el('button', 'sr-btn', CLOUD + '<span>' + (failing ? 'Set up again' : 'Turn on') + '</span>');
             var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
             onBtn.type = laterBtn.type = 'button';
-            // The note already says what happens, so this goes straight to choosing a folder.
-            onBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupChooseFolder' }); });
+            // The note already says what happens, so this goes straight to the save screen.
+            onBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupCreate' }); });
             laterBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupLater' }); });
             actions.appendChild(onBtn);
             actions.appendChild(laterBtn);
@@ -817,56 +816,38 @@ enum FavoritesScript {
             setTimeout(function () {
               var n = showNote(
                 '<div class="sr-note-title">Restore your Likes and History?</div>' +
-                '<div>If you used backup before, choose the folder your backup is in: tap into it (for example iCloud Drive, then Soulection), then tap <b>Open</b> at the top right. Your songs come back and backup stays on.</div>' +
+                '<div>If you used backup before, pick your backup file, <b>Soulection Radio Backup.json</b> (usually in iCloud Drive). Your songs come back and backup stays on.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) return;
               var actions = n.querySelector('.sr-actions');
-              var pickBtn = el('button', 'sr-btn', IMPORT + '<span>Choose backup folder</span>');
+              var pickBtn = el('button', 'sr-btn', IMPORT + '<span>Pick my backup file</span>');
               var noBtn = el('button', 'sr-btn', '<span>Not now</span>');
               pickBtn.type = noBtn.type = 'button';
-              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupChooseFolder' }); });
+              pickBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreBackup' }); });
               noBtn.addEventListener('click', function () { hideNote(); native({ op: 'restoreDismissed' }); });
               actions.appendChild(pickBtn);
               actions.appendChild(noBtn);
             }, 1500);
           }
 
-          // Turn on / Change: one step, choose a folder. A backup already in it comes back.
+          // Turn on / Change: save a new backup file, or pick the one you already have.
           function chooseAutoBackup() {
-            noteWithButtons(
-              '<div class="sr-note-title">Back up your Likes and History</div>' +
-              '<div>Choose a folder to keep your backup in. iCloud Drive is best: your songs stay safe even if you delete the app. If a backup is already there, its songs come back.</div>' +
-              '<div>Next screen: tap into the folder (for example iCloud Drive, then Soulection), then tap <b>Open</b> at the top right.</div>',
-              [['Choose folder', function () { native({ op: 'backupChooseFolder' }); }, CLOUD],
-               ['Cancel', null]]);
-          }
-          // The other way, for when the folder way doesn't work on a phone: with the backup
-          // file itself. Spelled out step by step.
-          function backupFallback(kind, reason) {
-            if (kind === 'cancelled') {
-              noteWithButtons(
-                '<div class="sr-note-title">Backup wasn\'t set up</div>' +
-                '<div>To choose a folder, tap into it (for example iCloud Drive, then Soulection), then tap <b>Open</b> at the top right.</div>',
-                [['Try again', function () { native({ op: 'backupChooseFolder' }); }],
-                 ['Use a file instead', function () { backupFallback('refused'); }],
-                 ['OK', null]]);
-              return;
-            }
-            var restoreFirst = !favorites.length && !history.length;
             var save = ['Save a backup file', function () { native({ op: 'backupCreate' }); }, CLOUD];
             var pick = ['Pick my backup file', function () { native({ op: 'restoreBackup' }); }, IMPORT];
+            var empty = !favorites.length && !history.length;
             noteWithButtons(
-              '<div class="sr-note-title">Let\'s use the backup file instead</div>' +
-              '<div>Your iPhone didn\'t let the app use that folder.</div>' +
-              '<div><b>To turn backup on:</b> tap Save a backup file, choose a folder, then tap Save.</div>' +
-              '<div><b>To get your songs back:</b> tap Pick my backup file and choose Soulection Radio Backup.json. Then save it back to the same folder: tap Save, then Replace.</div>' +
-              (reason ? '<div class="sr-note-why">What iOS said: ' + esc(reason) + '</div>' : ''),
-              (restoreFirst ? [pick, save] : [save, pick]).concat([['Cancel', null]]));
+              '<div class="sr-note-title">Back up your Likes and History</div>' +
+              '<div><b>New here?</b> Tap Save a backup file, pick a folder (iCloud Drive is best), then tap <b>Save</b>.</div>' +
+              '<div><b>Have a backup already?</b> Tap Pick my backup file and choose <b>Soulection Radio Backup.json</b>.</div>' +
+              '<div>Either way, the app keeps that file up to date from then on.</div>',
+              (empty ? [pick, save] : [save, pick]).concat([['Cancel', null]]));
           }
-          // The file way, step 2 of 2: the save screen opens next.
-          function pickSavedFileNote(restored) {
+          // Only when iOS won't let the app write to a picked backup file: the save screen opens
+          // next, and saving it back once keeps backup going.
+          function pickSavedFileNote(restored, reason) {
             showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + (restored === 1 ? ' song' : ' songs') : 'Backup read') + '. One more step</div>' +
-              '<div>To keep backing up, save the file back: choose the same folder, tap Save, then tap Replace.</div>', 12000);
+              '<div>Your iPhone didn\'t let the app update that file directly. To keep backing up, save it back: choose the same folder, tap Save, then tap Replace.</div>' +
+              (reason ? '<div class="sr-note-why">What iOS said: ' + esc(reason) + '</div>' : ''), 15000);
           }
 
           function renderAutoBackup() {
@@ -1624,7 +1605,12 @@ enum FavoritesScript {
             back.innerHTML = BACK;
             back.removeAttribute('aria-pressed');
             back.setAttribute('aria-label', 'Back');
-            back.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeSheet(); closePlayer(); native({ op: 'goBack' }); });
+            back.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              if (!canBack) return;
+              closeSheet(); closePlayer();
+              native({ op: 'goBack' });
+            });
             var home = heartButton('sr-appbar-btn sr-home-top');
             home.innerHTML = HOME;
             home.removeAttribute('aria-pressed');
@@ -1646,6 +1632,13 @@ enum FavoritesScript {
           // Whether there's a page to go back to: told by the app (its page history, the same
           // one the edge swipe uses).
           var canBack = false;
+          // Back always keeps its spot (so the search box and buttons never shift); it's dimmed
+          // when there's no page to go back to.
+          function setBackState() {
+            if (!appBar) return;
+            var v = canBack ? 'false' : 'true';
+            if (appBar.back.getAttribute('aria-disabled') !== v) appBar.back.setAttribute('aria-disabled', v);
+          }
           function renderTab() {
             buildAppBar();
             if (!appBar) return;
@@ -1685,7 +1678,7 @@ enum FavoritesScript {
             }
             var order = [tab, dice, tape, moon, help];
             order.forEach(function (b, i) { if (appBar.right.children[i] !== b) appBar.right.insertBefore(b, appBar.right.children[i] || null); });
-            appBar.back.hidden = !canBack;
+            setBackState();
             fitAppBar();
             renderTape();
             renderMoon();
@@ -1776,7 +1769,7 @@ enum FavoritesScript {
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
-              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and choose a folder. After you put the app back, choose the same folder when it asks.']
+              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and save the backup file in iCloud Drive. After you put the app back, pick that file when it asks.']
             ];
           }
           function helpListHTML() {

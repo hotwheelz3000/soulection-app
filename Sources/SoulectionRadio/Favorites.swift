@@ -232,9 +232,8 @@ final class FavoritesStore {
 /// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
 /// `seconds`), "sleepNow" or
 /// "airplay" (show the AirPlay picker), "goBack" (the app's Back button),
-/// "backupChooseFolder" (the simple way: pick a folder to back up to, which also restores
-/// a backup already in it), "backupCreate" (the file way, as a fallback),
-/// "restoreBackup" (pick a backup file to restore: the fallback), "restoreDismissed", "welcomeSeen",
+/// "backupCreate" (turn on auto-backup: save the backup file somewhere), "restoreBackup"
+/// (pick a backup file: restore it and keep backing up to it), "restoreDismissed", "welcomeSeen",
 /// "notifyPermission" (ask once for new-show notifications), "haptic" (with `kind`),
 /// "share" (with `text`, `url`), "findSong" (with `service` "spotify" or "apple", `song`, `artist`),
 /// "blendOut" (with `seconds`: dip the volume before a switch to another show) or
@@ -255,6 +254,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // page starts it again if it was playing before.
     override init() {
         super.init()
+        UserDefaults.standard.removeObject(forKey: Self.oldFolderKey)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil
@@ -281,16 +281,15 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     // MARK: Auto-backup
     //
-    // "Turn on" asks for a folder (ideally in iCloud Drive). The app keeps
-    // "Soulection Radio Backup.json" in it up to date after every change. The folder lives
-    // outside the app, so deleting the app doesn't touch it; after a reinstall, choosing the
-    // same folder brings the songs back and turns auto-backup back on in one step.
-    // Fallback, for phones where the folder way doesn't work: save the file itself
-    // ("Save to Files") and restore by picking the file, then saving it back.
+    // "Turn on" saves the backup file wherever the user chooses (ideally an iCloud Drive
+    // folder) through "Save to Files", and the app keeps that exact file up to date after
+    // every change. The file lives outside the app, so deleting the app doesn't touch it.
+    // After a reinstall, picking that file brings the songs back and keeps backing up to the
+    // same file (it's opened where it is, not copied). Only if iOS won't let the app write
+    // to it does the app ask to save it back once.
     private static let fileKey = "Backup.fileBookmark"
-    /// The folder the user chose for the backup (the simple way: one pick sets up
-    /// auto-backup, and the same pick restores after a reinstall).
-    private static let folderKey = "Backup.folderBookmark"
+    /// Set by an earlier test build (backing up to a folder); cleared at launch.
+    private static let oldFolderKey = "Backup.folderBookmark"
     private static let lastSavedKey = "Backup.lastSaved"
     private static let restoreOfferedKey = "Backup.restoreOffered"
     // Set when "Don't show again" is ticked on the welcome screen. (A new key, so the
@@ -300,36 +299,20 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private var autoBackupTask: Task<Void, Never>?
 
     private var autoBackupError = false
-    private enum PickerPurpose { case importFile, saveBackup, restoreBackup, chooseFolder }
+    private enum PickerPurpose { case importFile, saveBackup, restoreBackup }
     private var pickerPurpose: PickerPurpose = .importFile
 
     /// The backup file as iOS handed it over this session. Used when the saved bookmark
     /// can't be read back yet (right after saving, iCloud may still be moving the file).
     private var liveBackupURL: URL?
-    /// The chosen folder as iOS handed it over this session (same idea, for the folder).
-    private var liveFolderURL: URL?
 
-    /// Auto-backup is on (a folder or a file was chosen).
-    private var autoBackupIsOn: Bool {
-        UserDefaults.standard.data(forKey: Self.folderKey) != nil || UserDefaults.standard.data(forKey: Self.fileKey) != nil
-    }
+    /// Auto-backup is on (a backup file was chosen).
+    private var autoBackupIsOn: Bool { UserDefaults.standard.data(forKey: Self.fileKey) != nil }
 
-    private func backupFolder() -> URL? {
-        guard let data = UserDefaults.standard.data(forKey: Self.folderKey) else { return nil }
-        var stale = false
-        if let url = try? URL(resolvingBookmarkData: data, options: [], relativeTo: nil, bookmarkDataIsStale: &stale) {
-            if stale, let fresh = try? url.bookmarkData() { UserDefaults.standard.set(fresh, forKey: Self.folderKey) }
-            return url
-        }
-        return liveFolderURL
-    }
     /// Why the bookmark couldn't be read back, in iOS's words.
     private var bookmarkFailure: String?
 
     private func backupFile() -> URL? {
-        if UserDefaults.standard.data(forKey: Self.folderKey) != nil {
-            return backupFolder()?.appendingPathComponent(Self.autoBackupFileName)
-        }
         guard let data = UserDefaults.standard.data(forKey: Self.fileKey) else { return nil }
         var stale = false
         do {
@@ -389,25 +372,14 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             lastWriteFailure = "The app lost track of the backup file" + (bookmarkFailure.map { ": " + $0 } ?? "")
             return false
         }
-        // With a chosen folder, access is granted to the folder; otherwise to the file.
-        let inFolder = UserDefaults.standard.data(forKey: Self.folderKey) != nil
-        let scope = inFolder ? (backupFolder() ?? file) : file
-        let accessing = scope.startAccessingSecurityScopedResource()
-        defer { if accessing { scope.stopAccessingSecurityScopedResource() } }
+        let accessing = file.startAccessingSecurityScopedResource()
+        defer { if accessing { file.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var writeError: Error?
-        if inFolder {
-            // The whole folder is ours to write in: save a complete new copy and swap it in
-            // (safest, and what iCloud Drive expects).
-            NSFileCoordinator().coordinate(writingItemAt: file, options: .forReplacing, error: &coordinationError) { url in
-                do { try payload.write(to: url, options: .atomic) } catch { writeError = error }
-            }
-        } else {
-            // Write into the file itself: iOS grants access to this one file, not its folder,
-            // so an atomic write (temporary file next to it, then swap) isn't allowed.
-            NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
-                do { try payload.write(to: url) } catch { writeError = error }
-            }
+        // Write into the file itself: iOS grants access to this one file, not its folder, so
+        // an atomic write (temporary file next to it, then swap) isn't allowed.
+        NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
+            do { try payload.write(to: url) } catch { writeError = error }
         }
         // If the iCloud-aware write fails, try a plain one before giving up.
         if coordinationError != nil || writeError != nil {
@@ -444,128 +416,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// The simple way, for both turning auto-backup on and restoring: pick a folder. If a
-    /// backup is already in it, its songs come back; then the app keeps it up to date.
-    private func chooseBackupFolder() {
-        guard let presenter = presenter() else { return }
-        pickerPurpose = .chooseFolder
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.folder])
-        picker.delegate = self
-        picker.allowsMultipleSelection = false
-        presenter.present(picker, animated: true)
-    }
-
-    /// Checks the app may use the chosen folder, and makes the bookmark that keeps that
-    /// access after a restart (nil if iOS won't make one: the folder is then used for this
-    /// session only). Nothing is switched over yet; see useBackupFolder.
-    private func folderAccess(_ url: URL) -> (ok: Bool, bookmark: Data?) {
-        let accessing = url.startAccessingSecurityScopedResource()
-        defer { if accessing { url.stopAccessingSecurityScopedResource() } }
-        // (Some places don't need the access call; the first save shows whether it works.)
-        _ = accessing
-        return (true, try? url.bookmarkData())
-    }
-
-    /// Switches auto-backup over to the chosen folder (from a backup file, if one was used).
-    private func useBackupFolder(_ url: URL, bookmark: Data?) {
-        liveFolderURL = url
-        // Without a bookmark, a placeholder keeps auto-backup marked as on for this session.
-        UserDefaults.standard.set(bookmark ?? Data([0]), forKey: Self.folderKey)
-        UserDefaults.standard.removeObject(forKey: Self.fileKey)
-        liveBackupURL = nil
-        UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
-    }
-
-    /// After a folder is picked: bring back a backup already in it (added to what's here),
-    /// then save there from now on. The app only switches to the folder once any backup in
-    /// it has been read, so nothing is saved over it first; one that can't be read is never
-    /// written over, and the backup that was on before stays on.
-    private func finishChoosingFolder(_ url: URL, bookmark: Data?) async {
-        let name = Self.autoBackupFileName
-        let lookup = await Task.detached { FavoritesBridge.lookForBackup(in: url, named: name) }.value
-        var restored = 0
-        var found = false
-        switch lookup {
-        case .none:
-            break
-        case .unreadable:
-            toast("There's a backup in that folder, but it couldn't be opened. If it's in iCloud Drive, wait a moment for it to download, then try again.")
-            return
-        case .found(let data):
-            guard let incoming = FavoritesStore.readBackup(data) else {
-                toast("The file in that folder isn't a Soulection Radio backup, so nothing was changed.")
-                return
-            }
-            found = true
-            restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
-        }
-        let previousFile = UserDefaults.standard.data(forKey: Self.fileKey)
-        let previousLive = liveBackupURL
-        useBackupFolder(url, bookmark: bookmark)
-        // Nothing saved yet and no backup found: nothing to write until the first song, so an
-        // empty file never lands on top of a backup iOS didn't show yet.
-        let nothingYet = store.isEmpty && !found
-        let ok = nothingYet ? true : writeAutoBackup()
-        if !ok {
-            // Back to the backup that was on before (if any).
-            forgetBackupFolder()
-            if let previousFile { UserDefaults.standard.set(previousFile, forKey: Self.fileKey) }
-            liveBackupURL = previousLive
-            send()
-            showBackupFallback("refused", reason: lastWriteFailure)
-            return
-        }
-        send()
-        let place = url.lastPathComponent
-        if found {
-            toast(restored > 0
-                ? "Restored \(restored) \(restored == 1 ? "song" : "songs"). Backup is on, saving to \(place)."
-                : "Your songs are all here. Backup is on, saving to \(place).")
-        } else if nothingYet {
-            toast("No backup in \(place) yet. Backup is on: your Likes and History will be saved there.")
-        } else {
-            toast("Backup is on, saving to \(place).")
-        }
-    }
-
-    private func forgetBackupFolder() {
-        UserDefaults.standard.removeObject(forKey: Self.folderKey)
-        liveFolderURL = nil
-        autoBackupError = false
-    }
-
-    enum BackupLookup: Sendable { case none, found(Data), unreadable }
-
-    /// Looks for the backup file in a folder, downloading it first if it's only in iCloud.
-    /// (Runs off the main thread: the download can take a moment.)
-    nonisolated static func lookForBackup(in folder: URL, named name: String) -> BackupLookup {
-        let accessing = folder.startAccessingSecurityScopedResource()
-        defer { if accessing { folder.stopAccessingSecurityScopedResource() } }
-        let fm = FileManager.default
-        let file = folder.appendingPathComponent(name)
-        let inCloudOnly = fm.fileExists(atPath: folder.appendingPathComponent("." + name + ".icloud").path)
-        guard fm.fileExists(atPath: file.path) || inCloudOnly else { return .none }
-        if inCloudOnly { try? fm.startDownloadingUbiquitousItem(at: file) }
-        var data: Data?
-        var coordinationError: NSError?
-        // Reading through the file coordinator waits for iCloud to finish downloading it.
-        NSFileCoordinator().coordinate(readingItemAt: file, options: [], error: &coordinationError) { readURL in
-            data = try? Data(contentsOf: readURL)
-        }
-        if data == nil { data = try? Data(contentsOf: file) }
-        guard let data else { return .unreadable }
-        return .found(data)
-    }
-
-    /// Tells the page to show the other way of doing it (pick or save a file), step by step.
-    private func showBackupFallback(_ kind: String, reason: String? = nil) {
-        let why = (try? JSONEncoder().encode(reason ?? "")).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
-        webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.backupFallback && window.__soulectionFavorites.backupFallback('\(kind)', \(why));",
-            completionHandler: nil
-        )
-    }
-
     /// "Turn on": Save to Files with the current backup; the saved file is then kept up to date.
     /// The file is moved (not copied) to where the user saves it, which lets the app keep
     /// writing to it without a second "pick the file" step.
@@ -584,13 +434,12 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         presenter.present(picker, animated: true)
     }
 
-    /// Pick an existing backup file and bring its songs in. The file is copied in (opening
-    /// it in place doesn't respond on some installs), then Save to Files opens so the
-    /// backup can be saved back and kept up to date.
+    /// Pick an existing backup file: its songs come back and the app keeps backing up to that
+    /// same file. It's opened where it is (not copied), so there's nothing to save back.
     private func restoreBackupFile() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .restoreBackup
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         presenter.present(picker, animated: true)
@@ -598,8 +447,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     /// Remembers the file so it can be rewritten later. Returns false if iOS won't allow it.
     private func rememberBackupFile(_ url: URL) -> Bool {
-        UserDefaults.standard.removeObject(forKey: Self.folderKey)
-        liveFolderURL = nil
         liveBackupURL = url
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         if refreshBookmark(from: url) { return true }
@@ -627,7 +474,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         switch pickerPurpose {
         case .saveBackup: toast("Auto-backup wasn't turned on.")
         case .restoreBackup: toast("Nothing restored.")
-        case .chooseFolder: showBackupFallback("cancelled")
         case .importFile: break
         }
     }
@@ -681,9 +527,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return
         case "restoreBackup":
             restoreBackupFile()
-            return
-        case "backupChooseFolder":
-            chooseBackupFolder()
             return
         case "restoreDismissed":
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
@@ -989,9 +832,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         )
     }
 
-    private func noteSaveBackBackup(restored: Int) {
+    private func noteSaveBackBackup(restored: Int, reason: String? = nil) {
+        let why = (try? JSONEncoder().encode(reason ?? "")).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.pickSavedFile && window.__soulectionFavorites.pickSavedFile(\(restored));",
+            "window.__soulectionFavorites && window.__soulectionFavorites.pickSavedFile && window.__soulectionFavorites.pickSavedFile(\(restored), \(why));",
             completionHandler: nil
         )
     }
@@ -1162,14 +1006,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
         guard let url = urls.first else { return }
         switch pickerPurpose {
-        case .chooseFolder:
-            let access = folderAccess(url)
-            guard access.ok else {
-                showBackupFallback("refused")
-                return
-            }
-            Task { @MainActor [weak self] in await self?.finishChoosingFolder(url, bookmark: access.bookmark) }
-            return
         case .saveBackup:
             // Saved (moved) to the user's chosen spot: remember it and keep it up to date.
             guard rememberBackupFile(url) else {
@@ -1188,13 +1024,26 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return
         case .restoreBackup:
             guard let incoming = readBackup(at: url) else {
-                toast("That file isn't a Soulection Radio backup.")
+                toast("That file isn't a Soulection Radio backup, or it couldn't be opened. If it's in iCloud Drive, wait a moment for it to download and try again.")
                 return
             }
             let restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
+            // Keep backing up to this same file.
+            let previousFile = UserDefaults.standard.data(forKey: Self.fileKey)
+            if rememberBackupFile(url), writeAutoBackup() {
+                send()
+                let n = restored == 1 ? "1 song" : "\(restored) songs"
+                toast(restored > 0 ? "Restored \(n). Backup is on." : "Your songs are all here. Backup is on.")
+                return
+            }
+            // iOS won't let the app write to it: save it back once instead.
+            let why = lastWriteFailure
+            if let previousFile { UserDefaults.standard.set(previousFile, forKey: Self.fileKey) } else { UserDefaults.standard.removeObject(forKey: Self.fileKey) }
+            liveBackupURL = nil
+            autoBackupError = false
             send()
-            noteSaveBackBackup(restored: restored)
+            noteSaveBackBackup(restored: restored, reason: why)
             Task { @MainActor [weak self] in
                 try? await Task.sleep(for: .milliseconds(1500)) // let the picker close first
                 self?.saveBackupToFiles()

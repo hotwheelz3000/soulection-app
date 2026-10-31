@@ -42,7 +42,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **Getting around**
-- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (when there's a page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces. Back uses the same page history as swiping from the left edge.
+- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (dimmed when there's no page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces. Back uses the same page history as swiping from the left edge.
 - **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
 
 **Extras**
@@ -60,11 +60,9 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - Soulection's own pages (tracklists, search) are theirs; the app raises their grey text to the same contrast but can't change the rest.
 
 **Backup to iCloud Drive**
-- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Choose folder**. In the next screen, tap into the folder you want (for example iCloud Drive, then Soulection), then tap **Open** at the top right. That's it. From then on, `Soulection Radio Backup.json` in that folder is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
-- **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Choose backup folder**, tap into the same folder, then tap **Open**. Your Likes and History come back, and auto-backup is on again.
-- **Already have songs?** A backup in the folder you pick is added to them; nothing is replaced.
-- **If you cancel,** the app shows how to choose a folder again, with a **Try again** button.
-- **If the folder way doesn't work on your phone,** the app says so (with iOS's reason) and walks you through the other way, using the file itself: to turn backup on, tap **Save a backup file**, choose a folder and tap **Save**. To get your songs back, tap **Pick my backup file**, choose `Soulection Radio Backup.json`, then save it back to the same folder (**Save**, then **Replace**).
+- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Save a backup file**. Pick a folder (iCloud Drive is best) and tap **Save**. From then on, `Soulection Radio Backup.json` is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
+- **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Pick my backup file** and choose `Soulection Radio Backup.json`. Your songs come back (added to anything already there) and backup stays on, saving to that same file.
+- **If your iPhone won't let the app update the file it picked,** the app says so (with iOS's reason) and opens the save screen once: choose the same folder, tap **Save**, then **Replace**.
 - **Manual backups:** **Export** saves a one-off copy anywhere; **Import** adds one back. If auto-backup is off (or failing), the app reminds you every 4 new likes.
 
 ## Known limits

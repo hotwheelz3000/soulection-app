@@ -8,10 +8,10 @@
 - **Calmer opening and closing:** nothing flies between the mini and big player any more.
 
 **Getting around**
-- The top bar has the same buttons on every page, staying put with the search box: Back and Home on the left, your buttons on the right. Back goes back a page (only shown when there's one), so you'll never need to restart the app to find your way.
+- The top bar has the same buttons on every page, staying put with the search box: Back and Home on the left, your buttons on the right. Back goes back a page (dimmed when there isn't one), so you'll never need to restart the app to find your way.
 - Show pages no longer slide sideways while you scroll.
 
 **Also**
 - The dice plays a random show right where you are, without opening its page.
-- Backup: clearer steps for choosing a folder, a Try again button, and iOS's reason if a folder can't be used.
+- Backup: turn it on by saving one backup file; after a reinstall, just pick that file. Your songs come back and backup carries on, with no extra save step.
 - Show covers keep their space while the list loads, so scrolling doesn't jump.
