@@ -63,6 +63,8 @@ enum FavoritesScript {
           var EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
           var IMPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
 
+          var BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>';
+          var HOME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v10h4.5v-6h3v6H18V10"/></svg>';
           var DICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/></svg>';
 
           // Sleep timer icon: three Z's, small to big, that light up in a wave while it's on.
@@ -117,6 +119,13 @@ enum FavoritesScript {
             '.sr-song-cell{display:flex;align-items:flex-start;gap:6px}',
             '.sr-heart-mini{font-size:23px;padding:9px;border-radius:9999px;flex:none;margin-left:auto;order:1}',
             '.sr-heart-mini[hidden]{display:none}',
+            // The app's top bar (fixed, on every page).
+            '.sr-appbar{position:fixed;left:0;right:0;top:0;height:44px;z-index:44;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));box-sizing:border-box}',
+            '.sr-appbar.sr-appbar-solid{background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding-top:env(safe-area-inset-top);height:auto !important;min-height:calc(env(safe-area-inset-top) + 44px)}',
+            '.sr-appbar-side{display:flex;align-items:center;pointer-events:auto}',
+            '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
+            '.sr-appbar-btn[hidden]{display:none}',
+            'html.sr-lock .sr-appbar{visibility:hidden}',
             '.sr-heart-top{font-size:23px;padding:8px;margin:0 -4px 0 4px;flex:none;align-self:center}',
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
@@ -194,6 +203,12 @@ enum FavoritesScript {
             // doesn't shrink and jump when the site adds more shows and the covers reload
             // (iPhone's browser doesn't hold your place when content above changes size).
             'main a[href^="/episodes/"] img{aspect-ratio:1/1;height:auto}',
+            // Pages only scroll up and down: nothing may make them wider than the screen
+            // (long song names wrap instead of pushing a row wider).
+            'html,body{overflow-x:hidden;max-width:100%}',
+            'main{overflow-x:clip}',
+            '.col-span-full.grid{min-width:0;max-width:100%}',
+            '.col-span-full.grid > *{min-width:0;overflow-wrap:anywhere}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -548,7 +563,13 @@ enum FavoritesScript {
             if (e.key === 'Escape' && note && note.__sticky && note.querySelector('button')) { e.preventDefault(); hideNote(); return; }
             if (!dialogs.length) return;
             var top = dialogs[dialogs.length - 1];
-            if (e.key === 'Escape') { e.preventDefault(); top.close(); return; }
+            if (e.key === 'Escape') {
+              e.preventDefault();
+              // In the big player, Escape first closes the Songs list, then the player.
+              if (fp && top.panel === fp.root && fp.root.classList.contains('sr-np-songs-open')) { setSongsOpen(false); return; }
+              top.close();
+              return;
+            }
             if (e.key !== 'Tab') return;
             var items = focusables(top.panel);
             if (!items.length) return;
@@ -1323,6 +1344,7 @@ enum FavoritesScript {
 
           function isOpen() { return !!(sheet && sheet.root.classList.contains('sr-open')); }
 
+
           function openSheet() {
             buildSheet();
             if (!sheet || isOpen()) return;
@@ -1602,15 +1624,61 @@ enum FavoritesScript {
             }
             return null;
           }
+          // The app's own top bar: fixed at the top of every page, so its buttons never move
+          // or go missing (even when the site redraws its own top bar). Left: Back (when there
+          // is a page to go back to) and Home. Right: Likes, Random show, Mixtape, Sleep timer
+          // and Help. It lines up with the site's search box, which stays in between.
+          var appBar = null; // {root, left, right, back, home}
+          function buildAppBar() {
+            if (appBar || !document.body) return;
+            var root = el('div', 'sr-appbar');
+            var left = el('div', 'sr-appbar-side sr-appbar-left');
+            var right = el('div', 'sr-appbar-side sr-appbar-right');
+            var back = heartButton('sr-appbar-btn sr-back-top');
+            back.innerHTML = BACK;
+            back.removeAttribute('aria-pressed');
+            back.setAttribute('aria-label', 'Back');
+            back.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); history.back(); });
+            var home = heartButton('sr-appbar-btn sr-home-top');
+            home.innerHTML = HOME;
+            home.removeAttribute('aria-pressed');
+            home.setAttribute('aria-label', 'Home');
+            home.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              closeSheet(); closePlayer();
+              if (location.pathname !== '/') goTo('/', 'sr-home', '1'); else window.scrollTo(0, 0);
+            });
+            left.appendChild(back);
+            left.appendChild(home);
+            root.appendChild(left);
+            root.appendChild(right);
+            document.body.appendChild(root);
+            appBar = { root: root, left: left, right: right, back: back, home: home };
+            attachLabel(back, 'Back');
+            attachLabel(home, 'Home');
+          }
+          // Remembers whether there's a page to go back to (the app starts on the home page).
+          // (Counted by watching the address change: a change that isn't a "back" is a new page.)
+          var navDepth = 0, lastHref = location.href;
+          window.addEventListener('popstate', function () {
+            navDepth = Math.max(0, navDepth - 1);
+            lastHref = location.href;
+            schedule();
+          });
+          function trackNavigation() {
+            if (location.href === lastHref) return;
+            if (location.href.split('#')[0] !== lastHref.split('#')[0]) navDepth++;
+            lastHref = location.href;
+          }
           function renderTab() {
-            var box = searchBox();
-            if (!box || !box.parentElement) return;
+            trackNavigation();
+            buildAppBar();
+            if (!appBar) return;
             if (!tab) {
               tab = heartButton('sr-heart-top');
               tab.setAttribute('aria-label', 'Open Likes and History');
               tab.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openSheet(); });
             }
-            if (tab.previousElementSibling !== box) box.parentElement.insertBefore(tab, box.nextSibling);
             if (!dice) {
               dice = heartButton('sr-dice-top');
               dice.innerHTML = DICE;
@@ -1618,7 +1686,6 @@ enum FavoritesScript {
               dice.setAttribute('aria-label', 'Play a random show');
               dice.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); playRandomShow(); });
             }
-            if (dice.previousElementSibling !== tab) box.parentElement.insertBefore(dice, tab.nextSibling);
             if (!moon) {
               moon = heartButton('sr-moon-top');
               moon.innerHTML = MOON;
@@ -1629,8 +1696,6 @@ enum FavoritesScript {
               tape.innerHTML = CASSETTE;
               tape.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); toggleMixtape(); });
             }
-            if (tape.previousElementSibling !== dice) box.parentElement.insertBefore(tape, dice.nextSibling);
-            if (moon.previousElementSibling !== tape) box.parentElement.insertBefore(moon, tape.nextSibling);
             if (!help) {
               help = heartButton('sr-help-top');
               help.innerHTML = HELP;
@@ -1643,10 +1708,45 @@ enum FavoritesScript {
               attachLabel(moon, 'Sleep timer');
               attachLabel(help, 'Help');
             }
-            if (help.previousElementSibling !== moon) box.parentElement.insertBefore(help, moon.nextSibling);
+            var order = [tab, dice, tape, moon, help];
+            order.forEach(function (b, i) { if (appBar.right.children[i] !== b) appBar.right.insertBefore(b, appBar.right.children[i] || null); });
+            appBar.back.hidden = navDepth < 1;
+            fitAppBar();
             renderTape();
             renderMoon();
           }
+          // Lines the bar up with the site's search box and makes room for it there: the site's
+          // own logo / back link (replaced by Home and Back) is hidden, and its top bar leaves
+          // space on both sides for the app's buttons.
+          function fitAppBar() {
+            var box = searchBox();
+            var bar = appBar.root;
+            var top = 0, h = 44;
+            var row = box && box.parentElement;
+            if (row) {
+              [].forEach.call(row.children, function (c) {
+                if (c === box) return;
+                if (c.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) {
+                  // before the search box: the site's logo / back link
+                  if (!c.hasAttribute('data-sr-hidden')) { c.setAttribute('data-sr-hidden', '1'); c.style.setProperty('display', 'none', 'important'); }
+                }
+              });
+              var lw = Math.ceil(appBar.left.getBoundingClientRect().width) + 4;
+              var rw = Math.ceil(appBar.right.getBoundingClientRect().width) + 4;
+              var pl = lw + 'px', pr = rw + 'px';
+              if (row.style.paddingLeft !== pl) row.style.setProperty('padding-left', pl, 'important');
+              if (row.style.paddingRight !== pr) row.style.setProperty('padding-right', pr, 'important');
+              var r = box.getBoundingClientRect();
+              // Follows the search box while the site's top bar is on screen; stays at the top
+              // when it isn't.
+              if (r.height && r.bottom > 0) { h = Math.max(36, r.height); top = Math.max(0, r.top); }
+            }
+            var t = top + 'px', hh = h + 'px';
+            if (bar.style.top !== t) bar.style.top = t;
+            if (bar.style.height !== hh) bar.style.height = hh;
+            bar.classList.toggle('sr-appbar-solid', !row || box.getBoundingClientRect().bottom <= 0);
+          }
+          window.addEventListener('scroll', function () { if (appBar) fitAppBar(); }, { passive: true });
 
           // ---------------------------------------------------------------------------
           // Press and hold a top bar icon to see its name.
@@ -1695,11 +1795,12 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           function helpItems() {
             return [
+              [HOME, 'Back and Home', 'Top left, on every page: go back a page, or straight to the home page.'],
               [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show.'],
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
-              [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap the show name to open its song list.'],
+              [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap Songs for the show\u2019s song list. Swipe the player at the bottom left or right to skip songs.'],
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
@@ -3063,9 +3164,6 @@ enum FavoritesScript {
             fp.upnext.addEventListener('click', function () { nextFavorite(); });
             fp.songsBtn.addEventListener('click', function () { setSongsOpen(!fp.root.classList.contains('sr-np-songs-open')); });
             root.querySelector('.sr-np-songs-close').addEventListener('click', function () { setSongsOpen(false); });
-            fp.songs.addEventListener('keydown', function (e) {
-              if (e.key === 'Escape') { e.preventDefault(); e.stopPropagation(); setSongsOpen(false); }
-            });
             fp.songsList.addEventListener('click', function (e) {
               var heart = e.target.closest && e.target.closest('.sr-heart');
               var go = e.target.closest && e.target.closest('.sr-np-song-go');
@@ -4502,13 +4600,14 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
             // Safety net: if the site redraws its top bar and the app's icons go missing,
             // put them back within a second or two.
-            setInterval(function () { if (tab && !tab.isConnected) schedule(); }, 1500);
+            // (Also notices a page change, so Back shows up.)
+            setInterval(function () { if ((tab && !tab.isConnected) || location.href !== lastHref) schedule(); }, 1000);
             try {
               var pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null');
               sessionStorage.removeItem(PENDING_KEY);

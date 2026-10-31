@@ -7,8 +7,11 @@
 - **Starting a show:** the Soulection logo spins in the play button until the music starts. If it doesn't start, the app quietly tries again.
 - **Calmer opening and closing:** the heart and play buttons no longer fly between the mini and big player; they're simply there.
 
+**Getting around**
+- The app has its own top bar that stays put on every page: Back and Home on the left, and your buttons on the right. You'll never need to restart the app to find your way back.
+- Show pages no longer slide sideways while you scroll.
+
 **Also**
 - The dice plays a random show right where you are, without opening its page.
 - Backup: clearer steps for choosing a folder, a Try again button, and iOS's reason if a folder can't be used.
 - Show covers keep their space while the list loads, so scrolling doesn't jump.
-- The top bar icons come back on their own if the site redraws its top bar.

@@ -42,6 +42,10 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
+**Getting around**
+- **The app's own top bar** stays in the same place on every page: **Back** (when there's a page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right, with the site's search box in between. Swiping from the left edge also goes back.
+- **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
+
 **Extras**
 - **Random show:** the dice plays a random episode (any of the 750+ shows) from the very beginning, right where you are (the page doesn't change).
 - **Mixtape:** the cassette plays endless random songs, each from a different show than the one before. Each song is added to your Likes as soon as it's picked (even if you skip it) and to History once it plays; remove any you don't want.

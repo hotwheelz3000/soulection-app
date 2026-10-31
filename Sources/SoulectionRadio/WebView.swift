@@ -57,6 +57,10 @@ struct WebView: UIViewRepresentable {
         // The web view fills the whole screen and the page applies the safe-area
         // insets itself, so the scroll view must not add its own.
         webView.scrollView.contentInsetAdjustmentBehavior = .never
+        // Pages only scroll up and down: no sideways bounce or drift.
+        webView.scrollView.alwaysBounceHorizontal = false
+        webView.scrollView.showsHorizontalScrollIndicator = false
+        context.coordinator.lockHorizontal(webView.scrollView)
 
         let refreshControl = UIRefreshControl()
         refreshControl.tintColor = .white
@@ -257,6 +261,18 @@ struct WebView: UIViewRepresentable {
         let appearance: PageAppearance
         let favorites = FavoritesBridge()
         weak var webView: WKWebView?
+        private var offsetWatch: NSKeyValueObservation?
+
+        /// Keeps the page from sliding sideways: if anything nudges it left or right (while
+        /// not zoomed in), it's put straight back.
+        func lockHorizontal(_ scrollView: UIScrollView) {
+            offsetWatch = scrollView.observe(\.contentOffset, options: [.new]) { view, _ in
+                MainActor.assumeIsolated {
+                    guard view.zoomScale <= view.minimumZoomScale + 0.01, view.contentOffset.x != 0 else { return }
+                    view.contentOffset.x = 0
+                }
+            }
+        }
 
         init(homeURL: URL, appearance: PageAppearance) {
             self.homeURL = homeURL
