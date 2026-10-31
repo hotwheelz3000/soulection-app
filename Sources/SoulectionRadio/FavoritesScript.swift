@@ -122,6 +122,7 @@ enum FavoritesScript {
             // The app's top bar (fixed, on every page).
             '.sr-appbar{position:fixed;left:0;right:0;top:0;z-index:44;display:flex;align-items:center;justify-content:space-between;background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding:env(safe-area-inset-top) max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));min-height:calc(env(safe-area-inset-top) + 44px);box-sizing:border-box}',
             '.sr-appbar[hidden]{display:none}',
+            '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
@@ -311,6 +312,8 @@ enum FavoritesScript {
             // Full-size player.
             '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translate3d(0,100%,0);will-change:transform;-webkit-user-select:none;user-select:none}',
             '.sr-np[hidden]{display:none}',
+            '.sr-np-fly{position:absolute;left:0;top:0;z-index:3;object-fit:cover;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45);will-change:transform,width,height}',
+            '.sr-np-ghost{position:absolute;left:0;top:0;z-index:2;pointer-events:none;will-change:transform,opacity}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
             '.sr-np-inner{position:relative;height:100%;box-sizing:border-box;display:flex;flex-direction:column;padding:calc(env(safe-area-inset-top) + 6px) 24px calc(env(safe-area-inset-bottom) + 18px)}',
@@ -1708,12 +1711,35 @@ enum FavoritesScript {
               if (box.previousElementSibling !== appBar.left) row.insertBefore(appBar.left, box);
               if (box.nextElementSibling !== appBar.right) row.insertBefore(appBar.right, box.nextSibling);
               if (!appBar.root.hidden) appBar.root.hidden = true;
+              // Remember exactly where the buttons sit, for the moment the site swaps pages.
+              var lr = appBar.left.getBoundingClientRect(), gr = appBar.right.getBoundingClientRect();
+              rowGoneAt = 0;
+              if (lr.height && lr.top >= 0 && lr.top < 200) {
+                lastRow = { top: lr.top, height: lr.height, left: lr.left, right: window.innerWidth - gr.right };
+              }
             } else {
               if (appBar.left.parentElement !== appBar.root) appBar.root.appendChild(appBar.left);
               if (appBar.right.parentElement !== appBar.root) appBar.root.appendChild(appBar.right);
+              // While the site swaps one page for the next, its top bar is gone for a moment.
+              // The buttons hold their exact spots (not the app's own bar, which sits higher)
+              // until the new page's top bar shows up, so nothing jumps.
+              if (!rowGoneAt) rowGoneAt = Date.now();
+              var hold = lastRow && Date.now() - rowGoneAt < 4000;
+              var st = appBar.root.style;
+              if (hold) {
+                appBar.root.classList.add('sr-appbar-hold');
+                st.top = lastRow.top + 'px'; st.height = lastRow.height + 'px';
+                st.paddingLeft = lastRow.left + 'px'; st.paddingRight = lastRow.right + 'px';
+                clearTimeout(holdTimer);
+                holdTimer = setTimeout(fitAppBar, 4100 - (Date.now() - rowGoneAt));
+              } else if (appBar.root.classList.contains('sr-appbar-hold')) {
+                appBar.root.classList.remove('sr-appbar-hold');
+                st.top = st.height = st.paddingLeft = st.paddingRight = '';
+              }
               if (appBar.root.hidden) appBar.root.hidden = false;
             }
           }
+          var lastRow = null, rowGoneAt = 0, holdTimer = null;
 
 
           // ---------------------------------------------------------------------------
@@ -3337,9 +3363,111 @@ enum FavoritesScript {
             var solid = Math.min(1, e / 0.25);
             root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
             fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
-            var show = Math.max(0, Math.min(1, (e - 0.4) / 0.5));
+            var show = Math.max(0, Math.min(1, (e - 0.65) / 0.35)); // the details come in last
             fp.inner.style.opacity = show.toFixed(3);
             fp.inner.style.transform = 'translate3d(0,' + ((1 - show) * 24).toFixed(1) + 'px,0)';
+            placeFly(e, c, k);
+          }
+          // While the card grows, the mini player's row rides along at its top edge and fades
+          // away, and only the cover travels: from the mini player's thumbnail to the big cover.
+          // Closing runs the same thing backwards. Set up when the player leaves either end,
+          // cleared once it is fully open or closed.
+          var fly = null; // {img, from, to, row, hidden: [[node, visibility]]}
+          function miniThumb() {
+            var card = playerCard();
+            if (!card) return null;
+            var sel = card === liveCard ? '.sr-ready-img' : (card.querySelector(':scope > .sr-mini-over') ? '.sr-mo-img' : 'img');
+            var n = card.querySelector(sel);
+            return n && n.getBoundingClientRect().width ? n : null;
+          }
+          function bigCoverRect() {
+            var prev = fp.inner.style.transform;
+            fp.inner.style.transform = 'none';
+            var r = fp.cover.getBoundingClientRect();
+            fp.inner.style.transform = prev;
+            return r && r.width ? r : null;
+          }
+          function startFly() {
+            endFly();
+            if (reduceMotion) return;
+            var card = playerCard();
+            if (!card) return;
+            var f = fly = { hidden: [] };
+            var hide = function (n) { if (!n) return; f.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
+            try {
+              var thumb = miniThumb(), to = bigCoverRect();
+              var src = fp.cover.getAttribute('src') ? (fp.cover.currentSrc || fp.cover.src) : (thumb && (thumb.currentSrc || thumb.src));
+              if (thumb && to && src) {
+                var img = el('img', 'sr-np-fly');
+                img.alt = '';
+                img.setAttribute('aria-hidden', 'true');
+                img.src = src;
+                fp.root.appendChild(img);
+                f.img = img;
+                f.from = thumb.getBoundingClientRect();
+                f.to = to;
+                f.r0 = parseFloat(getComputedStyle(thumb).borderTopLeftRadius) || 4;
+                hide(fp.cover); hide(thumb);
+              }
+              // A picture of the mini player's row (song, artist, buttons) for the card's top.
+              var cr = card.getBoundingClientRect();
+              var row = el('div', 'sr-np-ghost');
+              row.setAttribute('aria-hidden', 'true');
+              row.inert = true;
+              var copy = card.cloneNode(true);
+              copy.removeAttribute('id');
+              copy.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
+              copy.querySelectorAll('.sr-grab, iframe, audio, video, script').forEach(function (n) { n.remove(); });
+              var cs = copy.style;
+              cs.position = 'relative'; cs.inset = 'auto'; cs.left = cs.top = cs.right = cs.bottom = 'auto';
+              cs.margin = '0'; cs.transform = 'none'; cs.width = cr.width + 'px'; cs.height = cr.height + 'px';
+              cs.maxWidth = 'none'; cs.opacity = '1'; cs.background = 'transparent'; cs.boxShadow = 'none'; cs.border = '0';
+              // The thumbnail is the travelling cover now, so the copy leaves its spot empty.
+              var ct = copy.querySelector(card === liveCard ? '.sr-ready-img' : (card.querySelector(':scope > .sr-mini-over') ? '.sr-mo-img' : 'img'));
+              if (ct) ct.style.visibility = 'hidden';
+              row.style.width = cr.width + 'px';
+              row.appendChild(copy);
+              fp.root.appendChild(row);
+              f.row = row;
+              f.dx = cr.left;
+              // The card is the mini player now: the real one steps aside until it's back.
+              hide(card);
+            } catch (err) { endFly(); }
+          }
+          function endFly() {
+            if (!fly) return;
+            var f = fly;
+            fly = null;
+            if (f.img) f.img.remove();
+            if (f.row) f.row.remove();
+            f.hidden.forEach(function (h) { h[0].style.visibility = h[1]; });
+          }
+          var lerp = function (a, b, t) { return a + (b - a) * t; };
+          function placeFly(e, c, k) {
+            if (!fp || fp.root.hidden) return;
+            if (e >= 1) { endFly(); return; }
+            if (!fly) startFly();
+            if (!fly) return;
+            var f = fly;
+            // A solid card from the start, like the mini player it grew out of.
+            fp.root.style.backgroundColor = BG;
+            if (f.img) {
+              var a = f.from, b = f.to, s = f.img.style;
+              // Rides inside the growing card: from where the thumbnail sat in the row to the
+              // big cover's spot, growing as the card does.
+              var t = e;
+              var x = lerp(a.left - (f.dx || 0) * e, b.left, t);
+              var y = c.top * k + lerp(a.top - c.top, b.top, t);
+              s.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
+              s.width = lerp(a.width, b.width, t).toFixed(1) + 'px';
+              s.height = lerp(a.height, b.height, t).toFixed(1) + 'px';
+              s.borderRadius = lerp(f.r0, 6, t).toFixed(1) + 'px';
+            }
+            if (f.row) {
+              // Pinned to the growing card's top edge; gone by a third of the way.
+              f.row.style.transform = 'translate3d(' + (f.dx * k).toFixed(1) + 'px,' + (c.top * k).toFixed(1) + 'px,0)';
+              f.row.style.opacity = Math.max(0, 1 - e / 0.3).toFixed(3);
+            }
           }
           function animateTo(target, velocity, done) {
             cancelAnimationFrame(fpAnim);
@@ -3502,6 +3630,7 @@ enum FavoritesScript {
           function finishClose() {
             closeNpActions();
             if (!fp) return;
+            endFly();
             dialogClosed(fp.root);
             fp.root.classList.remove('sr-open');
             fp.root.hidden = true;
@@ -4338,6 +4467,9 @@ enum FavoritesScript {
           function start() {
             attachOpenGesture();
             new MutationObserver(function (mutations) {
+              // The site swapped its top bar: move the buttons right away, before the screen
+              // draws, so they never blink out or jump.
+              if (appBar && (!appBar.left.isConnected || (appBar.left.parentElement === appBar.root && searchBox()))) fitAppBar();
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.

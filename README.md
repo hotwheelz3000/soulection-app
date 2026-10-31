@@ -8,7 +8,7 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 **[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
 
-The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-2.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-2.0 2.ipa".
+The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-3.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-3.0 2.ipa".
 
 ## How to install
 
@@ -41,8 +41,11 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
+**The player**
+- **Open the big player** by swiping up on the mini player (or its tab) or tapping it. The card grows out of the mini player: its song row rides up and fades, the cover grows into place, and the rest comes in at the end. Swipe down to send it back the same way.
+
 **Getting around**
-- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (dimmed when there's no page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces. Back uses the same page history as swiping from the left edge.
+- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (dimmed when there's no page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces or changes to another page. Back uses the same page history as swiping from the left edge.
 - **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
 
 **Extras**
