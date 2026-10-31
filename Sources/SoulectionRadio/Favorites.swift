@@ -231,7 +231,7 @@ final class FavoritesStore {
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
 /// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
 /// `seconds`), "sleepNow" or
-/// "airplay" (show the AirPlay picker),
+/// "airplay" (show the AirPlay picker), "goBack" (the app's Back button),
 /// "backupChooseFolder" (the simple way: pick a folder to back up to, which also restores
 /// a backup already in it), "backupCreate" (the file way, as a fallback),
 /// "restoreBackup" (pick a backup file to restore: the fallback), "restoreDismissed", "welcomeSeen",
@@ -689,6 +689,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         case "welcomeSeen":
             UserDefaults.standard.set(true, forKey: Self.welcomeSeenKey)
+        case "goBack":
+            // The app's Back button: the same page history as swiping from the left edge.
+            if let view = message.webView, view.canGoBack { view.goBack() }
+            return
         case "airplay":
             showAirPlayPicker()
             return

@@ -120,9 +120,9 @@ enum FavoritesScript {
             '.sr-heart-mini{font-size:23px;padding:9px;border-radius:9999px;flex:none;margin-left:auto;order:1}',
             '.sr-heart-mini[hidden]{display:none}',
             // The app's top bar (fixed, on every page).
-            '.sr-appbar{position:fixed;left:0;right:0;top:0;height:44px;z-index:44;display:flex;align-items:center;justify-content:space-between;pointer-events:none;padding:0 max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));box-sizing:border-box}',
-            '.sr-appbar.sr-appbar-solid{background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding-top:env(safe-area-inset-top);height:auto !important;min-height:calc(env(safe-area-inset-top) + 44px)}',
-            '.sr-appbar-side{display:flex;align-items:center;pointer-events:auto}',
+            '.sr-appbar{position:fixed;left:0;right:0;top:0;z-index:44;display:flex;align-items:center;justify-content:space-between;background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding:env(safe-area-inset-top) max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));min-height:calc(env(safe-area-inset-top) + 44px);box-sizing:border-box}',
+            '.sr-appbar[hidden]{display:none}',
+            '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
             '.sr-appbar-btn[hidden]{display:none}',
             'html.sr-lock .sr-appbar{visibility:hidden}',
@@ -165,16 +165,11 @@ enum FavoritesScript {
             '.sr-np-play .sr-spin-logo{width:44px;height:44px}',
             // Hidden from sight, still there for VoiceOver and the keyboard.
             '.sr-vh{position:absolute !important;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}',
-            // Up next (big player, while Likes, History or Mixtape plays): plain text, no box.
-            '.sr-np-upnext{-webkit-appearance:none;appearance:none;flex:none;display:flex;align-items:baseline;gap:8px;width:100%;margin:6px 0 0;padding:6px 0;border:0;background:none;text-align:left;font-family:' + FONT + ';color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
-            '.sr-np-upnext[hidden]{display:none}',
-            '.sr-np-upnext-label{flex:none;font-size:11px;line-height:16px;letter-spacing:.08em;text-transform:uppercase;color:' + MUTED + '}',
-            '.sr-np-upnext-text{min-width:0;flex:1;font-size:14px;line-height:19px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-            '.sr-np-upnext-text small{color:' + MUTED + ';font-size:12px;margin-left:6px}',
-            '.sr-np-upnext:active{opacity:.6}',
             // Songs: the show's song list, sliding up inside the big player.
-            '.sr-np-songs-btn{-webkit-appearance:none;appearance:none;align-self:center;font-family:' + FONT + ';font-size:14px;line-height:20px;font-weight:600;color:' + TEXT + ';background:none;border:1px solid ' + BORDER + ';border-radius:9999px;padding:6px 16px;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-            '.sr-np-songs-btn[aria-expanded="true"]{background:rgba(255,255,255,.14);color:#fff}',
+            // Up Next: plain text, no box.
+            '.sr-np-songs-btn{-webkit-appearance:none;appearance:none;align-self:center;font-family:' + FONT + ';font-size:15px;line-height:20px;font-weight:600;color:' + TEXT + ';background:none;border:0;padding:10px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-np-songs-btn:active{opacity:.6}',
+            '.sr-np-songs-btn[aria-expanded="true"]{color:#fff}',
             '.sr-np-songs{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top) + 58px);z-index:3;display:flex;flex-direction:column;background:' + BG + ';border-top:1px solid ' + BORDER + ';border-radius:12px 12px 0 0;transform:translateY(100%);visibility:hidden;transition:transform .26s cubic-bezier(.2,.8,.2,1),visibility 0s .26s}',
             '.sr-np.sr-np-songs-open .sr-np-songs{transform:none;visibility:visible;transition:transform .26s cubic-bezier(.2,.8,.2,1)}',
             '.sr-np-songs-head{flex:none;display:flex;align-items:center;gap:12px;padding:12px 16px 8px 20px}',
@@ -184,7 +179,7 @@ enum FavoritesScript {
             '.sr-np-songs-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 10px calc(env(safe-area-inset-bottom) + 12px)}',
             '.sr-np-song{display:flex;align-items:center;gap:6px;border-radius:8px}',
             '.sr-np-song-go{-webkit-appearance:none;appearance:none;flex:1;min-width:0;display:grid;grid-template-columns:62px 1fr;align-items:center;gap:6px;padding:9px 8px;border:0;background:none;text-align:left;font-family:' + FONT + ';color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
-            '.sr-np-song-t{font-size:12px;color:' + MUTED + ';font-variant-numeric:tabular-nums}',
+            '.sr-np-song-t{font-size:12px;color:' + MUTED + ';font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-song-name{display:block;font-size:15px;line-height:20px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-song-artist{display:block;font-size:13px;line-height:18px;color:' + MUTED + ';white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-song.sr-now{background:rgba(255,255,255,.06)}',
@@ -311,18 +306,6 @@ enum FavoritesScript {
             '.sr-sleep-off{color:' + TEXT + ';font-weight:600}',
             // Full-size player.
             '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translate3d(0,100%,0);will-change:transform;-webkit-user-select:none;user-select:none}',
-            '.sr-np-morph{position:fixed;z-index:46;object-fit:cover;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45);will-change:left,top,width,height}',
-            // Pieces of the mini player travelling to their places in the big player.
-            '.sr-np-tv{position:fixed;left:0;top:0;z-index:47;pointer-events:none;margin:0;box-sizing:border-box;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;font-family:' + FONT + '}',
-            '.sr-np-tv svg{display:block;width:100%;height:100%}',
-            '.sr-np-tv-dual{display:grid}',
-            '.sr-np-tv-dual > span{grid-area:1/1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}',
-            '.sr-np-tv-track{overflow:visible;border-radius:9999px;background:' + TRACK + '}',
-            '.sr-np-tv-track i{position:absolute;left:0;top:0;bottom:0;border-radius:inherit;background:#fff}',
-            '.sr-np-tv-track b{position:absolute;top:50%;border-radius:50%;transform:translate(-50%,-50%)}',
-            '.sr-np-tv-grab{border-radius:9999px;background:' + TRACK + '}',
-            // Where the mini player's line heads as it fades out (never shown itself).
-            '.sr-np-handle{position:absolute;left:50%;top:calc(env(safe-area-inset-top) - 2px);width:36px;height:4px;margin-left:-18px;visibility:hidden;pointer-events:none}',
             '.sr-np[hidden]{display:none}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',
             '.sr-np-bg::after{content:"";position:absolute;inset:0;background:linear-gradient(180deg,rgba(26,26,26,.2) 0%,rgba(26,26,26,.85) 55%,' + BG + ' 100%)}',
@@ -733,6 +716,7 @@ enum FavoritesScript {
             },
             pickSavedFile: function (restored) { pickSavedFileNote(restored); },
             backupFallback: function (kind, reason) { backupFallback(kind, reason); },
+            canGoBack: function (v) { canBack = !!v; if (appBar) appBar.back.hidden = !canBack; },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -1236,9 +1220,8 @@ enum FavoritesScript {
             if (readyCard) hideReadyCard(); // the site's own player is here now
             hideMiniClose(player);
             fullWidthMini(player);
-            // No line on the mini player: tapping it (or pulling it up) opens the big player.
-            var oldGrab = player.querySelector(':scope > .sr-grab');
-            if (oldGrab) oldGrab.remove();
+            // The tab on top of the mini player: swipe up (or tap) to open the big player.
+            addGrab(player);
             if (miniTouchMove && player.__srMove !== miniTouchMove) {
               player.addEventListener('touchmove', miniTouchMove, { passive: false });
               player.__srMove = miniTouchMove;
@@ -1638,7 +1621,7 @@ enum FavoritesScript {
             back.innerHTML = BACK;
             back.removeAttribute('aria-pressed');
             back.setAttribute('aria-label', 'Back');
-            back.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); history.back(); });
+            back.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); closeSheet(); closePlayer(); native({ op: 'goBack' }); });
             var home = heartButton('sr-appbar-btn sr-home-top');
             home.innerHTML = HOME;
             home.removeAttribute('aria-pressed');
@@ -1657,21 +1640,10 @@ enum FavoritesScript {
             attachLabel(back, 'Back');
             attachLabel(home, 'Home');
           }
-          // Remembers whether there's a page to go back to (the app starts on the home page).
-          // (Counted by watching the address change: a change that isn't a "back" is a new page.)
-          var navDepth = 0, lastHref = location.href;
-          window.addEventListener('popstate', function () {
-            navDepth = Math.max(0, navDepth - 1);
-            lastHref = location.href;
-            schedule();
-          });
-          function trackNavigation() {
-            if (location.href === lastHref) return;
-            if (location.href.split('#')[0] !== lastHref.split('#')[0]) navDepth++;
-            lastHref = location.href;
-          }
+          // Whether there's a page to go back to: told by the app (its page history, the same
+          // one the edge swipe uses).
+          var canBack = false;
           function renderTab() {
-            trackNavigation();
             buildAppBar();
             if (!appBar) return;
             if (!tab) {
@@ -1710,43 +1682,40 @@ enum FavoritesScript {
             }
             var order = [tab, dice, tape, moon, help];
             order.forEach(function (b, i) { if (appBar.right.children[i] !== b) appBar.right.insertBefore(b, appBar.right.children[i] || null); });
-            appBar.back.hidden = navDepth < 1;
+            appBar.back.hidden = !canBack;
             fitAppBar();
             renderTape();
             renderMoon();
           }
-          // Lines the bar up with the site's search box and makes room for it there: the site's
-          // own logo / back link (replaced by Home and Back) is hidden, and its top bar leaves
-          // space on both sides for the app's buttons.
+          // Where the buttons go: inside the site's own top bar, on both sides of its search box,
+          // so they stay exactly where the search box is (also while the page bounces). The
+          // site's own logo / back link there is hidden (Home and Back replace it). On a page
+          // without that top bar, they sit in the app's own bar fixed at the top instead.
           function fitAppBar() {
             var box = searchBox();
-            var bar = appBar.root;
-            var top = 0, h = 44;
             var row = box && box.parentElement;
             if (row) {
               [].forEach.call(row.children, function (c) {
-                if (c === box) return;
-                if (c.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) {
-                  // before the search box: the site's logo / back link
-                  if (!c.hasAttribute('data-sr-hidden')) { c.setAttribute('data-sr-hidden', '1'); c.style.setProperty('display', 'none', 'important'); }
+                if (c === box || c === appBar.left || c === appBar.right) return;
+                if ((c.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) && !c.hasAttribute('data-sr-hidden')) {
+                  c.setAttribute('data-sr-hidden', '1');
+                  c.style.setProperty('display', 'none', 'important');
                 }
               });
-              var lw = Math.ceil(appBar.left.getBoundingClientRect().width) + 4;
-              var rw = Math.ceil(appBar.right.getBoundingClientRect().width) + 4;
-              var pl = lw + 'px', pr = rw + 'px';
-              if (row.style.paddingLeft !== pl) row.style.setProperty('padding-left', pl, 'important');
-              if (row.style.paddingRight !== pr) row.style.setProperty('padding-right', pr, 'important');
-              var r = box.getBoundingClientRect();
-              // Follows the search box while the site's top bar is on screen; stays at the top
-              // when it isn't.
-              if (r.height && r.bottom > 0) { h = Math.max(36, r.height); top = Math.max(0, r.top); }
+              // The search box takes whatever room is left (it can get narrower, never wider).
+              if (box.style.minWidth !== '0px') { box.style.minWidth = '0px'; box.style.flex = '1 1 0px'; }
+              var input = box.querySelector('input');
+              if (input && input.style.minWidth !== '0px') { input.style.minWidth = '0px'; input.style.width = '100%'; }
+              if (box.previousElementSibling !== appBar.left) row.insertBefore(appBar.left, box);
+              if (box.nextElementSibling !== appBar.right) row.insertBefore(appBar.right, box.nextSibling);
+              if (!appBar.root.hidden) appBar.root.hidden = true;
+            } else {
+              if (appBar.left.parentElement !== appBar.root) appBar.root.appendChild(appBar.left);
+              if (appBar.right.parentElement !== appBar.root) appBar.root.appendChild(appBar.right);
+              if (appBar.root.hidden) appBar.root.hidden = false;
             }
-            var t = top + 'px', hh = h + 'px';
-            if (bar.style.top !== t) bar.style.top = t;
-            if (bar.style.height !== hh) bar.style.height = hh;
-            bar.classList.toggle('sr-appbar-solid', !row || box.getBoundingClientRect().bottom <= 0);
           }
-          window.addEventListener('scroll', function () { if (appBar) fitAppBar(); }, { passive: true });
+
 
           // ---------------------------------------------------------------------------
           // Press and hold a top bar icon to see its name.
@@ -1795,12 +1764,12 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           function helpItems() {
             return [
-              [HOME, 'Back and Home', 'Top left, on every page: go back a page, or straight to the home page.'],
+              [HOME, 'Back and Home', 'Top left, on every page: go back a page (when there is one), or straight to the home page.'],
               [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show.'],
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
-              [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap Songs for the show\u2019s song list. Swipe the player at the bottom left or right to skip songs.'],
+              [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap Up Next for the songs coming up. Swipe the player at the bottom left or right to skip songs.'],
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
@@ -2557,6 +2526,7 @@ enum FavoritesScript {
               info.addEventListener('click', function (e) { e.stopPropagation(); openPlayer(); });
               if (miniTouchMove) liveCard.addEventListener('touchmove', miniTouchMove, { passive: false });
               addSkipButtons(liveCard);
+              addGrab(liveCard);
               document.body.appendChild(liveCard);
               if (hello) handOver(hello, liveCard);
             }
@@ -2833,6 +2803,15 @@ enum FavoritesScript {
             toggle(fav, true); // no tap feel or announcement for every Mixtape song
           }
 
+          // The little tab at the top of a mini player.
+          function addGrab(card) {
+            if (card.querySelector(':scope > .sr-grab')) return;
+            var g = el('button', 'sr-grab');
+            g.type = 'button';
+            g.setAttribute('aria-label', 'Open player');
+            g.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); openPlayer(); });
+            card.appendChild(g);
+          }
           // The swipe has no meaning for VoiceOver or a keyboard, so the mini players also hold
           // two buttons only they see: Previous song and Next song.
           function addSkipButtons(box) {
@@ -3083,7 +3062,7 @@ enum FavoritesScript {
             root.setAttribute('role', 'dialog');
             root.setAttribute('aria-label', 'Now playing');
             root.innerHTML =
-              '<div class="sr-np-bg"></div><div class="sr-np-handle"></div>' +
+              '<div class="sr-np-bg"></div>' +
               '<div class="sr-np-inner">' +
                 '<div class="sr-np-top">' +
                   '<button type="button" class="sr-np-icon sr-np-close" aria-label="Close player">' + CHEVRON + '</button>' +
@@ -3094,7 +3073,6 @@ enum FavoritesScript {
                 '<div class="sr-np-meta"><div class="sr-np-text"><div class="sr-np-title"></div><div class="sr-np-artist"></div></div></div>' +
                 '<div class="sr-np-bar"><div class="sr-np-track"><div class="sr-np-fill"></div><div class="sr-np-knob"></div></div>' +
                   '<div class="sr-np-times"><span class="sr-np-elapsed">0:00</span><span class="sr-np-left">-0:00</span></div></div>' +
-                '<button type="button" class="sr-np-upnext" hidden><span class="sr-np-upnext-label">Up next</span><span class="sr-np-upnext-text"></span></button>' +
                 '<div class="sr-np-controls">' +
                   '<button type="button" class="sr-np-icon sr-np-prev" aria-label="Previous song">' + PREV + '</button>' +
                   '<button type="button" class="sr-np-play" aria-label="Play"></button>' +
@@ -3102,14 +3080,14 @@ enum FavoritesScript {
                 '</div>' +
                 '<div class="sr-np-extras">' +
                   '<button type="button" class="sr-np-icon sr-np-airplay" aria-label="AirPlay">' + AIRPLAY + '</button>' +
-                  '<button type="button" class="sr-np-songs-btn" aria-expanded="false" aria-controls="sr-np-songs">Songs</button>' +
+                  '<button type="button" class="sr-np-songs-btn" aria-expanded="false" aria-controls="sr-np-songs">Up Next</button>' +
                   '<button type="button" class="sr-np-icon sr-np-sleep" aria-label="Sleep timer">' + MOON + '</button>' +
                 '</div>' +
               '</div>' +
-              '<div class="sr-np-songs" id="sr-np-songs" role="region" aria-label="Songs in this show">' +
+              '<div class="sr-np-songs" id="sr-np-songs" role="region" aria-label="Up Next">' +
                 '<div class="sr-np-songs-head"><img alt=""><div class="sr-np-songs-title"></div>' +
                   '<button type="button" class="sr-np-icon sr-np-songs-close" aria-label="Back to the cover">' + CHEVRON + '</button></div>' +
-                '<div class="sr-np-songs-list" tabindex="0" aria-label="Songs"></div>' +
+                '<div class="sr-np-songs-list" tabindex="0" aria-label="Songs coming up"></div>' +
               '</div>';
             document.body.appendChild(root);
             fp = {
@@ -3122,7 +3100,7 @@ enum FavoritesScript {
               knob: root.querySelector('.sr-np-knob'), elapsed: root.querySelector('.sr-np-elapsed'),
               left: root.querySelector('.sr-np-left'), play: root.querySelector('.sr-np-play'),
               sleep: root.querySelector('.sr-np-sleep'), heart: heartButton('sr-np-heart'),
-              upnext: root.querySelector('.sr-np-upnext'), songsBtn: root.querySelector('.sr-np-songs-btn'),
+              songsBtn: root.querySelector('.sr-np-songs-btn'),
               songs: root.querySelector('.sr-np-songs'), songsList: root.querySelector('.sr-np-songs-list')
             };
             fp.meta.appendChild(fp.heart);
@@ -3161,7 +3139,6 @@ enum FavoritesScript {
               var t = songNow();
               if (t) { t.favoritedAt = Date.now(); toggle(t); renderPlayer(); }
             });
-            fp.upnext.addEventListener('click', function () { nextFavorite(); });
             fp.songsBtn.addEventListener('click', function () { setSongsOpen(!fp.root.classList.contains('sr-np-songs-open')); });
             root.querySelector('.sr-np-songs-close').addEventListener('click', function () { setSongsOpen(false); });
             fp.songsList.addEventListener('click', function (e) {
@@ -3169,6 +3146,22 @@ enum FavoritesScript {
               var go = e.target.closest && e.target.closest('.sr-np-song-go');
               var row = e.target.closest && e.target.closest('.sr-np-song');
               if (!row) return;
+              if (row.hasAttribute('data-q')) {
+                var q = +row.getAttribute('data-q');
+                var rows = queueRows(), item = null;
+                rows.forEach(function (r) { if (r.pos === q) item = r.f; });
+                if (heart) {
+                  if (item) { item.favoritedAt = item.favoritedAt || Date.now(); toggle(item); renderSongs(true); renderPlayer(); }
+                  return;
+                }
+                if (!go || !playlist) return;
+                if (q === -1) { nextFavorite(); return; }       // Mixtape's next song
+                if (q === playlist.pos) return;                  // already playing
+                playlist.pos = q;
+                playCurrent();
+                renderSongs(true);
+                return;
+              }
               var f = songRowFavorite(+row.getAttribute('data-i'));
               if (heart) {
                 if (f) { f.favoritedAt = Date.now(); toggle(f); renderSongs(true); renderPlayer(); }
@@ -3181,27 +3174,8 @@ enum FavoritesScript {
             attachPlayerDrag();
           }
 
-          // Up next: while Likes, History or Mixtape plays, the next song and its show.
-          function nextUp() {
-            if (!playlist || !playlist.current) return null;
-            if (playlist.source === 'mixtape' && playlist.pos >= playlist.ids.length - 1) return mixNextItem || null;
-            if (playlist.pos + 1 >= playlist.ids.length) return null;
-            return lookup(playlist.source, playlist.ids[playlist.pos + 1]);
-          }
-          function renderUpNext() {
-            var g = nextUp();
-            var b = fp.upnext;
-            if (!g) { if (!b.hidden) b.hidden = true; return; }
-            var key = g.id + '|' + g.song;
-            if (b.__key !== key) {
-              b.__key = key;
-              b.querySelector('.sr-np-upnext-text').innerHTML = esc(g.song) + (g.artist ? ' · ' + esc(g.artist) : '') + '<small>' + esc((g.show || '').split(' | ')[0]) + '</small>';
-              b.setAttribute('aria-label', 'Up next: ' + g.song + (g.artist ? ' by ' + g.artist : '') + ', from ' + (g.show || '').split(' | ')[0] + '. Play it now.');
-            }
-            if (b.hidden) b.hidden = false;
-          }
-
-          // Songs: the show's song list inside the big player.
+          // Up Next: inside the big player, the songs coming up (in Likes, History or Mixtape)
+          // or the show's song list (in a show).
           function setSongsOpen(on) {
             if (!fp) return;
             fp.root.classList.toggle('sr-np-songs-open', on);
@@ -3237,7 +3211,42 @@ enum FavoritesScript {
               if (back) { try { back.focus({ preventScroll: true }); } catch (e) {} }
             }
           }
+          // In Likes, History or Mixtape: the songs coming up in that list.
+          var SOURCE_NAMES = { favorites: 'Likes', history: 'History', mixtape: 'Mixtape' };
+          function queueRows() {
+            var rows = [];
+            if (!playlist || !playlist.current) return rows;
+            for (var i = playlist.pos; i < playlist.ids.length && rows.length < 100; i++) {
+              var g = lookup(playlist.source, playlist.ids[i]);
+              if (g) rows.push({ pos: i, f: g });
+            }
+            if (playlist.source === 'mixtape' && mixNextItem && playlist.pos >= playlist.ids.length - 1) rows.push({ pos: -1, f: mixNextItem });
+            return rows;
+          }
+          function renderQueue(force) {
+            var rows = queueRows();
+            var key = 'q|' + playlist.source + '|' + playlist.pos + '|' + rows.length + '|' + isPaused() + '|' + favorites.length + '|' + (mixNextItem ? mixNextItem.id : '');
+            if (!force && fp.songsList.__key === key) return;
+            fp.songsList.__key = key;
+            var img = fp.songs.querySelector('.sr-np-songs-head img');
+            var cover = bigCover((playlist.current && playlist.current.cover) || '');
+            if (cover && img.getAttribute('src') !== cover) img.src = cover;
+            var later = Math.max(0, rows.length - 1);
+            fp.songs.querySelector('.sr-np-songs-title').innerHTML = 'Up Next<small>From ' + esc(SOURCE_NAMES[playlist.source] || 'your list') + (playlist.source === 'mixtape' ? '' : ' · ' + later + (later === 1 ? ' song' : ' songs') + ' after this one') + '</small>';
+            fp.songsList.innerHTML = rows.map(function (r, n) {
+              var g = r.f, now = n === 0;
+              var on = !!byId(g.id);
+              var showName = (g.show || '').split(' | ')[0];
+              return '<div class="sr-np-song' + (now ? ' sr-now' : '') + '" data-q="' + r.pos + '">' +
+                '<button type="button" class="sr-np-song-go"' + (now ? ' aria-current="true"' : '') + ' aria-label="' + esc(g.song + (g.artist ? ' by ' + g.artist : '') + ', ' + showName + (now ? ', playing now' : '')) + '">' +
+                  '<span class="sr-np-song-t">' + esc(showName.replace(/^Show /, '')) + '</span>' +
+                  '<span><span class="sr-np-song-name">' + (now && !isPaused() ? BARS : '') + esc(g.song) + '</span>' +
+                  (g.artist ? '<span class="sr-np-song-artist">' + esc(g.artist) + '</span>' : '') + '</span>' +
+                '</button><button type="button" class="sr-heart" aria-pressed="' + on + '" aria-label="' + esc((on ? 'Unlike ' : 'Like ') + g.song) + '">' + HEART + '</button></div>';
+            }).join('');
+          }
           function renderSongsList(force) {
+            if (playlist && playlist.current) return renderQueue(force);
             var st = npState() || {};
             var tracks = st.tracks || [];
             var key = (st.episodeURL || '') + '|' + st.index + '|' + tracks.length + '|' + isPaused() + '|' + favorites.length;
@@ -3284,8 +3293,8 @@ enum FavoritesScript {
           }
 
           // Opening and closing are driven by a progress value p (0 = closed, 1 = open)
-          // with spring physics, and the cover art grows out of the mini player's thumbnail.
-          var fpP = 0, fpV = 0, fpAnim = null, morph = null;
+          // with spring physics.
+          var fpP = 0, fpV = 0, fpAnim = null;
           function velocityTracker() {
             var pts = [];
             return {
@@ -3297,308 +3306,22 @@ enum FavoritesScript {
               }
             };
           }
-          function thumbRect() {
-            var player = playerCard();
-            var img = player && player.querySelector('img');
-            var r = img && img.getBoundingClientRect();
-            return r && r.width ? r : null;
-          }
-          // Where the big cover sits once the player is fully open. The player's content is
-          // still slid down a little while it opens, so measure it without that offset (or the
-          // growing cover would aim too low and jump at the end).
-          // ---------------------------------------------------------------------------
-          // Mini player -> big player: the cover, song, artist, bar, times and the little line
-          // travel to their places in the big player, following the finger. The buttons (heart,
-          // play) don't move: they're simply there once the player is fully open or closed.
-          // What the mini player doesn't have fades in around them.
-          // ---------------------------------------------------------------------------
-          // The visible pieces of whichever mini player is on screen.
-          function miniParts() {
-            var card = playerCard();
-            if (!card) return {};
-            var q = function (sel) { var n = card.querySelector(sel); return n && n.getBoundingClientRect().width ? n : null; };
-            if (card === liveCard) {
-              return { cover: q('.sr-ready-img'), show: q('.sr-ready-show'), title: q('.sr-ready-song'), artist: q('.sr-ready-artist'),
-                play: q('.sr-ready-play'), track: q('.sr-ready-track'), el: q('.sr-ready-el'), dur: q('.sr-ready-dur'), heart: q('.sr-heart-mini'), grab: q('.sr-grab') };
-            }
-            if (card.querySelector(':scope > .sr-mini-over')) {
-              return { cover: q('.sr-mo-img'), show: q('.sr-mo-show'), title: q('.sr-mo-song'), artist: q('.sr-mo-artist'),
-                play: q('.sr-mo-play'), track: q('.sr-mo-bar'), el: q('.sr-mo-el'), dur: q('.sr-mo-dur'), heart: q('.sr-heart-mini'), grab: q('.sr-grab') };
-            }
-            var lines = card.querySelectorAll('.content-col > div');
-            var line = lines[1];
-            var spans = line ? line.querySelectorAll(':scope > span') : [];
-            var thumb = card.querySelector('[role="slider"]');
-            var times = card.querySelectorAll('[data-sr-time]:not(.sr-mo-time)');
-            var vis = function (n) { return n && n.getBoundingClientRect().width ? n : null; };
-            return {
-              cover: vis(card.querySelector('img')), show: vis(lines[0]), title: vis(spans[0] || line),
-              artist: vis(spans.length > 1 ? spans[spans.length - 1] : null), play: vis(sitePlayButton()),
-              track: vis(thumb && (thumb.closest('[data-orientation="horizontal"]') || thumb.parentElement)),
-              el: vis(times[0]), dur: vis(times[1]), heart: q('.sr-heart-mini'), grab: q('.sr-grab')
-            };
-          }
-          // Where the big player's pieces sit when it's fully open.
-          function finalRects() {
-            var prevRoot = fp.root.style.transform, prevInner = fp.inner.style.transform, prevClip = fp.root.style.clipPath;
-            fp.root.style.transform = 'none';
-            fp.inner.style.transform = 'none';
-            var R = function (n) { var r = n && n.getBoundingClientRect(); return r && r.width ? r : null; };
-            var out = {
-              cover: R(fp.cover), show: R(fp.show), title: R(fp.title), artist: R(fp.artist),
-              play: R(fp.play), track: R(fp.track), el: R(fp.elapsed), dur: R(fp.left),
-              grab: R(fp.root.querySelector('.sr-np-handle'))
-            };
-            fp.root.style.transform = prevRoot;
-            fp.inner.style.transform = prevInner;
-            fp.root.style.clipPath = prevClip;
-            return out;
-          }
-          function startMorph() {
-            endMorph();
-            if (reduceMotion) return;
-            try { buildMorph(); } catch (err) {
-              // Something unexpected: put everything back rather than leave pieces hidden.
-              if (pendingMorph) { morph = pendingMorph; pendingMorph = null; endMorph(); }
-            }
-          }
-          var pendingMorph = null;
-          function buildMorph() {
-            var to = finalRects(), parts = miniParts(), from = {};
-            Object.keys(parts).forEach(function (k) { if (parts[k]) from[k] = parts[k].getBoundingClientRect(); });
-            var m = pendingMorph = { from: from, to: to, nodes: {}, hidden: [] };
-            var hide = function (n) { if (!n) return; m.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
-            // The cover.
-            var fromCover = from.cover || thumbRect();
-            if (fromCover && to.cover && fp.cover.getAttribute('src')) {
-              var img = el('img', 'sr-np-morph');
-              img.alt = '';
-              img.src = fp.cover.currentSrc || fp.cover.src;
-              document.body.appendChild(img);
-              m.img = img; m.fromCover = fromCover;
-              hide(fp.cover); hide(parts.cover);
-            }
-            // Text: shows the big player's words, starting at the mini player's size and spot.
-            var text = function (k, big, mini) {
-              if (!to[k] || !from[k]) return;
-              var n = el('div', 'sr-np-tv');
-              var bs = getComputedStyle(big), ms = getComputedStyle(mini);
-              // When the two players word it differently (the mini player's "2:01:58" total,
-              // the big one's "-2:01:57" left), the mini words fade into the big ones mid-way
-              // instead of switching at the start.
-              var w0 = (mini.textContent || '').trim(), w1 = (big.textContent || '').trim();
-              // The same goes for boldness: the font only comes in set weights, so the regular
-              // words fade into the bold ones instead of switching half way.
-              var dual = w0 && (w0 !== w1 || ms.fontWeight !== bs.fontWeight);
-              if (dual) {
-                n.classList.add('sr-np-tv-dual');
-                n.innerHTML = '<span></span><span></span>';
-                n.firstChild.textContent = w0;
-                n.lastChild.textContent = w1;
-                n.firstChild.style.fontWeight = ms.fontWeight;
-                n.lastChild.style.fontWeight = bs.fontWeight;
-              } else n.textContent = w1;
-              var rgb = function (c) { var x = /(\d+)\D+(\d+)\D+(\d+)/.exec(c || ''); return x ? [+x[1], +x[2], +x[3]] : [180, 180, 180]; };
-              // Everything about the text blends from the mini player's look to the big one's:
-              // size, color, boldness and line height (the box heights, so the letters sit
-              // exactly where each player draws them).
-              m.nodes[k] = {
-                n: n, f0: parseFloat(ms.fontSize) || 12, f1: parseFloat(bs.fontSize) || 16,
-                c0: rgb(ms.color), c1: rgb(bs.color), w0: ms.fontWeight, w1: bs.fontWeight,
-                lh0: from[k].height, lh1: to[k].height, dual: dual
-              };
-              document.body.appendChild(n);
-              hide(big); hide(mini);
-            };
-            // (The show name isn't one of them: it fades in with "Playing from".)
-            text('title', fp.title, parts.title);
-            text('artist', fp.artist, parts.artist);
-            text('el', fp.elapsed, parts.el);
-            text('dur', fp.left, parts.dur);
-            if (m.nodes.dur) m.nodes.dur.n.style.textAlign = 'right';
-            // The heart doesn't travel: it's out of sight while the player moves and is simply
-            // there in its place once the player is fully open (or closed).
-            hide(fp.heart); hide(parts.heart);
-            // The bar: thin with the site's knob, then the big player's thicker bar.
-            if (to.track && from.track) {
-              var t = el('div', 'sr-np-tv sr-np-tv-track', '<i></i><b></b>');
-              var siteKnob = parts.track && parts.track.querySelector('[role="slider"], .sr-mo-knob, .sr-ready-knob');
-              var kr = siteKnob && siteKnob.getBoundingClientRect();
-              var kc = siteKnob ? getComputedStyle(siteKnob).backgroundColor : 'rgb(234, 88, 12)';
-              var km = /(\d+)\D+(\d+)\D+(\d+)/.exec(kc) || [0, 234, 88, 12];
-              m.nodes.track = { n: t, knob: [+km[1], +km[2], +km[3]], k0: kr && kr.width ? kr.width : 14 };
-              document.body.appendChild(t);
-              hide(fp.track); hide(parts.track);
-            }
-            // The play button doesn't travel either: it's out of sight while the player moves
-            // and is there in its place once the player is fully open (or closed).
-            hide(fp.play); hide(parts.play);
-            // The little line.
-            if (to.grab && from.grab) {
-              var g = el('div', 'sr-np-tv sr-np-tv-grab');
-              m.nodes.grab = { n: g };
-              document.body.appendChild(g);
-              hide(fp.root.querySelector('.sr-np-handle')); hide(parts.grab);
-            }
-            morph = m;
-            pendingMorph = null;
-          }
-          // Self-repair: with the player open and nothing moving, nothing of it should be hidden.
-          function healPlayer() {
-            if (morph || fpAnim || !fp || fpP < 0.99) return;
-            [fp.cover, fp.show, fp.title, fp.artist, fp.heart, fp.play, fp.track, fp.elapsed, fp.left].forEach(function (n) {
-              if (n && n.style.visibility === 'hidden') n.style.visibility = '';
-            });
-            document.querySelectorAll('.sr-np-tv, .sr-np-morph').forEach(function (n) { n.remove(); });
-          }
-          function endMorph() {
-            if (!morph) return;
-            var m = morph;
-            morph = null;
-            if (m.img) m.img.remove();
-            Object.keys(m.nodes).forEach(function (k) { m.nodes[k].n.remove(); });
-            m.hidden.forEach(function (h) { h[0].style.visibility = h[1]; });
-          }
-          var lerp = function (a, b, t) { return a + (b - a) * t; };
-          function placeMorph(e) {
-            var m = morph, f = m.from, t = m.to, N = m.nodes, W = window.innerWidth;
-            // Text look at this point of the pull (size, color, boldness, line height).
-            var look = function (x, et) {
-              var st = x.n.style;
-              st.fontSize = lerp(x.f0, x.f1, et).toFixed(2) + 'px';
-              st.lineHeight = lerp(x.lh0, x.lh1, et).toFixed(2) + 'px';
-              st.color = 'rgb(' + [0, 1, 2].map(function (i) { return Math.round(lerp(x.c0[i], x.c1[i], et)); }).join(',') + ')';
-              if (!x.dual) st.fontWeight = et < 0.5 ? x.w0 : x.w1;
-              if (x.dual) {
-                var wk = Math.max(0, Math.min(1, (et - 0.3) / 0.4));
-                wk = wk * wk * (3 - 2 * wk);
-                x.n.firstChild.style.opacity = (1 - wk).toFixed(3);
-                x.n.lastChild.style.opacity = wk.toFixed(3);
-              }
-            };
-            var box = function (n, x, y, w, h) {
-              var st = n.style;
-              st.transform = 'translate3d(' + x.toFixed(1) + 'px,' + y.toFixed(1) + 'px,0)';
-              if (w != null) st.width = w.toFixed(1) + 'px';
-              if (h != null) st.height = h.toFixed(1) + 'px';
-            };
-            // Cover.
-            var coverBottom = null;
-            if (m.img) {
-              var a = m.fromCover, b = t.cover, cs = m.img.style;
-              var ch = lerp(a.height, b.height, e);
-              cs.left = lerp(a.left, b.left, e) + 'px';
-              cs.top = lerp(a.top, b.top, e) + 'px';
-              cs.width = lerp(a.width, b.width, e) + 'px';
-              cs.height = ch + 'px';
-              cs.borderRadius = (2 + 4 * e) + 'px';
-              coverBottom = lerp(a.top, b.top, e) + ch;
-            }
-            var under = Math.max(0, Math.min(1, (e - .08) / .2)); // once the cover reaches the title's row
-            // Show line, little line: straight to their places.
-            if (N.show) {
-              var sh = N.show;
-              sh.n.style.fontSize = lerp(sh.f0, sh.f1, e) + 'px';
-              sh.n.style.maxWidth = lerp(f.show.width, t.show.width, e) + 'px';
-              box(sh.n, lerp(f.show.left, t.show.left, e), lerp(f.show.top, t.show.top, e));
-            }
-            if (N.grab) {
-              box(N.grab.n, lerp(f.grab.left + f.grab.width / 2 - 18, t.grab.left, e), lerp(f.grab.top + f.grab.height / 2 - 2, t.grab.top, e), 36, 4);
-              // It rides the top edge up, then fades away: the open big player has no line.
-              N.grab.n.style.opacity = (1 - Math.max(0, Math.min(1, (e - .7) / .25))).toFixed(3);
-            }
-            // Title: moves with the pull, and keeps clear of the growing cover.
-            var ty = lerp(f.title ? f.title.top : t.title.top, t.title ? t.title.top : 0, e);
-            if (coverBottom != null && t.title && t.cover) ty = lerp(ty, Math.max(ty, coverBottom + (t.title.top - t.cover.bottom)), under);
-            if (N.title) {
-              var ti = N.title;
-              look(ti, e);
-              // Keeps its full width until late, so it doesn't cut off ("...") before it shrinks.
-              ti.n.style.maxWidth = lerp(f.title.width, t.title.width, Math.pow(e, .35)) + 'px';
-              box(ti.n, lerp(f.title.left, t.title.left, e), ty);
-            }
-            var titleTop0 = f.title ? f.title.top : (t.title ? t.title.top : 0);
-            var titleTop1 = t.title ? t.title.top : 0;
-            // Artist: rides along with the title, easing from beside it (mini player) to
-            // under it (big player) in one smooth move.
-            if (N.artist) {
-              var ar = N.artist, ea = e * e * (3 - 2 * e);
-              look(ar, e);
-              ar.n.style.maxWidth = lerp(f.artist.width, t.artist.width, Math.pow(e, .35)) + 'px';
-              var tl0 = f.title ? f.title.left : f.artist.left, tl1 = t.title ? t.title.left : t.artist.left;
-              var tx = lerp(tl0, tl1, e);
-              box(ar.n, tx + lerp(f.artist.left - tl0, t.artist.left - tl1, ea), ty + lerp(f.artist.top - titleTop0, t.artist.top - titleTop1, ea));
-            }
-            // Bar and times: always below the artist.
-            var by = ty + lerp((f.track ? f.track.top : titleTop0) - titleTop0, (t.track ? t.track.top : titleTop1) - titleTop1, e);
-            if (N.track) {
-              // (A mini bar's box can be taller than the line it draws: start from the line.)
-              var tr = N.track, th = lerp(f.track.height >= 4 ? 1 : Math.max(1, f.track.height), t.track.height, e);
-              box(tr.n, lerp(f.track.left, t.track.left, e), by + (lerp(f.track.height, t.track.height, e) - th) / 2, lerp(f.track.width, t.track.width, e), th);
-              var st = npState() || {};
-              var frac = st.duration ? Math.max(0, Math.min(1, (st.t || 0) / st.duration)) : 0;
-              var fill = tr.n.querySelector('i'), knob = tr.n.querySelector('b');
-              fill.style.width = (frac * 100) + '%';
-              fill.style.opacity = e.toFixed(3);
-              knob.style.left = (frac * 100) + '%';
-              var ks = lerp(tr.k0, 12, e);
-              knob.style.width = knob.style.height = ks + 'px';
-              knob.style.background = 'rgb(' + tr.knob.map(function (c) { return Math.round(lerp(c, 255, e)); }).join(',') + ')';
-            }
-            var tt = function (k) {
-              var x = N[k];
-              if (!x) return;
-              var dy0 = f[k].top - (f.track ? f.track.top : f[k].top), dy1 = t[k].top - (t.track ? t.track.top : t[k].top);
-              look(x, e);
-              var w = lerp(f[k].width, t[k].width, e) + 8;
-              x.n.style.width = w + 'px';
-              var left = k === 'dur' ? lerp(f[k].right, t[k].right, e) - w : lerp(f[k].left, t[k].left, e);
-              box(x.n, left, by + lerp(dy0, dy1, e));
-            };
-            tt('el'); tt('dur');
-          }
-          // The full player grows out of the mini player card: it's clipped to the card's exact
-          // shape at the start and the clip opens up to the whole screen as it rises. The card
-          // turns solid over the first stretch (so the mini player's text fades away under it),
-          // and the full player's text and controls fade in over the last stretch.
-          var fpFrom = null; // the mini player card: {top, left, right, bottom, radius}
-          function miniCard() {
-            var mini = playerCard();
-            var W = window.innerWidth, H = window.innerHeight;
-            if (!mini) return { top: H - 120, left: 0, right: 0, bottom: 0, radius: 0 };
-            var r = mini.getBoundingClientRect();
-            var radius = parseFloat(getComputedStyle(mini).borderTopLeftRadius) || 0;
-            return { top: Math.max(0, r.top), left: Math.max(0, r.left), right: Math.max(0, W - r.right), bottom: Math.max(0, H - r.bottom), radius: radius };
-          }
-          // How far a drag has to travel to fully open: the card's top edge.
-          function playerTravel() { return Math.max(120, (fpFrom || miniCard()).top); }
+          // The big player is one card that slides up from the bottom of the screen, following
+          // the finger, and slides back down to close. Nothing inside it moves on its own.
+          function playerTravel() { return Math.max(200, window.innerHeight); }
           var fpTravel = 0;
-          var BG_RGB = BG.replace(/^rgb\(|\)$/g, '');
           function setProgress(p) {
             fpP = p;
-            if (!fpFrom) fpFrom = miniCard();
             if (!fpTravel) fpTravel = playerTravel();
-            var e = Math.max(0, Math.min(1, p)), k = 1 - e, c = fpFrom;
+            var e = Math.max(0, Math.min(1, p));
+            var y = 'translate3d(0,' + ((1 - e) * fpTravel).toFixed(1) + 'px,0)';
             var root = fp.root.style;
-            if (root.transform !== 'none') root.transform = 'none';
-            if (root.opacity !== '1') root.opacity = '1';
-            var clip = 'inset(' + (c.top * k).toFixed(1) + 'px ' + (c.right * k).toFixed(1) + 'px ' +
-              (c.bottom * k).toFixed(1) + 'px ' + (c.left * k).toFixed(1) + 'px round ' + (c.radius * k).toFixed(1) + 'px)';
-            root.clipPath = clip;
-            root.webkitClipPath = clip;
-            var solid = morph ? 1 : Math.min(1, e / 0.25);
-            root.backgroundColor = 'rgba(' + BG_RGB + ',' + solid.toFixed(3) + ')';
-            fp.bg.style.opacity = (0.35 * Math.min(1, e / 0.5)).toFixed(3);
-            // What only the big player has fades in over the last part, rising a little.
-            var show = morph ? Math.max(0, Math.min(1, (e - 0.55) / 0.4)) : Math.max(0, Math.min(1, (e - 0.45) / 0.45));
-            fp.inner.style.opacity = show.toFixed(3);
-            fp.inner.style.transform = 'translate3d(0,' + ((1 - show) * 24).toFixed(1) + 'px,0)';
-            if (morph) placeMorph(e);
+            if (root.transform !== y) root.transform = y;
           }
           function animateTo(target, velocity, done) {
             cancelAnimationFrame(fpAnim);
             if (reduceMotion) {
-              // iOS "Reduce Motion": no spring, no growing card; just open or close.
+              // iOS "Reduce Motion": no slide; just open or close.
               fpAnim = null;
               setProgress(target);
               if (done) done();
@@ -3631,7 +3354,6 @@ enum FavoritesScript {
             cancelAnimationFrame(fpAnim);
             if (!isPlayerOpen()) {
               closeSheet();
-              fpFrom = miniCard();
               fpTravel = playerTravel();
               fp.root.hidden = false;
               fp.root.classList.add('sr-open');
@@ -3642,19 +3364,19 @@ enum FavoritesScript {
               clearInterval(fpTimer);
               fpTimer = setInterval(renderPlayer, 250);
             }
-            startMorph();
             setProgress(fpP);
             return true;
           }
           // Lets go of a drag: open or close depending on where it is and how fast it moves.
           function settlePlayer(velocity) {
-            var open = velocity > 0.6 || (velocity > -0.6 && fpP > 0.35);
-            animateTo(open ? 1 : 0, velocity, open ? endMorph : finishClose);
+            // One swipe is enough: a flick, or letting go a quarter of the way, finishes it.
+            var open = velocity > 0.3 || (velocity > -0.3 && fpP > 0.25);
+            animateTo(open ? 1 : 0, velocity, open ? null : finishClose);
           }
           function openPlayer() {
             if (isPlayerOpen() && fpP > 0.99) return;
             if (!beginPlayerDrag()) return;
-            animateTo(1, 0, endMorph);
+            animateTo(1, 0);
           }
           function closePlayer() {
             if (!isPlayerOpen()) return;
@@ -3662,10 +3384,7 @@ enum FavoritesScript {
               fp.root.classList.remove('sr-np-songs-open');
               fp.songsBtn.setAttribute('aria-expanded', 'false');
             }
-            fpFrom = miniCard();
             fpTravel = playerTravel();
-            startMorph();
-            setProgress(fpP);
             animateTo(0, 0, finishClose);
           }
           // The page can't scroll while html has sr-lock (a panel or the full player is open).
@@ -3756,7 +3475,6 @@ enum FavoritesScript {
           }
 
           function finishClose() {
-            endMorph();
             closeNpActions();
             if (!fp) return;
             dialogClosed(fp.root);
@@ -3790,13 +3508,12 @@ enum FavoritesScript {
           function renderPlayer() {
             if (!fp || !isPlayerOpen()) return;
             if (!playerCard()) return closePlayer();
-            healPlayer();
             var st = npState() || {};
             var t = currentTrack();
             var song = t ? t.song : (st.title || '');
             var artist = t ? t.artist : (st.artist || '');
             if (playlist && playlist.current) { song = playlist.current.song; artist = playlist.current.artist; }
-            var settled = fpP >= 0.99 && !morph && !fpAnim && !reduceMotion;
+            var settled = fpP >= 0.99 && !fpAnim && !reduceMotion;
             if (fp.title.textContent !== song || fp.artist.textContent !== artist) {
               // A new song: its name fades in rather than switching at once.
               var swap = settled && fp.title.textContent ? fp.title.parentNode : null;
@@ -3824,7 +3541,6 @@ enum FavoritesScript {
               fp.play.setAttribute('aria-label', icon === 'loading' ? 'Starting' : icon === 'play' ? 'Play' : 'Pause');
               fp.play.classList.toggle('sr-loading', icon === 'loading');
             }
-            renderUpNext();
             if (fp.root.classList.contains('sr-np-songs-open')) renderSongs();
             fp.sleep.setAttribute('aria-pressed', sleep ? 'true' : 'false');
             var dur = st.duration || 0;
@@ -4600,14 +4316,13 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar, .sr-appbar-side')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
             // Safety net: if the site redraws its top bar and the app's icons go missing,
             // put them back within a second or two.
-            // (Also notices a page change, so Back shows up.)
-            setInterval(function () { if ((tab && !tab.isConnected) || location.href !== lastHref) schedule(); }, 1000);
+            setInterval(function () { if (tab && !tab.isConnected) schedule(); }, 1500);
             try {
               var pending = JSON.parse(sessionStorage.getItem(PENDING_KEY) || 'null');
               sessionStorage.removeItem(PENDING_KEY);

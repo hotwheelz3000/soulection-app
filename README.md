@@ -25,9 +25,8 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 **Listening**
 - **Keeps playing with the screen off,** and doesn't stop a podcast or music that's already playing when you open it.
 - **Lock screen and Dynamic Island** show the current song, artist and show cover, and update as the songs change. Next and previous jump between songs in the show's tracklist.
-- **Full-size player.** Tap or swipe up on the player at the bottom: big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page.
-- **Songs:** in the full player, tap **Songs** to see the show's song list right there, with the playing song marked. Tap a song to jump to it, or its heart to like it.
-- **Up next:** while Likes, History or Mixtape plays, the full player shows the next song and its show. Tap it to play it now.
+- **Full-size player.** Tap the player at the bottom, or swipe it up by its tab: the whole player slides up in one swipe. Big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page.
+- **Up Next:** in the full player, tap **Up Next**. While Likes, History or Mixtape plays, it lists the songs coming up; in a show, the show's songs, with the playing one marked. Tap a song to play it, or its heart to like it.
 - **Swipe to skip:** swipe the player at the bottom left for the next song, right for the previous one. (VoiceOver users get Previous song and Next song buttons.)
 - **Starting a show:** while a show is starting, the Soulection logo spins where the play button is. If it doesn't start, the app quietly tries again.
 - **The playing song is marked** in a show's tracklist with small moving bars next to its heart.
@@ -43,7 +42,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **Getting around**
-- **The app's own top bar** stays in the same place on every page: **Back** (when there's a page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right, with the site's search box in between. Swiping from the left edge also goes back.
+- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (when there's a page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces. Back uses the same page history as swiping from the left edge.
 - **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
 
 **Extras**

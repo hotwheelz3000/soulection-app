@@ -61,6 +61,7 @@ struct WebView: UIViewRepresentable {
         webView.scrollView.alwaysBounceHorizontal = false
         webView.scrollView.showsHorizontalScrollIndicator = false
         context.coordinator.lockHorizontal(webView.scrollView)
+        context.coordinator.watchBack(webView)
 
         let refreshControl = UIRefreshControl()
         refreshControl.tintColor = .white
@@ -262,6 +263,21 @@ struct WebView: UIViewRepresentable {
         let favorites = FavoritesBridge()
         weak var webView: WKWebView?
         private var offsetWatch: NSKeyValueObservation?
+        private var backWatch: NSKeyValueObservation?
+
+        /// Tells the page whether there's a page to go back to (the same history the edge
+        /// swipe uses), so the app's Back button only shows when it can do something.
+        func watchBack(_ webView: WKWebView) {
+            backWatch = webView.observe(\.canGoBack, options: [.initial, .new]) { [weak self] view, _ in
+                MainActor.assumeIsolated { self?.sendCanGoBack(view) }
+            }
+        }
+        func sendCanGoBack(_ webView: WKWebView) {
+            webView.evaluateJavaScript(
+                "window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(webView.canGoBack));",
+                completionHandler: nil
+            )
+        }
 
         /// Keeps the page from sliding sideways: if anything nudges it left or right (while
         /// not zoomed in), it's put straight back.
@@ -425,6 +441,7 @@ struct WebView: UIViewRepresentable {
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
             webView.scrollView.refreshControl?.endRefreshing()
             sampleBackground(of: webView)
+            sendCanGoBack(webView)
             // Client-rendered pages may restyle after load; sample once more.
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self, weak webView] in
                 MainActor.assumeIsolated {

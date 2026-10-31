@@ -1,14 +1,14 @@
 ## Soulection Radio 2.0
 
 **New in the player**
-- **Songs:** tap Songs in the big player to see the show's song list, with the playing song marked. Tap a song to jump there, or its heart to like it.
-- **Up next:** while Likes, History or Mixtape plays, the big player shows the next song and its show. Tap it to play it now.
+- **Up Next:** tap Up Next in the big player. In Likes, History or Mixtape it lists the songs coming up; in a show, the show's songs. Tap a song to play it, or its heart to like it.
+- **One swipe:** the big player slides up from the bottom in one swipe (there's a tab on the mini player again) and slides back down to close.
 - **Swipe to skip:** swipe the mini player left for the next song, right for the previous one.
 - **Starting a show:** the Soulection logo spins in the play button until the music starts. If it doesn't start, the app quietly tries again.
-- **Calmer opening and closing:** the heart and play buttons no longer fly between the mini and big player; they're simply there.
+- **Calmer opening and closing:** nothing flies between the mini and big player any more.
 
 **Getting around**
-- The app has its own top bar that stays put on every page: Back and Home on the left, and your buttons on the right. You'll never need to restart the app to find your way back.
+- The top bar has the same buttons on every page, staying put with the search box: Back and Home on the left, your buttons on the right. Back goes back a page (only shown when there's one), so you'll never need to restart the app to find your way.
 - Show pages no longer slide sideways while you scroll.
 
 **Also**
