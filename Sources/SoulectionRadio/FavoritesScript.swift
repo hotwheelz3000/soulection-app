@@ -202,8 +202,10 @@ enum FavoritesScript {
             // (long song names wrap instead of pushing a row wider).
             'html,body{overflow-x:hidden;max-width:100%}',
             'main{overflow-x:clip}',
-            '.col-span-full.grid{min-width:0;max-width:100%}',
-            '.col-span-full.grid > *{min-width:0;overflow-wrap:anywhere}',
+            // Only the song-list rows the app recognises (it puts hearts on them), so other
+            // lists built the same way, like Trending tracks, scroll as the site made them.
+            '[data-sr-row]{min-width:0;max-width:100%}',
+            '[data-sr-row] > *{min-width:0;overflow-wrap:anywhere}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
             '.sr-hello-logo::after{content:"";position:absolute;inset:13px 10px;background:' + TEXT + ';-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat}',
@@ -954,6 +956,7 @@ enum FavoritesScript {
             if (!rows.length) return;
             var info = null;
             rows.forEach(function (r, i) {
+              if (!r.row.hasAttribute('data-sr-row')) r.row.setAttribute('data-sr-row', '');
               var b = r.songCell.querySelector(':scope > .sr-heart');
               if (r.vo) { if (b) b.remove(); return; }
               if (!b) {
