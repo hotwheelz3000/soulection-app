@@ -3,6 +3,8 @@
 **New**
 - **Opening the big player:** the card grows out of the mini player. The mini player's song row rides up and fades, the cover grows from the little picture into the big one, and the rest comes in at the end. Closing does the same in reverse.
 - **Up Next:** the arrow back to the cover sits centred under the show name, and long song names wrap onto the next line instead of running under the heart.
+- **Mini player:** always shows the song you're hearing, also after jumping to a song (the site's own line used to stay on the song before).
+- **Backup through updates:** updating the app no longer turns backup off. If iOS asks, one tap on **Reconnect** (pick your backup file) and it carries on.
 - **Top bar:** the buttons no longer jump when you go to another page. They hold their spot while the new page loads.
 
 **From 2.0**

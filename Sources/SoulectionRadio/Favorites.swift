@@ -291,6 +291,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     /// Set by an earlier test build (backing up to a folder); cleared at launch.
     private static let oldFolderKey = "Backup.folderBookmark"
     private static let lastSavedKey = "Backup.lastSaved"
+    /// Where the backup file is (folder path and file name), so the app can still say so,
+    /// and open the picker right there, if iOS stops honouring the saved link after an update.
+    private static let folderPathKey = "Backup.folderPath"
+    private static let fileNameKey = "Backup.fileName"
     private static let restoreOfferedKey = "Backup.restoreOffered"
     // Set when "Don't show again" is ticked on the welcome screen. (A new key, so the
     // screen comes back for anyone who dismissed the earlier show-once version.)
@@ -299,7 +303,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private var autoBackupTask: Task<Void, Never>?
 
     private var autoBackupError = false
-    private enum PickerPurpose { case importFile, saveBackup, restoreBackup }
+    private enum PickerPurpose { case importFile, saveBackup, restoreBackup, reconnect }
     private var pickerPurpose: PickerPurpose = .importFile
 
     /// The backup file as iOS handed it over this session. Used when the saved bookmark
@@ -407,8 +411,19 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     private func autoBackupStatusJSON() -> String {
         let file = backupFile()
-        var status: [String: Any] = ["on": file != nil, "error": autoBackupError]
-        if let file { status["folder"] = file.deletingLastPathComponent().lastPathComponent }
+        let on = autoBackupIsOn
+        // Backup stays on through an app update. If iOS won't let the app reach the file any
+        // more (the update came with a new signature), it's "paused": one pick reconnects it.
+        let reconnect = on && (file == nil || autoBackupError)
+        var status: [String: Any] = ["on": on, "error": autoBackupError, "reconnect": reconnect]
+        let folderPath = UserDefaults.standard.string(forKey: Self.folderPathKey)
+        if let file {
+            status["folder"] = file.deletingLastPathComponent().lastPathComponent
+        } else if let folderPath {
+            status["folder"] = URL(fileURLWithPath: folderPath).lastPathComponent
+        }
+        if let name = UserDefaults.standard.string(forKey: Self.fileNameKey) { status["file"] = name }
+        if reconnect { retryReconnect() }
         let last = UserDefaults.standard.double(forKey: Self.lastSavedKey)
         if last > 0 { status["lastSaved"] = last }
         status["restoreOffer"] = store.isEmpty && !UserDefaults.standard.bool(forKey: Self.restoreOfferedKey)
@@ -445,9 +460,42 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         presenter.present(picker, animated: true)
     }
 
+    /// After an update: pick the backup file again, with the picker opened in its folder.
+    private func reconnectBackupFile() {
+        guard let presenter = presenter() else { return }
+        pickerPurpose = .reconnect
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
+        picker.delegate = self
+        picker.allowsMultipleSelection = false
+        if let folder = UserDefaults.standard.string(forKey: Self.folderPathKey) {
+            picker.directoryURL = URL(fileURLWithPath: folder, isDirectory: true)
+        }
+        presenter.present(picker, animated: true)
+    }
+
+    /// Right after launch iCloud may not be ready: try reaching the file a few more times
+    /// before asking. If it works, backup simply carries on.
+    private var reconnectRetrying = false
+    private func retryReconnect() {
+        guard !reconnectRetrying else { return }
+        reconnectRetrying = true
+        Task { @MainActor [weak self] in
+            for delay in [1, 3, 8] {
+                try? await Task.sleep(for: .seconds(delay))
+                guard let self else { return }
+                if self.backupFile() != nil, self.writeAutoBackup() {
+                    self.send()
+                    return
+                }
+            }
+        }
+    }
+
     /// Remembers the file so it can be rewritten later. Returns false if iOS won't allow it.
     private func rememberBackupFile(_ url: URL) -> Bool {
         liveBackupURL = url
+        UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: Self.folderPathKey)
+        UserDefaults.standard.set(url.lastPathComponent, forKey: Self.fileNameKey)
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         if refreshBookmark(from: url) { return true }
         // No bookmark that reads back yet: keep using the file from this session and try
@@ -474,6 +522,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         switch pickerPurpose {
         case .saveBackup: toast("Auto-backup wasn't turned on.")
         case .restoreBackup: toast("Nothing restored.")
+        case .reconnect: toast("Backup is still paused. Tap Reconnect in Likes when you're ready.")
         case .importFile: break
         }
     }
@@ -527,6 +576,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             return
         case "restoreBackup":
             restoreBackupFile()
+            return
+        case "backupReconnect":
+            reconnectBackupFile()
             return
         case "restoreDismissed":
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
@@ -1022,7 +1074,8 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                 toast("Auto-backup couldn't save to that file. (" + (lastWriteFailure ?? "No reason given") + ")")
             }
             return
-        case .restoreBackup:
+        case .restoreBackup, .reconnect:
+            let reconnecting = pickerPurpose == .reconnect
             guard let incoming = readBackup(at: url) else {
                 toast("That file isn't a Soulection Radio backup, or it couldn't be opened. If it's in iCloud Drive, wait a moment for it to download and try again.")
                 return
@@ -1034,7 +1087,11 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             if rememberBackupFile(url), writeAutoBackup() {
                 send()
                 let n = restored == 1 ? "1 song" : "\(restored) songs"
-                toast(restored > 0 ? "Restored \(n). Backup is on." : "Your songs are all here. Backup is on.")
+                if reconnecting {
+                    toast(restored > 0 ? "Backup is back on. \(n) from the file added." : "Backup is back on.")
+                } else {
+                    toast(restored > 0 ? "Restored \(n). Backup is on." : "Your songs are all here. Backup is on.")
+                }
                 return
             }
             // iOS won't let the app write to it: save it back once instead.

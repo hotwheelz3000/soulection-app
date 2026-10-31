@@ -64,6 +64,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 
 **Backup to iCloud Drive**
 - **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Save a backup file**. Pick a folder (iCloud Drive is best) and tap **Save**. From then on, `Soulection Radio Backup.json` is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
+- **After an update:** backup stays on. If your iPhone stops letting the app reach the file (an update can do that), you'll see **Backup paused**: tap **Reconnect** and pick `Soulection Radio Backup.json`. Nothing else to do.
 - **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Pick my backup file** and choose `Soulection Radio Backup.json`. Your songs come back (added to anything already there) and backup stays on, saving to that same file.
 - **If your iPhone won't let the app update the file it picked,** the app says so (with iOS's reason) and opens the save screen once: choose the same folder, tap **Save**, then **Replace**.
 - **Manual backups:** **Export** saves a one-off copy anywhere; **Import** adds one back. If auto-backup is off (or failing), the app reminds you every 4 new likes.

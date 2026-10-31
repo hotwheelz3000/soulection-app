@@ -418,7 +418,7 @@ enum FavoritesScript {
 
           var favorites = [];
           var history = [];
-          var autoBackup = { on: false }; // from the app: {on, folder, lastSaved, error, restoreOffer}   // songs listened to, oldest first (favoritedAt = when played)
+          var autoBackup = { on: false }; // from the app: {on, folder, file, lastSaved, error, reconnect, restoreOffer}   // songs listened to, oldest first (favoritedAt = when played)
           var resumeAfterLoad = null; // playlist to continue once the app has sent the favorites
           var sheet = null; // {root, backdrop, panel, list, sub, playBtn, shuffleBtn}
           var tab = null;
@@ -738,6 +738,7 @@ enum FavoritesScript {
                 if (autoBackup.restoreOffer) {
                   if (welcomeOpen) restoreAfterWelcome = true; else offerRestore();
                 }
+                if (autoBackup.reconnect) offerReconnect();
               }
               // Back from "Export first": show the final warning again.
               if (clearAfterExport) { clearAfterExport = false; setTimeout(clearStepTwo, 400); }
@@ -838,6 +839,32 @@ enum FavoritesScript {
             }, 1500);
           }
 
+          // After an app update iOS can stop the app writing to the backup file until it's picked
+          // again. Backup stays on; one tap opens the picker in that folder.
+          var reconnectShown = false;
+          function offerReconnect() {
+            if (reconnectShown) return;
+            if (welcomeOpen) { setTimeout(offerReconnect, 2000); return; }
+            reconnectShown = true;
+            setTimeout(function () {
+              if (!autoBackup.reconnect) return; // it came back by itself
+              var n = showNote(
+                '<div class="sr-note-title">Backup paused after the update</div>' +
+                '<div>Your iPhone wants you to pick your backup file once more. Tap Reconnect, then tap <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>. Your songs stay as they are.</div>' +
+                '<div class="sr-actions"></div>', 0);
+              if (!n) { reconnectShown = false; return; }
+              n.__onReplaced = function () { reconnectShown = false; };
+              var actions = n.querySelector('.sr-actions');
+              var goBtn = el('button', 'sr-btn', IMPORT + '<span>Reconnect</span>');
+              var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
+              goBtn.type = laterBtn.type = 'button';
+              goBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupReconnect' }); });
+              laterBtn.addEventListener('click', function () { hideNote(); });
+              actions.appendChild(goBtn);
+              actions.appendChild(laterBtn);
+            }, 2500);
+          }
+
           // Turn on / Change: save a new backup file, or pick the one you already have.
           function chooseAutoBackup() {
             var save = ['Save a backup file', function () { native({ op: 'backupCreate' }); }, CLOUD];
@@ -861,7 +888,10 @@ enum FavoritesScript {
           function renderAutoBackup() {
             if (!sheet || !sheet.autoText) return;
             var html, btn;
-            if (autoBackup.on) {
+            if (autoBackup.on && autoBackup.reconnect) {
+              html = 'Auto-backup: <b>paused</b> · tap Reconnect';
+              btn = 'Reconnect';
+            } else if (autoBackup.on) {
               var when = autoBackup.lastSaved ? ' · saved ' + ago(autoBackup.lastSaved).toLowerCase() : '';
               html = autoBackup.error
                 ? 'Auto-backup: <b>can\'t reach ' + esc(autoBackup.folder || 'folder') + '</b>'
@@ -973,6 +1003,12 @@ enum FavoritesScript {
             });
           }
 
+          // The tracklist entry playing now (voice-overs included), or null.
+          function rawTrack() {
+            var st = npState();
+            if (!st || !st.tracks || st.index == null || st.index < 0) return null;
+            return st.tracks[st.index] || null;
+          }
           function currentTrack() {
             var st = npState();
             if (!st || !st.episodeURL || st.index == null || st.index < 0 || !st.tracks || !st.tracks[st.index]) return null;
@@ -1047,6 +1083,16 @@ enum FavoritesScript {
             // mini player frozen on the song before it.
             var cur0 = playlist && playlist.current;
             var shown = directShown && activeOurs() ? directShown : (cur0 ? { show: cur0.show, cover: cur0.cover } : null);
+            // Also whenever the app knows which song is playing: after a jump to a song (Up
+            // Next, a tracklist row) the site's own line stays on the song before it. Its show
+            // line and cover are kept exactly as the site shows them.
+            var raw = rawTrack();
+            if (!shown && raw) {
+              var sImg = player.querySelector('img:not(.sr-mo-img)');
+              var sLine = player.querySelector('.content-col > div');
+              var st0 = npState() || {};
+              shown = { show: (sLine && text(sLine)) || st0.show || '', cover: (sImg && (sImg.currentSrc || sImg.src)) || st0.cover || '' };
+            }
             var on = !!shown;
             if (player.classList.contains('sr-mini-direct') !== on) player.classList.toggle('sr-mini-direct', on);
             if (!on) { if (over) over.remove(); return; }
@@ -1095,8 +1141,9 @@ enum FavoritesScript {
             var st = npState() || {};
             var cur = playlist && playlist.current;
             var t = currentTrack();
-            var song = cur ? cur.song : (t ? t.song : '');
-            var artist = cur ? cur.artist : (t ? t.artist : '');
+            var rt = !cur && !t ? rawTrack() : null; // a voice-over: no heart, but still named
+            var song = cur ? cur.song : (t ? t.song : (rt ? rt.title || rt.artist || '' : ''));
+            var artist = cur ? cur.artist : (t ? t.artist : (rt && rt.title ? rt.artist || '' : ''));
             var set = function (sel, v) { var n = over.querySelector(sel); if (n.textContent !== v) n.textContent = v; return n; };
 
             // Artwork
@@ -1304,7 +1351,9 @@ enum FavoritesScript {
             var auto = el('div', 'sr-auto', '<span class="sr-auto-text"></span>');
             var autoBtn = el('button', 'sr-btn', CLOUD + '<span></span>');
             autoBtn.type = 'button';
-            autoBtn.addEventListener('click', chooseAutoBackup);
+            autoBtn.addEventListener('click', function () {
+              if (autoBackup.on && autoBackup.reconnect) native({ op: 'backupReconnect' }); else chooseAutoBackup();
+            });
             auto.appendChild(autoBtn);
             head.appendChild(auto);
             var list = el('div', 'sr-list');
