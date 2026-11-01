@@ -3629,7 +3629,8 @@ enum FavoritesScript {
               var copy = card.cloneNode(true);
               copy.removeAttribute('id');
               copy.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
-              copy.querySelectorAll('.sr-grab, iframe, audio, video, script').forEach(function (n) { n.remove(); });
+              // The tab stays on the copy, so it rides with the card (it used to pop in at the end).
+              copy.querySelectorAll('iframe, audio, video, script').forEach(function (n) { n.remove(); });
               var cs = copy.style;
               cs.position = 'relative'; cs.inset = 'auto'; cs.left = cs.top = cs.right = cs.bottom = 'auto';
               cs.margin = '0'; cs.transform = 'none'; cs.width = cr.width + 'px'; cs.height = cr.height + 'px';
@@ -3643,8 +3644,23 @@ enum FavoritesScript {
               f.row = row;
               f.card = card;
               f.dx = cr.left;
-              // The card is the mini player now: the real one steps aside until it's back.
-              hide(card);
+              // Line the copy's song text up exactly with the real one's (the copy loses the
+              // card's position and border, which could leave it a few points off).
+              f.adjX = 0; f.adjY = 0;
+              var anchorSel = card === liveCard ? '.sr-ready-info' : (card.querySelector(':scope > .sr-mini-over') ? '.sr-mo-text' : '.content-col');
+              var ra = card.querySelector(anchorSel), ca = copy.querySelector(anchorSel);
+              if (ra && ca) {
+                row.style.transform = 'translate3d(0,0,0)';
+                var rr = ra.getBoundingClientRect(), qr = ca.getBoundingClientRect(), rb = copy.getBoundingClientRect();
+                if (rr.width && qr.width) {
+                  f.adjX = (rr.left - cr.left) - (qr.left - rb.left);
+                  f.adjY = (rr.top - cr.top) - (qr.top - rb.top);
+                }
+              }
+              // The card is the mini player now: the real one steps aside (faded out, so it can
+              // fade back in under the copy at the very end instead of switching at once).
+              f.cardOpacity = card.style.opacity;
+              card.style.opacity = '0';
             } catch (err) { endFly(); }
           }
           function endFly() {
@@ -3653,6 +3669,7 @@ enum FavoritesScript {
             fly = null;
             if (f.img) f.img.remove();
             if (f.row) f.row.remove();
+            if (f.card) f.card.style.opacity = f.cardOpacity || '';
             f.hidden.forEach(function (h) { h[0].style.visibility = h[1]; });
           }
           var lerp = function (a, b, t) { return a + (b - a) * t; };
@@ -3682,8 +3699,14 @@ enum FavoritesScript {
             }
             if (f.row) {
               // Pinned to the growing card's top edge; gone by a third of the way.
-              f.row.style.transform = 'translate3d(' + (f.dx * k).toFixed(1) + 'px,' + (c.top * k).toFixed(1) + 'px,0)';
+              f.row.style.transform = 'translate3d(' + (f.dx * k + (f.adjX || 0)).toFixed(1) + 'px,' + (c.top * k + (f.adjY || 0)).toFixed(1) + 'px,0)';
               f.row.style.opacity = Math.max(0, 1 - e / 0.3).toFixed(3);
+            }
+            if (f.card) {
+              // The last stretch of closing: the real mini player fades in under the copy.
+              var real = fpClosing ? Math.max(0, 1 - e / 0.08) : 0;
+              var ro = real > 0 ? real.toFixed(3) : '0';
+              if (f.card.style.opacity !== ro) f.card.style.opacity = ro;
             }
           }
           function animateTo(target, velocity, done) {
