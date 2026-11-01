@@ -39,6 +39,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Your Likes, in one place:** tap the heart at the top (it opens on **History**; **Likes** is the second tab). Search them with the box at the top. Swipe a song left to remove it (or use its **⋯** button). Tap a song's cover to open its show at that song.
 - **⋯ More:** on any song in Likes or History, and in the full player: share it, or open it on Spotify (its search for the song) or Apple Music (the song itself, looked up in Apple's catalog; only the song, artist and your country are sent).
 - **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
+- **Continue listening:** at the top of History, the last few shows you were in the middle of (with how much is left). Tap one to pick it back up where you were, right where you are. Kept on your phone only.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **The player**

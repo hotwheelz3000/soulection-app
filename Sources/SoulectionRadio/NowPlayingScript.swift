@@ -112,6 +112,16 @@ enum NowPlayingScript {
               return h1 ? text(h1) : '';
             }
 
+            function isUntimed(tracks) {
+              if (!tracks || tracks.length < 3) return false;
+              var seen = {}, distinct = 0;
+              for (var i = 0; i < tracks.length; i++) {
+                var k = Math.round(tracks[i].start || 0);
+                if (!seen[k]) { seen[k] = true; distinct++; }
+              }
+              return distinct <= tracks.length / 2;
+            }
+
             function currentState() {
               var player = miniPlayer();
               // No site mini player: still known when the app's own player is playing a show
@@ -158,11 +168,14 @@ enum NowPlayingScript {
               var title = '';
               var artist = '';
 
+              // Older shows list every song at the same time (often 00:00:00): which song is
+              // playing can't be told then, so no song is named (the show is shown instead).
+              var untimed = isUntimed(tracks);
               var index = -1;
-              if (tracks.length && t != null) {
+              if (tracks.length && t != null && !untimed) {
                 for (var i = 0; i < tracks.length; i++) if (tracks[i].start <= t + 0.25) index = i;
               }
-              if (index < 0 && tracks.length) {
+              if (index < 0 && tracks.length && !untimed) {
                 // The highlighted tracklist row, if the page marks one.
                 for (var j = 0; j < tracks.length; j++) {
                   var r = tracks[j].row;
@@ -197,6 +210,7 @@ enum NowPlayingScript {
                 artwork: artwork,
                 starts: tracks.map(function (x) { return x.start; }),
                 index: index,
+                untimed: untimed,
                 t: t,
                 // Used by FavoritesScript (not by the player frame).
                 number: number,
