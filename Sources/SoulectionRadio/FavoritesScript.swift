@@ -2495,12 +2495,12 @@ enum FavoritesScript {
           }
           // Plays a show from 0:00 in the app's own player without opening its page. If it
           // can't, it quietly tries again (a few times), with no message.
-          function playShowHere(path, tries) {
+          function playShowHere(path, tries, onFail) {
             tries = tries || 1;
             var n = np();
             var failed = function () {
-              if (tries < 3) setTimeout(function () { playShowHere(path, tries + 1); }, 1500);
-              else stopNewestShow();
+              if (tries < 3) setTimeout(function () { playShowHere(path, tries + 1, onFail); }, 1500);
+              else { stopNewestShow(); if (onFail) onFail(); }
             };
             if (!n || !n.setActiveFrame) return failed();
             episodeInfo(path).then(function (info) {
@@ -2509,6 +2509,15 @@ enum FavoritesScript {
               var frame = makeFrame(playerURL(info.link, 0, false));
               var m = np();
               m.setActiveFrame(frame.contentWindow);
+              // Don't count on it starting by itself: tell it to play as soon as it has loaded,
+              // and again shortly after, until it's playing.
+              var nudge = function () {
+                var st = npState();
+                if (!frame.isConnected || (st && st.paused === false)) return;
+                try { frame.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*'); } catch (e) {}
+                var k = np(); if (k && k.toFrame) k.toFrame(frame.contentWindow, { play: true });
+              };
+              frame.addEventListener('load', function () { [600, 1500, 3000].forEach(function (d) { setTimeout(nudge, d); }); });
               // Not playing after a few seconds: tell it to play again.
               if (starting) starting.retry = function () {
                 try { frame.contentWindow.postMessage(JSON.stringify({ method: 'play' }), '*'); } catch (e) {}
@@ -2745,20 +2754,61 @@ enum FavoritesScript {
           function playRandomShow() {
             if (!dice || dice.getAttribute('aria-busy') === 'true') return;
             dice.setAttribute('aria-busy', 'true');
-            loadEpisodes().then(function (paths) {
+            closeSheet();
+            beginStarting(); // the logo spins in the play button while it switches
+            renderPlayButtons();
+            // iPhone won't let a new player take over the sound while another one is still
+            // playing, so the show that's on stops first (and is given a moment to stop).
+            var wasPlaying = !isPaused();
+            endPlaylist(false);
+            if (wasPlaying) {
+              var n0 = np();
+              if (n0 && n0.pause) n0.pause();
+              var mine = activeOurs();
+              if (mine && n0 && n0.toFrame) n0.toFrame(mine.contentWindow, { pause: true });
+            }
+            var gaveUp = false;
+            var list = new Promise(function (resolve) {
+              loadEpisodes().then(resolve, function () { resolve([]); });
+              setTimeout(function () { gaveUp = true; resolve(episodeList && episodeList.length ? episodeList : []); }, 8000);
+            });
+            var stopped = new Promise(function (resolve) {
+              if (!wasPlaying) return resolve();
+              var t0 = Date.now();
+              (function wait() {
+                var st = npState();
+                if (!st || st.paused !== false || Date.now() - t0 > 1500) return resolve();
+                setTimeout(wait, 100);
+              })();
+            });
+            Promise.all([list, stopped]).then(function (r) {
+              var paths = r[0] || [];
               dice.removeAttribute('aria-busy');
               var here = location.pathname.replace(/\/$/, '');
-              var choices = paths.filter(function (p) { return p !== here; });
+              var playingNow = (directShown && directShown.episodeURL) || ((npState() || {}).episodeURL) || '';
+              var choices = paths.filter(function (p) { return p !== here && p !== playingNow; });
               if (!choices.length) choices = paths;
-              if (!choices.length) return showToast("Couldn't find any shows.");
+              if (!choices.length) {
+                endStarting(); renderPlayButtons();
+                return showToast(gaveUp ? "Couldn't load the list of shows. Tap the dice to try again." : "Couldn't find any shows.");
+              }
               var path = choices[Math.floor(Math.random() * choices.length)];
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
-              closeSheet();
-              endPlaylist(false);
-              beginStarting();
-              renderPlayButtons();
-              playShowHere(path);
+              playShowHere(path, 1, function () {
+                showToast("The random show didn't start. Tap the dice to try again.");
+              });
+              // Still silent after a while: say so (the dice works again on the next tap).
+              var t1 = Date.now();
+              (function check() {
+                var st = npState();
+                if (st && st.paused === false && directShown && directShown.episodeURL === path) return;
+                if (Date.now() - t1 > 20000) {
+                  if (!starting || isPaused()) { endStarting(); renderPlayButtons(); showToast("The random show didn't start. Tap the dice to try again."); }
+                  return;
+                }
+                setTimeout(check, 1000);
+              })();
             });
           }
 
