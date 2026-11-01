@@ -5,7 +5,7 @@
 - **Up Next:** the arrow back to the cover sits centred under the show name, and long song names wrap onto the next line instead of running under the heart.
 - **Mini player:** always shows the song you're hearing, also after jumping to a song (the site's own line used to stay on the song before).
 - **Backup through updates:** updating the app no longer turns backup off. If iOS asks, tap **Reconnect**: pick your backup file, then save it back to the same folder (Save, then Replace). Or tap **New backup** to save a fresh one. Any file can be picked now (backups used to show greyed out).
-- **Dice while a show plays:** it now stops the show that's on first, then starts the random one (the logo spins meanwhile). It also never picks the show you're already hearing, and if a show doesn't start it says so and the dice works again.
+- **Dice while a show plays:** the show that's on keeps playing until the random one has started, then stops (the logo spins meanwhile), the same way Likes and Mixtape switch shows. Tapping again cancels the earlier try, so shows no longer skip. It also never picks the show you're already hearing, and if a show doesn't start it says so and the dice works again.
 - **Up Next scrolls smoothly:** swiping inside the list only scrolls it (swipe its header or tap the arrow to close), and it slides in a touch slower. Closing the player from Up Next just shrinks the card, with the list fading, and the player opens on the cover next time.
 - **Top bar:** the buttons no longer jump when you go to another page. They hold their spot while the new page loads.
 
