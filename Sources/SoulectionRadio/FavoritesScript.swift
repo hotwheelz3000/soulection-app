@@ -173,15 +173,15 @@ enum FavoritesScript {
             '.sr-np-songs-btn{-webkit-appearance:none;appearance:none;align-self:center;font-family:' + FONT + ';font-size:15px;line-height:20px;font-weight:600;color:' + TEXT + ';background:none;border:0;padding:10px 12px;cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-songs-btn:active{opacity:.6}',
             '.sr-np-songs-btn[aria-expanded="true"]{color:#fff}',
-            '.sr-np-songs{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top) + 58px);z-index:3;display:flex;flex-direction:column;background:' + BG + ';border-top:1px solid ' + BORDER + ';border-radius:12px 12px 0 0;transform:translateY(100%);visibility:hidden;transition:transform .26s cubic-bezier(.2,.8,.2,1),visibility 0s .26s}',
-            '.sr-np.sr-np-songs-open .sr-np-songs{transform:none;visibility:visible;transition:transform .26s cubic-bezier(.2,.8,.2,1)}',
+            '.sr-np-songs{position:absolute;left:0;right:0;bottom:0;top:calc(env(safe-area-inset-top) + 58px);z-index:3;display:flex;flex-direction:column;background:' + BG + ';border-top:1px solid ' + BORDER + ';border-radius:12px 12px 0 0;transform:translate3d(0,100%,0);visibility:hidden;will-change:transform;transition:transform .32s cubic-bezier(.2,.8,.2,1),visibility 0s .32s}',
+            '.sr-np.sr-np-songs-open .sr-np-songs{transform:translate3d(0,0,0);visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1)}',
             '.sr-np-songs-head{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:12px 16px 4px 20px}',
             // The arrow back to the cover sits on its own line, centred under the show name.
             '.sr-np-songs-head .sr-np-songs-close{flex:none;margin:0 auto}',
             '.sr-np-songs-head img{width:48px;height:48px;border-radius:4px;object-fit:cover;flex:none;background:' + TRACK + '}',
             '.sr-np-songs-title{flex:1 1 calc(100% - 60px);min-width:0;font-size:15px;line-height:20px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-songs-title small{display:block;font-size:12px;line-height:16px;font-weight:400;color:' + MUTED + '}',
-            '.sr-np-songs-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;padding:0 10px calc(env(safe-area-inset-bottom) + 12px)}',
+            '.sr-np-songs-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;touch-action:pan-y;contain:content;padding:0 10px calc(env(safe-area-inset-bottom) + 12px)}',
             '.sr-np-song{display:flex;align-items:center;gap:6px;border-radius:8px}',
             '.sr-np-song-go{-webkit-appearance:none;appearance:none;flex:1;min-width:0;display:grid;grid-template-columns:62px minmax(0,1fr);align-items:center;gap:6px;padding:9px 8px;border:0;background:none;text-align:left;font-family:' + FONT + ';color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-np-song-t{font-size:12px;color:' + MUTED + ';font-variant-numeric:tabular-nums;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
@@ -3485,6 +3485,10 @@ enum FavoritesScript {
             var show = Math.max(0, Math.min(1, (e - 0.65) / 0.35)); // the details come in last
             fp.inner.style.opacity = show.toFixed(3);
             fp.inner.style.transform = 'translate3d(0,' + ((1 - show) * 24).toFixed(1) + 'px,0)';
+            // Up Next (when it's open) fades with the rest, so its rows don't sit still while
+            // the card closes over them.
+            var so = show >= 1 ? '' : show.toFixed(3);
+            if (fp.songs.style.opacity !== so) fp.songs.style.opacity = so;
             placeFly(e, c, k);
           }
           // While the card grows, the mini player's row rides along at its top edge and fades
@@ -3514,7 +3518,9 @@ enum FavoritesScript {
             var f = fly = { hidden: [] };
             var hide = function (n) { if (!n) return; f.hidden.push([n, n.style.visibility]); n.style.visibility = 'hidden'; };
             try {
-              var thumb = miniThumb(), to = bigCoverRect();
+              // With Up Next open the big cover is under the list: only the card shrinks.
+              var songsOpen = fp.root.classList.contains('sr-np-songs-open');
+              var thumb = songsOpen ? null : miniThumb(), to = songsOpen ? null : bigCoverRect();
               var src = fp.cover.getAttribute('src') ? (fp.cover.currentSrc || fp.cover.src) : (thumb && (thumb.currentSrc || thumb.src));
               if (thumb && to && src) {
                 var img = el('img', 'sr-np-fly');
@@ -3750,6 +3756,11 @@ enum FavoritesScript {
             closeNpActions();
             if (!fp) return;
             endFly();
+            // Next time the player opens on the cover, not on Up Next.
+            if (fp.root.classList.contains('sr-np-songs-open')) {
+              fp.root.classList.remove('sr-np-songs-open');
+              fp.songsBtn.setAttribute('aria-expanded', 'false');
+            }
             dialogClosed(fp.root);
             fp.root.classList.remove('sr-open');
             fp.root.hidden = true;
@@ -3870,6 +3881,9 @@ enum FavoritesScript {
             fp.root.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1) return;
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; mode = null;
+              // Inside the Up Next list a swipe only scrolls the list, never the player
+              // (swipe the list's header, or tap its arrow, to close).
+              if (fp.root.classList.contains('sr-np-songs-open') && e.target.closest && e.target.closest('.sr-np-songs-list')) mode = 'other';
               track = velocityTracker();
               track.add(y0);
             }, { passive: true });
