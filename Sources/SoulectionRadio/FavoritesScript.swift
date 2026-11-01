@@ -320,6 +320,10 @@ enum FavoritesScript {
             // Full-size player.
             '.sr-np{position:fixed;inset:0;z-index:45;background:' + BG + ';color:' + TEXT + ';font-family:' + FONT + ';overflow:hidden;transform:translate3d(0,100%,0);will-change:transform;-webkit-user-select:none;user-select:none}',
             '.sr-np[hidden]{display:none}',
+            // The app's own screens work like a native app: no selecting text, no Copy / Look Up
+            // menu and no long-press pop-up on pictures (the site's pages are left as they are).
+            '.sr-fav-root,.sr-fav-root *,.sr-note,.sr-note *,.sr-ready,.sr-ready *,.sr-appbar,.sr-appbar *,.sr-appbar-side,.sr-appbar-side *,.sr-mini-over,.sr-mini-over *,.sr-tip,.sr-heart,.sr-grab{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
+            '.sr-fav-root input,.sr-fav-root textarea,.sr-note input{-webkit-user-select:text;user-select:text;-webkit-touch-callout:default}',
             '.sr-np-fly{position:absolute;left:0;top:0;z-index:3;object-fit:cover;pointer-events:none;box-shadow:0 18px 40px rgba(0,0,0,.45);will-change:transform,width,height}',
             '.sr-np-ghost{position:absolute;left:0;top:0;z-index:2;pointer-events:none;will-change:transform,opacity}',
             '.sr-np-bg{position:absolute;inset:-60px;background-size:cover;background-position:center;filter:blur(50px) saturate(1.2);opacity:.35;pointer-events:none}',

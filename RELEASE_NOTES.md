@@ -4,6 +4,7 @@
 - **Closing the big player** lands exactly on the mini player: no shake at the end, and the tab rides down with it instead of popping in afterwards.
 - **Dice:** spins as soon as you tap it, and a try that got stuck can't block it any more. Starting Likes or Mixtape cancels a dice try that's still waiting, so it can't pop up a message or interrupt Mixtape later.
 - **Likes panel:** pulling it down follows your finger smoothly (the list no longer bounces against it), a quick flick closes it, and a thin line separates History and Likes.
+- **Feels more like an app:** text on the app's own screens (welcome, help, player, Likes, messages) can't be highlighted any more, so no Copy / Look Up pop-ups. The site's pages work as before.
 - **Less lag (Mixtape especially):** the automatic backup is saved in the background, so it never holds up the app.
 - **Opening the big player (from 3.0):** the card grows out of the mini player. The mini player's song row rides up and fades, the cover grows from the little picture into the big one, and the rest comes in at the end. Closing does the same in reverse.
 - **Up Next:** the arrow back to the cover sits centred under the show name, and long song names wrap onto the next line instead of running under the heart.
