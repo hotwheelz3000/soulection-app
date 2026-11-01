@@ -131,6 +131,7 @@ enum FavoritesScript {
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
             '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .8s linear infinite}',
             '@keyframes sr-spin{to{transform:rotate(360deg)}}',
+            '.sr-dice-top[aria-busy="true"] svg{animation:sr-spin .7s linear infinite}',
             // The song playing in a show's tracklist: a light background and moving bars.
             '.sr-row-playing{background:rgba(255,255,255,.06);border-radius:8px}',
             '.sr-mini-over{position:absolute;inset:0;z-index:3;pointer-events:none}',
@@ -2548,6 +2549,7 @@ enum FavoritesScript {
                 (function watch() {
                   if (token !== showSwitch || !frame.isConnected) return;
                   var k = np(), st = npState();
+                  if (k && k.activeFrame && k.activeFrame() !== frame.contentWindow) return; // something else took over
                   if (k && st && st.paused === false && k.activeFrame && k.activeFrame() === frame.contentWindow) {
                     oldFrames.forEach(function (fr) {
                       if (fr === frame) return;
@@ -2589,6 +2591,12 @@ enum FavoritesScript {
               // The welcome player stays until the show is really playing (see renderLiveCard).
               schedule();
             }).catch(failed);
+          }
+          // Something else is played (Likes, Mixtape, a show's page): a dice try still waiting
+          // to start lets go, so it can't show a message or switch players later.
+          function cancelShowSwitch() {
+            showSwitch++;
+            if (diceTry) { diceTry++; diceBusy(false); }
           }
 
           // The welcome player becomes the real mini player: one solid card that grows from
@@ -2810,45 +2818,59 @@ enum FavoritesScript {
             if (bars.classList.contains('sr-paused') !== paused) bars.classList.toggle('sr-paused', paused);
           }
 
+          // The dice spins from the tap until the new show plays (or the try gives up). A try
+          // that got stuck can never block the dice: after 10 seconds a tap always goes through.
+          var diceBusySince = 0;
+          function diceBusy(on) {
+            if (!dice) return;
+            diceBusySince = on ? Date.now() : 0;
+            if (on) dice.setAttribute('aria-busy', 'true'); else dice.removeAttribute('aria-busy');
+          }
           function playRandomShow() {
-            if (!dice || dice.getAttribute('aria-busy') === 'true') return;
-            dice.setAttribute('aria-busy', 'true');
-            closeSheet();
-            beginStarting(); // the logo spins in the play button while it switches
-            renderPlayButtons();
-            // Like switching songs in Likes: what's playing keeps playing until the new show
-            // has started (iPhone stops it then). Stopping it first left the new show silent.
-            endPlaylist(false, true);
+            if (!dice) return;
+            if (diceBusySince && Date.now() - diceBusySince < 10000) return;
+            diceBusy(true);
+            var mine = ++diceTry;
+            try {
+              closeSheet();
+              beginStarting(); // the logo spins in the play button while it switches
+              renderPlayButtons();
+              // Like switching songs in Likes: what's playing keeps playing until the new show
+              // has started (iPhone stops it then). Stopping it first left the new show silent.
+              endPlaylist(false, true);
+            } catch (err) {}
             var gaveUp = false;
             var list = new Promise(function (resolve) {
-              loadEpisodes().then(resolve, function () { resolve([]); });
               setTimeout(function () { gaveUp = true; resolve(episodeList && episodeList.length ? episodeList : []); }, 8000);
+              try { loadEpisodes().then(resolve, function () { resolve([]); }); } catch (err) { resolve([]); }
             });
             list.then(function (paths) {
+              if (mine !== diceTry) return;
               paths = paths || [];
-              dice.removeAttribute('aria-busy');
               var here = location.pathname.replace(/\/$/, '');
               var playingNow = (directShown && directShown.episodeURL) || ((npState() || {}).episodeURL) || '';
               var choices = paths.filter(function (p) { return p !== here && p !== playingNow; });
               if (!choices.length) choices = paths;
               if (!choices.length) {
-                endStarting(); renderPlayButtons();
+                diceBusy(false); endStarting(); renderPlayButtons();
                 return showToast(gaveUp ? "Couldn't load the list of shows. Tap the dice to try again." : "Couldn't find any shows.");
               }
               var path = choices[Math.floor(Math.random() * choices.length)];
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
-              var mine = ++diceTry;
               playShowHere(path, 1, function () {
-                if (mine === diceTry) showToast("The random show didn't start. Tap the dice to try again.");
+                if (mine !== diceTry) return;
+                diceBusy(false);
+                showToast("The random show didn't start. Tap the dice to try again.");
               }, { relay: true });
               // Still silent after a while: say so (the dice works again on the next tap).
               var t1 = Date.now();
               (function check() {
                 var st = npState();
-                if (st && st.paused === false && directShown && directShown.episodeURL === path) return;
-                if (mine !== diceTry) return; // tapped again: that try takes over
+                if (mine !== diceTry) return; // tapped again, or something else was played
+                if (st && st.paused === false && directShown && directShown.episodeURL === path) { diceBusy(false); return; }
                 if (Date.now() - t1 > 20000) {
+                  diceBusy(false);
                   if (!starting || isPaused()) { endStarting(); renderPlayButtons(); showToast("The random show didn't start. Tap the dice to try again."); }
                   return;
                 }
@@ -4028,6 +4050,7 @@ enum FavoritesScript {
           }
 
           function playCurrent() {
+            cancelShowSwitch();
             var f = null;
             while (playlist && playlist.pos < playlist.ids.length && !(f = lookup(playlist.source, playlist.ids[playlist.pos]))) {
               playlist.ids.splice(playlist.pos, 1); // removed since the playlist started

@@ -365,7 +365,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         autoBackupTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
             guard !Task.isCancelled else { return }
-            self?.writeAutoBackup()
+            self?.writeAutoBackupInBackground()
         }
     }
 
@@ -379,12 +379,45 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             lastWriteFailure = "The app lost track of the backup file" + (bookmarkFailure.map { ": " + $0 } ?? "")
             return false
         }
+        return finishWrite(Self.performWrite(file: file, payload: payload))
+    }
+
+    /// The automatic backup after each change runs off the main thread: writing to iCloud
+    /// Drive can take a moment, and on the main thread that froze the app (felt as lag,
+    /// e.g. in Mixtape, where every song is a change).
+    private func writeAutoBackupInBackground() {
+        guard let file = backupFile(), let payload = try? store.backupData() else {
+            writeAutoBackup()
+            return
+        }
+        Task { [weak self] in
+            let failure = await Task.detached(priority: .utility) {
+                FavoritesBridge.performWrite(file: file, payload: payload)
+            }.value
+            self?.finishWrite(failure)
+        }
+    }
+
+    /// Records how a write went. Returns true when it worked.
+    @discardableResult
+    private func finishWrite(_ failure: String?) -> Bool {
+        lastWriteFailure = failure
+        autoBackupError = failure != nil
+        if failure == nil {
+            UserDefaults.standard.set(Date().timeIntervalSince1970 * 1000, forKey: Self.lastSavedKey)
+            store.addedSinceBackup = 0
+        }
+        return failure == nil
+    }
+
+    /// Writes the backup into the file itself. Returns why it failed, or nil when it worked.
+    /// (iOS grants access to this one file, not its folder, so an atomic write, a temporary
+    /// file next to it then a swap, isn't allowed.)
+    nonisolated private static func performWrite(file: URL, payload: Data) -> String? {
         let accessing = file.startAccessingSecurityScopedResource()
         defer { if accessing { file.stopAccessingSecurityScopedResource() } }
         var coordinationError: NSError?
         var writeError: Error?
-        // Write into the file itself: iOS grants access to this one file, not its folder, so
-        // an atomic write (temporary file next to it, then swap) isn't allowed.
         NSFileCoordinator().coordinate(writingItemAt: file, options: [], error: &coordinationError) { url in
             do { try payload.write(to: url) } catch { writeError = error }
         }
@@ -392,24 +425,13 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         if coordinationError != nil || writeError != nil {
             do {
                 try payload.write(to: file)
-                coordinationError = nil
-                writeError = nil
+                return nil
             } catch {
                 writeError = writeError ?? error
             }
         }
-        let ok = coordinationError == nil && writeError == nil
-        if let failure = (writeError as NSError?) ?? coordinationError {
-            lastWriteFailure = "\(failure.localizedDescription) (\(failure.domain) \(failure.code))"
-        } else {
-            lastWriteFailure = nil
-        }
-        autoBackupError = !ok
-        if ok {
-            UserDefaults.standard.set(Date().timeIntervalSince1970 * 1000, forKey: Self.lastSavedKey)
-            store.addedSinceBackup = 0
-        }
-        return ok
+        guard let failure = (writeError as NSError?) ?? coordinationError else { return nil }
+        return "\(failure.localizedDescription) (\(failure.domain) \(failure.code))"
     }
 
     private func autoBackupStatusJSON() -> String {

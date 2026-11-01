@@ -2,6 +2,8 @@
 
 **New**
 - **Closing the big player** lands exactly on the mini player (no more shake at the end).
+- **Dice:** spins as soon as you tap it, and a try that got stuck can't block it any more. Starting Likes or Mixtape cancels a dice try that's still waiting, so it can't pop up a message or interrupt Mixtape later.
+- **Less lag (Mixtape especially):** the automatic backup is saved in the background, so it never holds up the app.
 - **Opening the big player (from 3.0):** the card grows out of the mini player. The mini player's song row rides up and fades, the cover grows from the little picture into the big one, and the rest comes in at the end. Closing does the same in reverse.
 - **Up Next:** the arrow back to the cover sits centred under the show name, and long song names wrap onto the next line instead of running under the heart.
 - **Mini player:** always shows the song you're hearing, also after jumping to a song (the site's own line used to stay on the song before).
