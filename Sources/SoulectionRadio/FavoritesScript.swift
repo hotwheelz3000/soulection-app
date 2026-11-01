@@ -897,7 +897,7 @@ enum FavoritesScript {
             showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + (restored === 1 ? ' song' : ' songs') : 'Backup read') + '. One more step</div>' +
               (reason
                 ? '<div>Your iPhone didn\'t let the app update that file directly. To keep backing up, save it back: choose the same folder, tap Save, then tap Replace.</div>'
-                : '<div>Now save it back: choose the same folder, tap Save, then tap Replace. Backup carries on from there.</div>') +
+                : '<div>Now save it back: choose the same folder, tap Save, then tap <b>Replace</b>. iOS asks because the file is already there; replacing it updates it with your newest songs. Backup carries on from there.</div>') +
               (reason ? '<div class="sr-note-why">What iOS said: ' + esc(reason) + '</div>' : ''), 15000);
           }
 
@@ -1866,7 +1866,8 @@ enum FavoritesScript {
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
-              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and save the backup file in iCloud Drive. After you put the app back, pick that file when it asks.']
+              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and save the backup file in iCloud Drive. After you put the app back, pick that file when it asks.'],
+              [CLOUD, 'Backup paused?', 'After an update your iPhone can pause backup. Tap Reconnect, pick Soulection Radio Backup.json, then save it back: same folder, tap Save, then Replace. Replace is normal here: it updates the old file with your newest songs.']
             ];
           }
           function helpListHTML() {
