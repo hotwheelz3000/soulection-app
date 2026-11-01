@@ -463,11 +463,12 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         presenter.present(picker, animated: true)
     }
 
-    /// After an update: pick the backup file again, with the picker opened in its folder.
+    /// After an update: pick the backup file (read as a copy, the way that works on every
+    /// phone), then save it back to the same place once, which reconnects backup.
     private func reconnectBackupFile() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .reconnect
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         if let folder = UserDefaults.standard.string(forKey: Self.folderPathKey) {
@@ -523,7 +524,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {
         switch pickerPurpose {
-        case .saveBackup: toast("Auto-backup wasn't turned on.")
+        case .saveBackup: toast(autoBackupIsOn ? "Backup is still paused. Tap Reconnect in Likes when you're ready." : "Auto-backup wasn't turned on.")
         case .restoreBackup: toast("Nothing restored.")
         case .reconnect: toast("Backup is still paused. Tap Reconnect in Likes when you're ready.")
         case .importFile: break
@@ -1087,7 +1088,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
             // Keep backing up to this same file.
             let previousFile = UserDefaults.standard.data(forKey: Self.fileKey)
-            if rememberBackupFile(url), writeAutoBackup() {
+            if !reconnecting, rememberBackupFile(url), writeAutoBackup() {
                 send()
                 let n = restored == 1 ? "1 song" : "\(restored) songs"
                 if reconnecting {
@@ -1097,8 +1098,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                 }
                 return
             }
-            // iOS won't let the app write to it: save it back once instead.
-            let why = lastWriteFailure
+            // iOS won't let the app write to it (or it's a reconnect, read as a copy): save it
+            // back once instead.
+            let why = reconnecting ? nil : lastWriteFailure
             if let previousFile { UserDefaults.standard.set(previousFile, forKey: Self.fileKey) } else { UserDefaults.standard.removeObject(forKey: Self.fileKey) }
             liveBackupURL = nil
             autoBackupError = false

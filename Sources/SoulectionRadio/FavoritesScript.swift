@@ -850,7 +850,7 @@ enum FavoritesScript {
               if (!autoBackup.reconnect) return; // it came back by itself
               var n = showNote(
                 '<div class="sr-note-title">Backup paused after the update</div>' +
-                '<div>Your iPhone wants you to pick your backup file once more. Tap Reconnect, then tap <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>. Your songs stay as they are.</div>' +
+                '<div>Tap Reconnect and pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, then save it back to the same folder (Save, then Replace). Your songs stay as they are.</div>' +
                 '<div>Can\'t find it? Tap <b>New backup</b> to save a fresh one.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) { reconnectShown = false; return; }
@@ -873,7 +873,7 @@ enum FavoritesScript {
           function chooseReconnect() {
             noteWithButtons(
               '<div class="sr-note-title">Backup is paused</div>' +
-              '<div>Tap <b>Reconnect</b> and pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, or save a new backup file instead.</div>',
+              '<div>Tap <b>Reconnect</b>, pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, then save it back to the same folder (Save, then Replace). Or save a new backup file instead.</div>',
               [['Reconnect', function () { native({ op: 'backupReconnect' }); }, IMPORT],
                ['Save a new backup', function () { native({ op: 'backupCreate' }); }, CLOUD],
                ['Cancel', null]]);
@@ -895,7 +895,9 @@ enum FavoritesScript {
           // next, and saving it back once keeps backup going.
           function pickSavedFileNote(restored, reason) {
             showNote('<div class="sr-note-title">' + (restored > 0 ? 'Restored ' + restored + (restored === 1 ? ' song' : ' songs') : 'Backup read') + '. One more step</div>' +
-              '<div>Your iPhone didn\'t let the app update that file directly. To keep backing up, save it back: choose the same folder, tap Save, then tap Replace.</div>' +
+              (reason
+                ? '<div>Your iPhone didn\'t let the app update that file directly. To keep backing up, save it back: choose the same folder, tap Save, then tap Replace.</div>'
+                : '<div>Now save it back: choose the same folder, tap Save, then tap Replace. Backup carries on from there.</div>') +
               (reason ? '<div class="sr-note-why">What iOS said: ' + esc(reason) + '</div>' : ''), 15000);
           }
 
