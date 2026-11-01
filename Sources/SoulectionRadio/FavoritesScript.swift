@@ -288,6 +288,10 @@ enum FavoritesScript {
             '.sr-tabs{display:flex;gap:18px;align-items:baseline}',
             '.sr-tabbtn{-webkit-appearance:none;appearance:none;background:none;border:0;padding:0;margin:0;font-family:' + FONT + ';font-size:18px;line-height:24px;font-weight:600;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
             '.sr-tabbtn[aria-pressed="true"]{color:' + TEXT + '}',
+            // A thin line between History and Likes.
+            '.sr-tabs{position:relative}',
+            '.sr-tabbtn + .sr-tabbtn{position:relative}',
+            '.sr-tabbtn + .sr-tabbtn::before{content:"";position:absolute;left:-10px;top:3px;bottom:3px;width:1px;background:' + MUTED + ';opacity:.7;pointer-events:none}',
             '.sr-clear[hidden]{display:none}',
             // Sleep timer: moon in the top bar (with time left) and its panel.
             '.sr-moon-top{font-size:25px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center;gap:4px}',
@@ -374,7 +378,7 @@ enum FavoritesScript {
             '.sr-btn svg{width:18px;height:18px;display:block;color:' + ACCENT + '}',
             '.sr-btn:active{background:' + HOVER + '}',
             '.sr-btn[disabled]{opacity:.5;cursor:default}',
-            '.sr-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior:contain;border-top:1px solid ' + BORDER + ';padding:0 12px}',
+            '.sr-list{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:none;border-top:1px solid ' + BORDER + ';padding:0 12px}',
             '.sr-item{position:relative;overflow:hidden;border-bottom:1px solid ' + BORDER + '}',
             '.sr-item-remove{position:absolute;inset:0;display:flex;align-items:center;justify-content:flex-end;padding-right:6px;color:' + ACCENT + '}',
             '.sr-item-main{position:relative;display:flex;align-items:center;gap:12px;padding:9px 0;background:' + BG + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
@@ -1627,31 +1631,54 @@ enum FavoritesScript {
           // Swipe down on the sheet (from its header, or from the list when it's scrolled
           // to the top) to close it.
           function attachSheetDrag() {
-            var y0 = 0, x0 = 0, dy = 0, mode = null, fromList = false;
+            var y0 = 0, x0 = 0, yStart = 0, dy = 0, mode = null, fromList = false, track = null, frame = 0;
+            function place() {
+              frame = 0;
+              sheet.panel.style.transform = 'translate3d(0,' + dy.toFixed(1) + 'px,0)';
+              var h = sheet.panel.offsetHeight || 1;
+              sheet.backdrop.style.opacity = Math.max(0, 1 - dy / h).toFixed(3);
+            }
             sheet.panel.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1) return;
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; mode = null;
               fromList = sheet.list.contains(e.target);
+              track = velocityTracker();
+              track.add(y0);
             }, { passive: true });
             sheet.panel.addEventListener('touchmove', function (e) {
-              var ddy = e.touches[0].clientY - y0, ddx = e.touches[0].clientX - x0;
+              var y = e.touches[0].clientY, ddy = y - y0, ddx = e.touches[0].clientX - x0;
               if (!mode) {
-                if (Math.abs(ddy) < 8 && Math.abs(ddx) < 8) return;
-                var down = ddy > 0 && Math.abs(ddy) > Math.abs(ddx);
-                mode = down && (!fromList || sheet.list.scrollTop <= 0) ? 'drag' : 'other';
-                if (mode === 'drag') sheet.panel.style.transition = 'none';
+                // Decided on the first move down, so the list never starts bouncing first
+                // (that fought the sheet and made it jumpy).
+                if (Math.abs(ddx) > 6 && Math.abs(ddx) > Math.abs(ddy)) mode = 'other';
+                else if (ddy > 0 && (!fromList || sheet.list.scrollTop <= 0)) {
+                  mode = 'drag';
+                  yStart = y;
+                  sheet.panel.style.transition = 'none';
+                  sheet.backdrop.style.transition = 'none';
+                } else if (Math.abs(ddy) > 6) mode = 'other';
+                else return;
               }
               if (mode !== 'drag') return;
               e.preventDefault();
-              dy = Math.max(0, ddy);
-              sheet.panel.style.transform = 'translateY(' + dy + 'px)';
+              track.add(y);
+              dy = Math.max(0, y - yStart);
+              if (!frame) frame = requestAnimationFrame(place);
             }, { passive: false });
-            sheet.panel.addEventListener('touchend', function () {
-              if (mode !== 'drag') return;
+            function end() {
+              if (mode !== 'drag') { mode = null; return; }
+              mode = null;
+              if (frame) { cancelAnimationFrame(frame); frame = 0; }
+              var v = track ? track.velocity() : 0; // px per second, positive = down
               sheet.panel.style.transition = '';
-              if (dy > Math.min(120, sheet.panel.offsetHeight * 0.25)) closeSheet();
+              sheet.backdrop.style.transition = '';
+              sheet.backdrop.style.opacity = '';
+              // A quick flick down closes it too, not only a long pull.
+              if (v > 450 || (v > -300 && dy > Math.min(120, sheet.panel.offsetHeight * 0.25))) closeSheet();
               else sheet.panel.style.transform = '';
-            });
+            }
+            sheet.panel.addEventListener('touchend', end);
+            sheet.panel.addEventListener('touchcancel', end);
           }
 
           // The tab at the bottom of the screen when no show is playing.
