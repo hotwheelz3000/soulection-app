@@ -3496,9 +3496,18 @@ enum FavoritesScript {
           function playerTravel() { return Math.max(120, (fpFrom || miniCard()).top); }
           var fpTravel = 0;
           var BG_RGB = BG.replace(/^rgb\(|\)$/g, '');
+          // While closing, the mini player is measured every frame: where it sits can still
+          // change as the page settles (it used to land a little off and jump into place).
+          var fpClosing = false;
+          function setClosing(on) {
+            fpClosing = on;
+            // The page behind is let go right away, so it's already in its final spot.
+            if (on) document.documentElement.classList.remove('sr-lock');
+            else if (fp && isPlayerOpen()) document.documentElement.classList.add('sr-lock');
+          }
           function setProgress(p) {
             fpP = p;
-            if (!fpFrom) fpFrom = miniCard();
+            if (!fpFrom || (fpClosing && p < 1)) fpFrom = miniCard();
             if (!fpTravel) fpTravel = playerTravel();
             var e = Math.max(0, Math.min(1, p)), k = 1 - e, c = fpFrom;
             var root = fp.root.style;
@@ -3557,6 +3566,7 @@ enum FavoritesScript {
                 img.src = src;
                 fp.root.appendChild(img);
                 f.img = img;
+                f.thumb = thumb;
                 f.from = thumb.getBoundingClientRect();
                 f.to = to;
                 f.r0 = parseFloat(getComputedStyle(thumb).borderTopLeftRadius) || 4;
@@ -3582,6 +3592,7 @@ enum FavoritesScript {
               row.appendChild(copy);
               fp.root.appendChild(row);
               f.row = row;
+              f.card = card;
               f.dx = cr.left;
               // The card is the mini player now: the real one steps aside until it's back.
               hide(card);
@@ -3602,6 +3613,10 @@ enum FavoritesScript {
             if (!fly) startFly();
             if (!fly) return;
             var f = fly;
+            if (fpClosing) {
+              if (f.thumb && f.thumb.isConnected) { var tr = f.thumb.getBoundingClientRect(); if (tr.width) f.from = tr; }
+              if (f.card && f.card.isConnected) f.dx = f.card.getBoundingClientRect().left;
+            }
             // A solid card from the start, like the mini player it grew out of.
             fp.root.style.backgroundColor = BG;
             if (f.img) {
@@ -3656,6 +3671,7 @@ enum FavoritesScript {
             buildPlayer();
             if (!fp) return false;
             cancelAnimationFrame(fpAnim);
+            if (fpClosing && isPlayerOpen()) setClosing(false); // caught while closing
             if (!isPlayerOpen()) {
               closeSheet();
               fpFrom = miniCard();
@@ -3676,11 +3692,13 @@ enum FavoritesScript {
           function settlePlayer(velocity) {
             // One swipe is enough: a flick, or letting go a quarter of the way, finishes it.
             var open = velocity > 0.3 || (velocity > -0.3 && fpP > 0.25);
+            setClosing(!open);
             animateTo(open ? 1 : 0, velocity, open ? null : finishClose);
           }
           function openPlayer() {
             if (isPlayerOpen() && fpP > 0.99) return;
             if (!beginPlayerDrag()) return;
+            setClosing(false);
             animateTo(1, 0);
           }
           function closePlayer() {
@@ -3689,6 +3707,7 @@ enum FavoritesScript {
               fp.root.classList.remove('sr-np-songs-open');
               fp.songsBtn.setAttribute('aria-expanded', 'false');
             }
+            setClosing(true);
             fpFrom = miniCard();
             fpTravel = playerTravel();
             animateTo(0, 0, finishClose);
@@ -3783,6 +3802,7 @@ enum FavoritesScript {
           function finishClose() {
             closeNpActions();
             if (!fp) return;
+            fpClosing = false;
             endFly();
             // Next time the player opens on the cover, not on Up Next.
             if (fp.root.classList.contains('sr-np-songs-open')) {

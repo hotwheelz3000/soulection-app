@@ -1,7 +1,8 @@
-## Soulection Radio 3.0
+## Soulection Radio 4.0
 
 **New**
-- **Opening the big player:** the card grows out of the mini player. The mini player's song row rides up and fades, the cover grows from the little picture into the big one, and the rest comes in at the end. Closing does the same in reverse.
+- **Closing the big player** lands exactly on the mini player (no more shake at the end).
+- **Opening the big player (from 3.0):** the card grows out of the mini player. The mini player's song row rides up and fades, the cover grows from the little picture into the big one, and the rest comes in at the end. Closing does the same in reverse.
 - **Up Next:** the arrow back to the cover sits centred under the show name, and long song names wrap onto the next line instead of running under the heart.
 - **Mini player:** always shows the song you're hearing, also after jumping to a song (the site's own line used to stay on the song before).
 - **Backup through updates:** updating the app no longer turns backup off. If iOS asks, tap **Reconnect**: pick your backup file, then save it back to the same folder (Save, then Replace). Or tap **New backup** to save a fresh one. Any file can be picked now (backups used to show greyed out).
@@ -10,6 +11,7 @@
 - **Top bar:** the buttons no longer jump when you go to another page. They hold their spot while the new page loads.
 
 **From 2.0**
+
 **New in the player**
 - **Up Next:** tap Up Next in the big player. In Likes, History or Mixtape it lists the songs coming up; in a show, the show's songs. Tap a song to play it, or its heart to like it.
 - **One swipe:** the big player slides up from the bottom in one swipe (there's a tab on the mini player again) and slides back down to close.
