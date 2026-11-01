@@ -212,6 +212,7 @@ enum FavoritesScript {
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
             '[data-sr-row]{min-width:0;max-width:100%}',
+            '[data-sr-clip]{overflow-x:clip!important;max-width:100%}',
             '[data-sr-row] > *{min-width:0;overflow-wrap:anywhere}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
@@ -999,6 +1000,13 @@ enum FavoritesScript {
             var rows = pageRows();
             if (!rows.length) return;
             var info = null;
+            // The box around the song list can itself scroll sideways (separate from the
+            // page): make every box between the list and the page clip sideways instead.
+            for (var box = rows[0].row.parentElement; box && box.tagName !== 'MAIN' && box !== document.body && box !== document.documentElement; box = box.parentElement) {
+              if (box.hasAttribute('data-sr-clip')) break;
+              box.setAttribute('data-sr-clip', '');
+              if (box.scrollLeft) box.scrollLeft = 0;
+            }
             rows.forEach(function (r, i) {
               if (!r.row.hasAttribute('data-sr-row')) r.row.setAttribute('data-sr-row', '');
               var b = r.songCell.querySelector(':scope > .sr-heart');
@@ -2887,6 +2895,7 @@ enum FavoritesScript {
                 return showToast(gaveUp ? "Couldn't load the list of shows. Tap the dice to try again." : "Couldn't find any shows.");
               }
               var path = choices[Math.floor(Math.random() * choices.length)];
+              haptic('light');
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
               playShowHere(path, 1, function () {
@@ -3098,6 +3107,19 @@ enum FavoritesScript {
 
           // Swipe up on the mini player to open the full player, like Spotify.
           var miniTouchMove = null;
+          // Height of the home bar strip: the bottom safe area (at least 24 points on phones
+          // with a home bar; none on phones with a Home button).
+          var homeBarPx = null;
+          function homeBarStrip() {
+            if (homeBarPx == null) {
+              var probe = el('div');
+              probe.style.cssText = 'position:fixed;bottom:0;height:env(safe-area-inset-bottom);width:0;visibility:hidden';
+              document.body.appendChild(probe);
+              homeBarPx = probe.offsetHeight > 0 ? Math.max(24, probe.offsetHeight) : 0;
+              probe.remove();
+            }
+            return homeBarPx;
+          }
           function attachOpenGesture() {
             var y0 = null, x0 = 0, mode = null, track = null;
             document.addEventListener('touchstart', function (e) {
@@ -3107,6 +3129,9 @@ enum FavoritesScript {
               var player = playerCard();
               var onPlayer = player && player.contains(t) && !(t.closest && t.closest('[data-orientation="horizontal"], [role="slider"]'));
               if (!onPlayer) return;
+              // A swipe that starts on the home bar strip at the very bottom is iOS's (leaving
+              // the app or opening the app switcher), not "open the big player".
+              if (e.touches[0].clientY > window.innerHeight - homeBarStrip()) return;
               player.classList.add('sr-touching');
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX;
               track = velocityTracker();
@@ -3797,8 +3822,7 @@ enum FavoritesScript {
               !!(sleepPanel && sleepPanel.root.classList.contains('sr-open'));
             if (!anyOpen && document.documentElement.classList.contains('sr-lock')) document.documentElement.classList.remove('sr-lock');
           }
-          // Leaving or coming back to the app always lands on the normal page, never the
-          // full-size player (closed instantly, no animation; the music isn't touched).
+          // Closes the player instantly (no animation; the music isn't touched).
           function closePlayerNow() {
             if (!fp || !(isPlayerOpen() || !fp.root.hidden)) return;
             cancelAnimationFrame(fpAnim);
@@ -3806,9 +3830,15 @@ enum FavoritesScript {
             setProgress(0);
             finishClose();
           }
-          document.addEventListener('visibilitychange', function () {
+          // Leaving the app and coming back: a big player that was open stays open. Only one
+          // caught halfway (a swipe interrupted by leaving) is closed, so it never hangs there.
+          function tidyPlayerNow() {
+            if (!fp || !(isPlayerOpen() || !fp.root.hidden)) return;
+            if (fpP >= 0.99 && fpAnim == null) return;
             closePlayerNow();
-            setTimeout(closePlayerNow, 300); // in case a stray touch reopened it on the way back
+          }
+          document.addEventListener('visibilitychange', function () {
+            tidyPlayerNow();
             if (document.hidden) return;
             setTimeout(healScrollLock, 400);
             var over = document.querySelector('.sr-mini-over');
