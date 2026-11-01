@@ -212,7 +212,6 @@ enum FavoritesScript {
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
             '[data-sr-row]{min-width:0;max-width:100%}',
-            '[data-sr-clip]{overflow-x:clip!important;max-width:100%}',
             '[data-sr-row] > *{min-width:0;overflow-wrap:anywhere}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
@@ -247,20 +246,6 @@ enum FavoritesScript {
             '.sr-bars i:nth-child(3){animation-delay:-.7s}',
             '.sr-bars.sr-paused i{animation-play-state:paused}',
             '@keyframes sr-bar{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
-            // Continue listening: a row of the last few shows you were in the middle of.
-            '.sr-continue{flex:none;padding:0 12px 10px}',
-            '.sr-continue[hidden]{display:none}',
-            '.sr-continue-title{font-size:12px;line-height:16px;font-weight:600;color:' + MUTED + ';margin:0 0 6px}',
-            '.sr-continue-row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -12px;padding:0 12px;overscroll-behavior-x:contain}',
-            '.sr-continue-row::-webkit-scrollbar{display:none}',
-            '.sr-continue-item{-webkit-appearance:none;appearance:none;flex:none;width:72px;display:grid;gap:4px;padding:0;margin:0;border:0;background:none;text-align:left;font-family:' + FONT + ';color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
-            '.sr-continue-item img{width:72px;height:72px;border-radius:4px;object-fit:cover;background:' + TRACK + ';display:block}',
-            '.sr-continue-bar{height:3px;border-radius:9999px;background:' + TRACK + ';overflow:hidden}',
-            '.sr-continue-bar i{display:block;height:100%;background:#fff}',
-            '.sr-continue-name{font-size:12px;line-height:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
-            '.sr-continue-left{font-size:11px;line-height:14px;color:' + MUTED + '}',
-            '.sr-continue-item:active{opacity:.6}',
-            '.sr-np-song-untimed .sr-np-song-go{cursor:default}',
             '.sr-auto{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-auto .sr-auto-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
@@ -982,18 +967,6 @@ enum FavoritesScript {
             return out;
           }
 
-          // Older shows list every song at the same time (often 00:00:00): no song can be
-          // told apart by its time then, so the app doesn't name, jump to or heart one.
-          function untimedTracks(list) {
-            if (!list || list.length < 3) return false;
-            var seen = {}, distinct = 0;
-            for (var i = 0; i < list.length; i++) {
-              var k = Math.round(list[i].start || 0);
-              if (!seen[k]) { seen[k] = true; distinct++; }
-            }
-            return distinct <= list.length / 2;
-          }
-
           function isVoiceOver(artist) { return /^\s*VO\b/i.test(artist || ''); }
 
           function pageEpisodeInfo() {
@@ -1026,19 +999,10 @@ enum FavoritesScript {
             var rows = pageRows();
             if (!rows.length) return;
             var info = null;
-            var noTimes = untimedTracks(rows);
-            // The box around the song list can itself scroll sideways (separate from the
-            // page): make every box between the list and the page clip sideways instead.
-            for (var box = rows[0].row.parentElement; box && box.tagName !== 'MAIN' && box !== document.body && box !== document.documentElement; box = box.parentElement) {
-              if (box.hasAttribute('data-sr-clip')) break;
-              box.setAttribute('data-sr-clip', '');
-              if (box.scrollLeft) box.scrollLeft = 0;
-            }
             rows.forEach(function (r, i) {
               if (!r.row.hasAttribute('data-sr-row')) r.row.setAttribute('data-sr-row', '');
               var b = r.songCell.querySelector(':scope > .sr-heart');
-              // A voice-over, or a show without song times (every heart would be the same song).
-              if (r.vo || noTimes) { if (b) b.remove(); return; }
+              if (r.vo) { if (b) b.remove(); return; }
               if (!b) {
                 b = heartButton('sr-heart-row');
                 b.addEventListener('click', function (e) {
@@ -1418,85 +1382,17 @@ enum FavoritesScript {
             auto.appendChild(autoBtn);
             head.appendChild(auto);
             var list = el('div', 'sr-list');
-            var cont = el('div', 'sr-continue', '<div class="sr-continue-title" aria-hidden="true">Continue listening</div><div class="sr-continue-row" role="group" aria-label="Continue listening"></div>');
-            cont.hidden = true;
-            cont.addEventListener('click', function (e) {
-              var b = e.target.closest && e.target.closest('.sr-continue-item');
-              if (!b) return;
-              var entry = continueList().filter(function (x) { return x.path === b.getAttribute('data-path'); })[0];
-              if (entry) resumeShow(entry);
-            });
             panel.appendChild(head);
-            panel.appendChild(cont);
             panel.appendChild(list);
             root.appendChild(backdrop);
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, cont: cont, contKey: '', sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
             attachSheetDrag();
           }
 
           function isOpen() { return !!(sheet && sheet.root.classList.contains('sr-open')); }
-
-          // ---------------------------------------------------------------------------
-          // Continue listening: where you were in the last few shows you listened to (not
-          // Likes, History or Mixtape, which play single songs). Kept on this phone. A show
-          // you finished (or almost) drops off the list.
-          // ---------------------------------------------------------------------------
-          var CONTINUE_KEY = 'sr-continue';
-          function continueList() {
-            try { var l = JSON.parse(localStorage.getItem(CONTINUE_KEY) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
-          }
-          function saveContinue(l) { try { localStorage.setItem(CONTINUE_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {} }
-          function noteListening() {
-            var st = npState();
-            if (!st || st.paused !== false || playlist || starting) return;
-            var path = (directShown && activeOurs() && directShown.episodeURL) || st.episodeURL || '';
-            var t = st.t, d = st.duration;
-            if (!path || !(t > 0) || !(d > 0)) return;
-            var l = continueList().filter(function (x) { return x.path !== path; });
-            if (t >= 60 && t < d - 120) {
-              var shown = directShown && activeOurs() ? directShown : null;
-              l.unshift({ path: path, show: ((shown && shown.show) || st.show || ('Show #' + st.number)).split(' | ')[0],
-                cover: (shown && shown.cover) || st.cover || '', t: Math.floor(t), d: Math.floor(d), at: Date.now() });
-            }
-            saveContinue(l);
-          }
-          setInterval(noteListening, 10000);
-          function renderContinue(show) {
-            if (!sheet || !sheet.cont) return;
-            var st = npState() || {};
-            var nowPath = (directShown && activeOurs() && directShown.episodeURL) || st.episodeURL || '';
-            var items = show ? continueList().filter(function (x) { return x.path !== nowPath; }).slice(0, 5) : [];
-            var key = items.map(function (x) { return x.path + ':' + Math.floor(x.t / 60); }).join('|');
-            if (sheet.contKey !== key) {
-              sheet.contKey = key;
-              sheet.cont.querySelector('.sr-continue-row').innerHTML = items.map(function (x) {
-                var left = Math.max(1, Math.round((x.d - x.t) / 60));
-                var leftText = left >= 60 ? Math.floor(left / 60) + ' h ' + (left % 60) + ' min left' : left + ' min left';
-                return '<button type="button" class="sr-continue-item" data-path="' + esc(x.path) + '" aria-label="' + esc('Continue ' + x.show + ', ' + leftText) + '">' +
-                  '<img alt="" aria-hidden="true"' + (x.cover ? ' src="' + esc(x.cover) + '"' : '') + '>' +
-                  '<span class="sr-continue-bar" aria-hidden="true"><i style="width:' + Math.min(100, Math.max(2, x.t / x.d * 100)).toFixed(1) + '%"></i></span>' +
-                  '<span class="sr-continue-name" aria-hidden="true">' + esc(x.show) + '</span>' +
-                  '<span class="sr-continue-left" aria-hidden="true">' + esc(leftText) + '</span></button>';
-              }).join('');
-            }
-            if (sheet.cont.hidden !== !items.length) sheet.cont.hidden = !items.length;
-          }
-          // Picks a show back up where you left it, right here (the page doesn't change), the
-          // same way the dice switches shows.
-          function resumeShow(entry) {
-            closeSheet();
-            haptic('light');
-            cancelShowSwitch();
-            beginStarting();
-            renderPlayButtons();
-            endPlaylist(false, true);
-            playShowHere(entry.path, 1, function () {
-              showToast("Couldn't pick that show back up. Try again in a moment.");
-            }, { relay: true, start: Math.max(0, entry.t - 3) });
-          }
 
 
           function openSheet() {
@@ -1617,7 +1513,6 @@ enum FavoritesScript {
               sheet.key = key;
               buildSheetList(sorted, hist, playingId, count, q);
             }
-            renderContinue(hist && !q);
             var st = npState();
             var paused = !st || !!st.paused;
             var sb = sheet.list.querySelector('.sr-sheet-bars');
@@ -1681,7 +1576,6 @@ enum FavoritesScript {
               keyClickable(main.querySelector('.sr-item-text'), 'Play ' + f.song + (f.artist ? ' by ' + f.artist : '') + (f.id === playingId ? ', playing now' : ''));
               // Tapping the cover opens the song's show instead of playing it.
               var cover = main.querySelector('img');
-              cover.removeAttribute('alt'); // it's a button with its own label, not decoration
               keyClickable(cover, 'Open ' + (f.show || 'the show') + ' at ' + f.song);
               cover.addEventListener('click', function (e) {
                 if (main.getAttribute('data-swiped')) return;
@@ -1996,7 +1890,7 @@ enum FavoritesScript {
           function helpItems() {
             return [
               [HOME, 'Back and Home', 'Top left, on every page: go back a page (when there is one), or straight to the home page.'],
-              [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show. Under History, Continue listening picks a show back up where you left it.'],
+              [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show.'],
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
@@ -2679,7 +2573,7 @@ enum FavoritesScript {
               }
               var prevWin = relay && m.activeFrame ? m.activeFrame() : null;
               var prevShown = directShown, prevDirect = direct;
-              var frame = makeFrame(playerURL(info.link, (opts && opts.start) || 0, false));
+              var frame = makeFrame(playerURL(info.link, 0, false));
               m.setActiveFrame(frame.contentWindow);
               if (relay) {
                 var t0 = Date.now();
@@ -2993,7 +2887,6 @@ enum FavoritesScript {
                 return showToast(gaveUp ? "Couldn't load the list of shows. Tap the dice to try again." : "Couldn't find any shows.");
               }
               var path = choices[Math.floor(Math.random() * choices.length)];
-              haptic('light');
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
               playShowHere(path, 1, function () {
@@ -3499,7 +3392,7 @@ enum FavoritesScript {
                 if (f) { f.favoritedAt = Date.now(); toggle(f); renderSongs(true); renderPlayer(); }
                 return;
               }
-              if (!go || row.classList.contains('sr-np-song-untimed')) return;
+              if (!go) return;
               playSongInShow(+row.getAttribute('data-i'));
             });
             attachScrub();
@@ -3525,7 +3418,7 @@ enum FavoritesScript {
           function songRowFavorite(i) {
             var st = npState();
             var t = st && st.tracks && st.tracks[i];
-            if (!t || !st.episodeURL || !t.title || isVoiceOver(t.artist) || st.untimed) return null;
+            if (!t || !st.episodeURL || !t.title || isVoiceOver(t.artist)) return null;
             var next = st.tracks[i + 1];
             return {
               id: favId(st.episodeURL, t.start), song: t.title || t.artist, artist: t.title ? t.artist : '', show: st.show || ('Show #' + st.number),
@@ -3588,8 +3481,7 @@ enum FavoritesScript {
             var cover = bigCover(st.cover || '');
             if (cover && img.getAttribute('src') !== cover) img.src = cover;
             var showName = (st.show || (st.number ? 'Show #' + st.number : '')).split(' | ')[0];
-            fp.songs.querySelector('.sr-np-songs-title').innerHTML = esc(showName) + '<small>' + tracks.length + (tracks.length === 1 ? ' song' : ' songs') +
-              (st.untimed ? ' · no song times for this show' : '') + '</small>';
+            fp.songs.querySelector('.sr-np-songs-title').innerHTML = esc(showName) + '<small>' + tracks.length + (tracks.length === 1 ? ' song' : ' songs') + '</small>';
             if (!tracks.length) {
               fp.songsList.innerHTML = '<div class="sr-empty">The song list for this show isn\'t available.</div>';
               return;
@@ -3597,13 +3489,6 @@ enum FavoritesScript {
             fp.songsList.innerHTML = tracks.map(function (t, i) {
               var now = i === st.index;
               var name = t.title || t.artist || '';
-              if (st.untimed) {
-                // No times: just the list (nothing to jump to or like).
-                return '<div class="sr-np-song sr-np-song-untimed" data-i="' + i + '"><div class="sr-np-song-go">' +
-                  '<span class="sr-np-song-t"></span>' +
-                  '<span><span class="sr-np-song-name">' + esc(name) + '</span>' +
-                  (t.title && t.artist ? '<span class="sr-np-song-artist">' + esc(t.artist) + '</span>' : '') + '</span></div></div>';
-              }
               var who = t.title ? (t.artist || '') : '';
               var f = songRowFavorite(i);
               var heart = '';

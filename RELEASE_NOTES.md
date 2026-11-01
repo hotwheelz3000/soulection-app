@@ -1,10 +1,6 @@
 ## Soulection Radio 4.0
 
 **New**
-- **Continue listening:** in Likes (History tab), a row of the last few shows you were in the middle of, with how much is left. Tap one to pick it back up right where you were.
-- **Shows without song times:** older shows list every song at 00:00:00. The players now show the show instead of guessing a (wrong) song, the tracklist rows there get no hearts (they all lit up together before), and Up Next says the show has no song times.
-- **Show pages:** the song list can't be dragged sideways any more.
-- **Haptics:** a light tap when the dice picks a show or you pick a show back up.
 - **Closing the big player** lands exactly on the mini player: no shake at the end, and the tab rides down with it instead of popping in afterwards.
 - **Dice:** spins as soon as you tap it, and a try that got stuck can't block it any more. Starting Likes or Mixtape cancels a dice try that's still waiting, so it can't pop up a message or interrupt Mixtape later.
 - **Likes panel:** pulling it down follows your finger smoothly (the list no longer bounces against it), a quick flick closes it, and a thin line separates History and Likes.
