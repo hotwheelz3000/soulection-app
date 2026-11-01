@@ -300,6 +300,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // screen comes back for anyone who dismissed the earlier show-once version.)
     private static let welcomeSeenKey = "App.welcomeHidden"
     static let autoBackupFileName = "Soulection Radio Backup.json"
+    /// Any file can be picked: a backup saved through "Save to Files" isn't always tagged as
+    /// JSON by iOS (it then shows greyed out). The contents are checked after picking.
+    private static let backupTypes: [UTType] = [.json, .text, .data, .item]
     private var autoBackupTask: Task<Void, Never>?
 
     private var autoBackupError = false
@@ -454,7 +457,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func restoreBackupFile() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .restoreBackup
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         presenter.present(picker, animated: true)
@@ -464,7 +467,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func reconnectBackupFile() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .reconnect
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: false)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: false)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         if let folder = UserDefaults.standard.string(forKey: Self.folderPathKey) {
@@ -1049,7 +1052,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     private func importFavorites() {
         guard let presenter = presenter() else { return }
         pickerPurpose = .importFile
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json], asCopy: true)
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: true)
         picker.delegate = self
         picker.allowsMultipleSelection = false
         presenter.present(picker, animated: true)

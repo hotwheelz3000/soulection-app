@@ -851,18 +851,32 @@ enum FavoritesScript {
               var n = showNote(
                 '<div class="sr-note-title">Backup paused after the update</div>' +
                 '<div>Your iPhone wants you to pick your backup file once more. Tap Reconnect, then tap <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>. Your songs stay as they are.</div>' +
+                '<div>Can\'t find it? Tap <b>New backup</b> to save a fresh one.</div>' +
                 '<div class="sr-actions"></div>', 0);
               if (!n) { reconnectShown = false; return; }
               n.__onReplaced = function () { reconnectShown = false; };
               var actions = n.querySelector('.sr-actions');
               var goBtn = el('button', 'sr-btn', IMPORT + '<span>Reconnect</span>');
+              var newBtn = el('button', 'sr-btn', CLOUD + '<span>New backup</span>');
               var laterBtn = el('button', 'sr-btn', '<span>Later</span>');
-              goBtn.type = laterBtn.type = 'button';
+              goBtn.type = newBtn.type = laterBtn.type = 'button';
               goBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupReconnect' }); });
+              newBtn.addEventListener('click', function () { hideNote(); native({ op: 'backupCreate' }); });
               laterBtn.addEventListener('click', function () { hideNote(); });
               actions.appendChild(goBtn);
+              actions.appendChild(newBtn);
               actions.appendChild(laterBtn);
             }, 2500);
+          }
+
+          // Backup is paused: pick the same file again, or save a new one.
+          function chooseReconnect() {
+            noteWithButtons(
+              '<div class="sr-note-title">Backup is paused</div>' +
+              '<div>Tap <b>Reconnect</b> and pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, or save a new backup file instead.</div>',
+              [['Reconnect', function () { native({ op: 'backupReconnect' }); }, IMPORT],
+               ['Save a new backup', function () { native({ op: 'backupCreate' }); }, CLOUD],
+               ['Cancel', null]]);
           }
 
           // Turn on / Change: save a new backup file, or pick the one you already have.
@@ -1352,7 +1366,7 @@ enum FavoritesScript {
             var autoBtn = el('button', 'sr-btn', CLOUD + '<span></span>');
             autoBtn.type = 'button';
             autoBtn.addEventListener('click', function () {
-              if (autoBackup.on && autoBackup.reconnect) native({ op: 'backupReconnect' }); else chooseAutoBackup();
+              if (autoBackup.on && autoBackup.reconnect) chooseReconnect(); else chooseAutoBackup();
             });
             auto.appendChild(autoBtn);
             head.appendChild(auto);
