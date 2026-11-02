@@ -251,6 +251,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // page starts it again if it was playing before.
     override init() {
         super.init()
+        writeLocalBackupInBackground() // so the copy on this iPhone is there from the start
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil
@@ -342,24 +343,40 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     }
 
     /// Tries the bookmark again a few times after iCloud has settled.
+    /// Makes the bookmark again a few times after iCloud has settled. Right after saving
+    /// (and Replace), iCloud swaps the file and re-uploads it, and a bookmark made before that
+    /// can stop working once the app is closed, so it's renewed even when the first one worked.
     private func retryBookmark(_ url: URL) {
         Task { @MainActor [weak self] in
-            for delay in [3, 10, 30] {
+            for delay in [3, 10, 30, 60] {
                 try? await Task.sleep(for: .seconds(delay))
                 guard let self, self.liveBackupURL == url else { return }
-                if self.refreshBookmark(from: url) { return }
+                self.refreshBookmark(from: url)
             }
         }
     }
 
-    /// Rewrites the backup file a moment after the last change.
+    /// The copy on this iPhone: in the app's own folder, shown in the Files app under
+    /// On My iPhone → Soulection. The app can always write there (no link to lose, nothing to
+    /// reconnect), and it survives updates; it goes if the app is deleted, which is what the
+    /// iCloud Drive copy is for.
+    static var localBackupURL: URL? {
+        FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).first?
+            .appendingPathComponent(autoBackupFileName)
+    }
+    private func writeLocalBackupInBackground() {
+        guard let url = Self.localBackupURL, let payload = try? store.backupData() else { return }
+        Task.detached(priority: .utility) { try? payload.write(to: url, options: .atomic) }
+    }
+
+    /// Rewrites the backup files a moment after the last change.
     private func scheduleAutoBackup() {
-        guard autoBackupIsOn else { return }
         autoBackupTask?.cancel()
         autoBackupTask = Task { @MainActor [weak self] in
             try? await Task.sleep(for: .seconds(2))
-            guard !Task.isCancelled else { return }
-            self?.writeAutoBackupInBackground()
+            guard !Task.isCancelled, let self else { return }
+            self.writeLocalBackupInBackground()
+            if self.autoBackupIsOn { self.writeAutoBackupInBackground() }
         }
     }
 
@@ -368,6 +385,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     @discardableResult
     private func writeAutoBackup() -> Bool {
+        writeLocalBackupInBackground()
         guard let file = backupFile(), let payload = try? store.backupData() else {
             autoBackupError = autoBackupIsOn
             lastWriteFailure = "The app lost track of the backup file" + (bookmarkFailure.map { ": " + $0 } ?? "")
@@ -442,6 +460,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             status["folder"] = URL(fileURLWithPath: folderPath).lastPathComponent
         }
         if let name = UserDefaults.standard.string(forKey: Self.fileNameKey) { status["file"] = name }
+        if reconnect, let why = (file == nil ? bookmarkFailure : nil) ?? lastWriteFailure { status["why"] = why }
         if reconnect { retryReconnect() }
         let last = UserDefaults.standard.double(forKey: Self.lastSavedKey)
         if last > 0 { status["lastSaved"] = last }
@@ -503,10 +522,9 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         UserDefaults.standard.set(url.deletingLastPathComponent().path, forKey: Self.folderPathKey)
         UserDefaults.standard.set(url.lastPathComponent, forKey: Self.fileNameKey)
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
-        if refreshBookmark(from: url) { return true }
-        // No bookmark that reads back yet: keep using the file from this session and try
-        // again shortly. A placeholder keeps auto-backup marked as on.
-        UserDefaults.standard.set(Data([0]), forKey: Self.fileKey)
+        // No bookmark that reads back yet: keep using the file from this session (a
+        // placeholder keeps auto-backup marked as on). Either way it's renewed shortly.
+        if !refreshBookmark(from: url) { UserDefaults.standard.set(Data([0]), forKey: Self.fileKey) }
         retryBookmark(url)
         return true
     }

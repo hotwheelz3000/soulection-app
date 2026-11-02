@@ -21,6 +21,10 @@
     <string>Dark</string>
     <key>UIStatusBarStyle</key>
     <string>UIStatusBarStyleLightContent</string>
+    <key>UIFileSharingEnabled</key>
+    <true/>
+    <key>LSSupportsOpeningDocumentsInPlace</key>
+    <true/>
     <key>UIRequiresFullScreen</key>
     <false/>
 </dict>

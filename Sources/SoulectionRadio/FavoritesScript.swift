@@ -873,17 +873,23 @@ enum FavoritesScript {
 
           // After an app update iOS can stop the app writing to the backup file until it's picked
           // again. Backup stays on; one tap opens the picker in that folder.
-          var reconnectShown = false;
+          // Your songs are always backed up on this iPhone, so this only comes up now and then
+          // (at most once a week), not on every launch.
+          var reconnectShown = false, RECONNECT_KEY = 'sr-reconnect-asked';
           function offerReconnect() {
             if (reconnectShown) return;
+            try { if (Date.now() - (parseFloat(localStorage.getItem(RECONNECT_KEY)) || 0) < 7 * 864e5) return; } catch (e) {}
             if (welcomeOpen) { setTimeout(offerReconnect, 2000); return; }
             reconnectShown = true;
             setTimeout(function () {
               if (!autoBackup.reconnect) return; // it came back by itself
+              try { localStorage.setItem(RECONNECT_KEY, String(Date.now())); } catch (e) {}
               var n = showNote(
-                '<div class="sr-note-title">Backup paused after the update</div>' +
+                '<div class="sr-note-title">iCloud backup paused</div>' +
+                '<div>Your songs are still backed up on this iPhone (Files → On My iPhone → Soulection). To keep the iCloud copy going too:</div>' +
                 '<div>Tap Reconnect and pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, then save it back to the same folder (Save, then Replace). Your songs stay as they are.</div>' +
                 '<div>Can\'t find it? Tap <b>New backup</b> to save a fresh one.</div>' +
+                (autoBackup.why ? '<div class="sr-note-why">What iOS said: ' + esc(autoBackup.why) + '</div>' : '') +
                 '<div class="sr-actions"></div>', 0);
               if (!n) { reconnectShown = false; return; }
               n.__onReplaced = function () { reconnectShown = false; };
@@ -904,7 +910,7 @@ enum FavoritesScript {
           // Backup is paused: pick the same file again, or save a new one.
           function chooseReconnect() {
             noteWithButtons(
-              '<div class="sr-note-title">Backup is paused</div>' +
+              '<div class="sr-note-title">iCloud backup paused</div>' +
               '<div>Tap <b>Reconnect</b>, pick <b>' + esc(autoBackup.file || 'Soulection Radio Backup.json') + '</b>, then save it back to the same folder (Save, then Replace). Or save a new backup file instead.</div>',
               [['Reconnect', function () { native({ op: 'backupReconnect' }); }, IMPORT],
                ['Save a new backup', function () { native({ op: 'backupCreate' }); }, CLOUD],
@@ -937,7 +943,7 @@ enum FavoritesScript {
             if (!sheet || !sheet.autoText) return;
             var html, btn;
             if (autoBackup.on && autoBackup.reconnect) {
-              html = 'Auto-backup: <b>paused</b> · tap Reconnect';
+              html = 'Auto-backup: <b>on</b> (this iPhone) · iCloud copy paused';
               btn = 'Reconnect';
             } else if (autoBackup.on) {
               var when = autoBackup.lastSaved ? ' · saved ' + ago(autoBackup.lastSaved).toLowerCase() : '';
@@ -946,7 +952,7 @@ enum FavoritesScript {
                 : 'Auto-backup: <b>on</b> · ' + esc(autoBackup.folder || '') + esc(when);
               btn = 'Change';
             } else {
-              html = 'Auto-backup: <b>off</b>';
+              html = 'Auto-backup: <b>this iPhone only</b>';
               btn = 'Turn on';
             }
             if (sheet.autoText.innerHTML !== html) sheet.autoText.innerHTML = html;
@@ -2004,8 +2010,8 @@ enum FavoritesScript {
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],
               [NEXT, 'Skip songs', 'The next and back buttons on your lock screen move between songs in the show.'],
-              [CLOUD, 'Back up to iCloud', 'Keeps a copy of your Likes and History in iCloud Drive, so you don’t lose them if you delete the app. In Likes, tap Turn on and save the backup file in iCloud Drive. After you put the app back, pick that file when it asks.'],
-              [CLOUD, 'Backup paused?', 'After an update your iPhone can pause backup. Tap Reconnect, pick Soulection Radio Backup.json, then save it back: same folder, tap Save, then Replace. Replace is normal here: it updates the old file with your newest songs.']
+              [CLOUD, 'Back up to iCloud', 'Your Likes and History are always backed up on this iPhone (Files → On My iPhone → Soulection). The iCloud Drive copy keeps them safe even if you delete the app. In Likes, tap Turn on and save the backup file in iCloud Drive. After you put the app back, pick that file when it asks.'],
+              [CLOUD, 'iCloud backup paused?', 'Your iPhone can pause the iCloud copy (the copy on this iPhone keeps going). Tap Reconnect, pick Soulection Radio Backup.json, then save it back: same folder, tap Save, then Replace. Replace is normal here: it updates the old file with your newest songs.']
             ];
           }
           function helpListHTML() {
