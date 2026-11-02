@@ -2,7 +2,7 @@
 
 **New**
 - **Leaving the app:** swiping up from the bottom to leave the app or open the app switcher no longer opens the big player, and a big player that's open stays open when you come back.
-- **Show pages:** the song list can't be dragged sideways any more.
+- **Show pages:** a sideways drag on the song list no longer moves it (the show's player is left untouched, so timestamps play as before).
 - **Haptics:** a light tap when the dice picks a show.
 - **Closing the big player** lands exactly on the mini player: no shake at the end, and the tab rides down with it instead of popping in afterwards.
 - **Dice:** spins as soon as you tap it, and a try that got stuck can't block it any more. Starting Likes or Mixtape cancels a dice try that's still waiting, so it can't pop up a message or interrupt Mixtape later.

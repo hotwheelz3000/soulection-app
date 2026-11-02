@@ -212,7 +212,9 @@ enum FavoritesScript {
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
             '[data-sr-row]{min-width:0;max-width:100%}',
-            '[data-sr-clip]{overflow-x:clip!important;max-width:100%}',
+            // Song rows only scroll the page up and down (a sideways drag on the list does
+            // nothing). The boxes around the list are left alone: the show's player sits in them.
+            '[data-sr-row]{touch-action:pan-y pinch-zoom}',
             '[data-sr-row] > *{min-width:0;overflow-wrap:anywhere}',
             '.sr-hello .sr-ready-song{font-weight:600}',
             '.sr-hello-logo{position:relative;width:48px;height:48px;flex:none}',
@@ -1000,13 +1002,6 @@ enum FavoritesScript {
             var rows = pageRows();
             if (!rows.length) return;
             var info = null;
-            // The box around the song list can itself scroll sideways (separate from the
-            // page): make every box between the list and the page clip sideways instead.
-            for (var box = rows[0].row.parentElement; box && box.tagName !== 'MAIN' && box !== document.body && box !== document.documentElement; box = box.parentElement) {
-              if (box.hasAttribute('data-sr-clip')) break;
-              box.setAttribute('data-sr-clip', '');
-              if (box.scrollLeft) box.scrollLeft = 0;
-            }
             rows.forEach(function (r, i) {
               if (!r.row.hasAttribute('data-sr-row')) r.row.setAttribute('data-sr-row', '');
               var b = r.songCell.querySelector(':scope > .sr-heart');
