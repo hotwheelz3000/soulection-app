@@ -5,7 +5,7 @@ A maintenance build: nothing new to learn, just tidier and quicker.
 - **Quicker dice:** the first tap no longer waits on extra requests to the site; the full list of shows comes straight from the site's database.
 - **Snappier screen updates:** hearts, the mini player and the top bar catch up with the page sooner.
 - **No more accidental resets:** pulling down at the top of a page no longer reloads it (that stopped the music and reset the player). If the app opens without a connection, it tries loading again by itself.
-- **No more shading** on a show when a scroll or pull starts on it (the site's mouse-hover shading is off on touch screens).
+- **No more shading** on a show card when a scroll or pull starts on it (tracklist rows keep their press highlight).
 - **Easier to read messages:** the text in the app's messages is a little bigger.
 - **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups), and the Likes, Sleep timer and Help panels now share one piece of code, so Sleep timer and Help get the same smooth pull-down to close as Likes.
 
