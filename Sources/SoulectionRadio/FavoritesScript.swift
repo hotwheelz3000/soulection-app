@@ -211,6 +211,9 @@ enum FavoritesScript {
             // No grey tap flash on the site's pages (it lit up a show when a scroll or pull
             // started on it). Tapping still works as usual.
             'html,html *{-webkit-tap-highlight-color:transparent}',
+            // The site's hover / press shadings are for a mouse: on a phone a finger resting on
+            // a show (say, at the start of a pull) left it shaded. Touch screens only.
+            '@media (hover:none){[class*="hover:bg-"]:hover,[class*="hover:bg-"]:active,[class*="active:bg-"]:active,[class*="focus:bg-"]:focus,.group:hover [class*="group-hover:bg-"],.group:active [class*="group-hover:bg-"]{background-color:transparent!important}}',
             'main{overflow-x:clip}',
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
