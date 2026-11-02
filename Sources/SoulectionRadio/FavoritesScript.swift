@@ -208,6 +208,9 @@ enum FavoritesScript {
             // Pages only scroll up and down: nothing may make them wider than the screen
             // (long song names wrap instead of pushing a row wider).
             'html,body{overflow-x:hidden;max-width:100%}',
+            // No grey tap flash on the site's pages (it lit up a show when a scroll or pull
+            // started on it). Tapping still works as usual.
+            'html,html *{-webkit-tap-highlight-color:transparent}',
             'main{overflow-x:clip}',
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
