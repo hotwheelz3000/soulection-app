@@ -63,14 +63,8 @@ struct WebView: UIViewRepresentable {
         context.coordinator.lockHorizontal(webView.scrollView)
         context.coordinator.watchBack(webView)
 
-        let refreshControl = UIRefreshControl()
-        refreshControl.tintColor = .white
-        refreshControl.addTarget(
-            context.coordinator,
-            action: #selector(Coordinator.handleRefresh(_:)),
-            for: .valueChanged
-        )
-        webView.scrollView.refreshControl = refreshControl
+        // No pull-to-refresh: reloading the page would stop the music and reset the player.
+        // The top just bounces like a normal page.
         webView.scrollView.bounces = true
 
         context.coordinator.webView = webView
@@ -368,18 +362,6 @@ struct WebView: UIViewRepresentable {
             }
         }
 
-        @objc func handleRefresh(_ sender: UIRefreshControl) {
-            guard let webView else {
-                sender.endRefreshing()
-                return
-            }
-            if webView.url == nil {
-                webView.load(URLRequest(url: homeURL))
-            } else {
-                webView.reload()
-            }
-        }
-
         /// Soulection's own pages stay in the app; everything else opens in Safari.
         private func isInternal(_ url: URL) -> Bool {
             guard let host = url.host?.lowercased() else { return true }
@@ -439,7 +421,7 @@ struct WebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
-            webView.scrollView.refreshControl?.endRefreshing()
+            loadRetries = 0
             sampleBackground(of: webView)
             sendCanGoBack(webView)
             // Client-rendered pages may restyle after load; sample once more.
@@ -451,16 +433,23 @@ struct WebView: UIViewRepresentable {
             }
         }
 
-        func webView(_ webView: WKWebView, didFail navigation: WKNavigation!, withError error: Error) {
-            webView.scrollView.refreshControl?.endRefreshing()
-        }
-
+        /// With pull-to-refresh gone, a page that couldn't load at all (no connection when the
+        /// app opened) tries again by itself: a few times, a few seconds apart.
+        private var loadRetries = 0
         func webView(
             _ webView: WKWebView,
             didFailProvisionalNavigation navigation: WKNavigation!,
             withError error: Error
         ) {
-            webView.scrollView.refreshControl?.endRefreshing()
+            guard webView.url == nil || webView.backForwardList.currentItem == nil, loadRetries < 6 else { return }
+            loadRetries += 1
+            let home = homeURL
+            DispatchQueue.main.asyncAfter(deadline: .now() + 5) { [weak webView] in
+                MainActor.assumeIsolated {
+                    guard let webView, webView.backForwardList.currentItem == nil else { return }
+                    webView.load(URLRequest(url: home))
+                }
+            }
         }
 
         func webViewWebContentProcessDidTerminate(_ webView: WKWebView) {
