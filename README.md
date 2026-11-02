@@ -1,110 +1,94 @@
 # Soulection Radio (Unofficial)
 
-An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulection.com/). It's the same site you'd open in Safari, but as a real app on your home screen. It keeps playing with the screen off and adds the extras I always wanted: likes, listening history, playlists, a sleep timer, a random show button and an endless Mixtape.
+An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulection.com/). It's the same site you'd open in Safari, as a real app on your home screen: it keeps playing with the screen off and adds likes, listening history, playlists, a sleep timer, a random show button and an endless Mixtape.
 
-> **Unofficial fan project.** Not affiliated with, endorsed by or connected to Soulection. The app shows the official site; all shows, music, names and artwork belong to Soulection and the artists. There are no ads, accounts or tracking.
+> **Unofficial fan project.** Not affiliated with, endorsed by or connected to Soulection. The app shows the official site; all shows, music, names and artwork belong to Soulection and the artists. No ads, accounts or tracking.
 
 ## Download
 
-**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
+**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)**: open the link, then tap the `.ipa` file under **Assets** (named with the version, e.g. `SoulectionRadio-5.0.ipa`).
 
-The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-5.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-5.0 2.ipa".
+The link always has the newest build. Delete an older download first, so your phone doesn't save the new one as "… 2.ipa".
 
 ## How to install
 
-The app isn't on the App Store, so you install it yourself with your own Apple ID. It takes a few minutes. You need iOS 17 or later.
+The app isn't on the App Store, so you install it yourself (iOS 17 or later):
 
-1. **Download the `.ipa` file** from the link above.
-2. **Install it with a sideloading app** such as [Sideloadly](https://sideloadly.io) (Mac or Windows) or [AltStore](https://altstore.io). Sign in with your Apple ID when it asks.
-3. **Trust it on your iPhone.** Go to **Settings → General → VPN & Device Management**, tap your Apple ID, then **Trust**. If iOS asks, turn on **Developer Mode** in **Settings → Privacy & Security** and restart.
+1. **Download the `.ipa`** from the link above.
+2. **Install it** with [Sideloadly](https://sideloadly.io) (Mac or Windows), [AltStore](https://altstore.io) or a signing service such as Signulous.
+3. **Trust it:** Settings → General → VPN & Device Management → your Apple ID → **Trust**. If iOS asks, turn on **Developer Mode** in Settings → Privacy & Security and restart.
 
-With a free Apple ID, the app stops opening after 7 days. Install it again the same way; your likes and history stay.
+With a free Apple ID the app stops opening after 7 days; install it again the same way. Your likes and history stay.
 
 ## What it does
 
 **Listening**
-- **Keeps playing with the screen off,** and doesn't stop a podcast or music that's already playing when you open it.
-- **Lock screen and Dynamic Island** show the current song, artist and show cover, and update as the songs change. Next and previous jump between songs in the show's tracklist.
-- **Full-size player.** Tap the player at the bottom, or swipe it up (from the player or its tab, not the home bar strip at the very bottom, which stays iOS's). The card grows out of the mini player: its song row rides up and fades, the cover grows into place, and the rest comes in at the end. Big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page. Swipe down to send it back the same way. If it's open when you leave the app, it's still open when you come back.
-- **Up Next:** in the full player, tap **Up Next**. While Likes, History or Mixtape plays, it lists the songs coming up; in a show, the show's songs, with the playing one marked. Tap a song to play it, or its heart to like it.
-- **Swipe to skip:** swipe the player at the bottom left for the next song, right for the previous one. (VoiceOver users get Previous song and Next song buttons.)
-- **Starting a show:** while a show is starting, the Soulection logo spins where the play button is. If it doesn't start, the app quietly tries again.
-- **The playing song is marked** in a show's tracklist with small moving bars next to its heart.
-- **Smooth switches between shows:** with the app open, when Likes, History or Mixtape moves to a song in another show, the volume dips over the last seconds and comes back up as the new song starts. (The iPhone lets only one player play at a time, so songs can't overlap.) It's skipped with the screen off or in another app, where iOS would show its volume bar, and it stops if you touch the volume yourself.
-- **Phone calls:** the music pauses for a call and starts again when the call ends or you decline it.
-- **Works on iPad,** with the player at the bottom spanning the full width.
+- **Plays with the screen off,** and doesn't stop other audio when you open it.
+- **Lock screen and Dynamic Island** show the song, artist and cover; next / previous jump between songs in the show.
+- **Big player:** tap the player at the bottom, or swipe it up (from the player or its tab). Big artwork, a draggable progress bar, previous / play / next, a heart, the sleep timer and AirPlay. **Playing from** opens the show's page. Swipe down to close; if it's open when you leave the app, it's still open when you come back.
+- **Up Next:** the songs coming up (in Likes, History or Mixtape) or the show's songs. Tap one to play it, or its heart to like it.
+- **Swipe to skip:** swipe the mini player left or right. (VoiceOver gets Previous / Next buttons.)
+- **Starting a show:** the Soulection logo spins in the play button until the sound starts.
+- **The playing song is marked** in a show's tracklist with small moving bars.
+- **Smooth switches between shows:** with the app open, the volume dips at the end of a song and comes back up on the next one.
+- **Phone calls:** the music pauses for a call and comes back after.
+- **Works on iPad.**
 
 **Likes and History**
-- **Heart any song** in a show's tracklist, in the mini player at the bottom, or in the full player. Your likes are kept in the app, not the website.
-- **Your Likes, in one place:** tap the heart at the top (it opens on **History**; **Likes** is the second tab). Search them with the box at the top. Swipe a song left to remove it (or use its **⋯** button). Tap a song's cover to open its show at that song.
-- **⋯ More:** on any song in Likes or History, and in the full player: share it, or open it on Spotify (its search for the song) or Apple Music (the song itself, looked up in Apple's catalog; only the song, artist and your country are sent).
-- **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
-- **Continue listening:** at the top of History, the last few shows you were in the middle of (with how much is left). Tap one to pick it back up where you were, right where you are. Kept on your phone only.
-- **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
-
-**Getting around**
-- **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (dimmed when there's no page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces or changes to another page. Back uses the same page history as swiping from the left edge.
-- **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
-- **Feels like an app:** text on the app's own screens (players, Likes, help, messages) can't be highlighted, so no Copy / Look Up pop-ups. The site's pages work as usual.
+- **Heart any song** in a tracklist or either player. Likes are kept in the app.
+- **Likes and History** (the heart at the top): search, swipe left to remove, tap a cover to open its show at that song.
+- **⋯ More:** share a song, or open it on Spotify or Apple Music.
+- **Play them as a playlist:** **Play in order**, **Shuffle**, or tap a song to start there, across shows and with the screen off.
+- **Continue listening:** at the top of History, the shows you were in the middle of. Tap one to pick it back up where you left off.
+- **History** keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **Extras**
-- **Random show:** the dice plays a random episode (any of the 750+ shows) from the very beginning, right where you are (the page doesn't change).
-- **Mixtape:** the cassette plays endless random songs, each from a different show than the one before. Each song is added to your Likes as soon as it's picked (even if you skip it) and to History once it plays; remove any you don't want.
-- **Sleep timer:** the zZZ at the top (or in the full player). 5, 15 or 30 minutes, 1 hour, end of song, end of show, or your own time. While a timer runs, **+5 min** next to the countdown extends it. The music fades out and pauses, even with the screen off.
-- **New show notifications:** when a new show is posted you get "New show: Soulection Radio #751" ("Tap to listen."), and new shows get a **NEW** label until you open them. The app asks once if it can send notifications. iOS decides when the background check runs (usually within a few hours of a new show), and it doesn't run if you swipe the app away.
-- **Welcome player:** when you open the app, the mini player says "This is Soulection Radio." Its play button starts the newest show from the beginning, right where you are (the page doesn't change), or pick anything else to play.
-- **Help:** a welcome screen explains each button when you open the app (tick **Don't show again** to hide it). Tap **?** at the top any time, or press and hold a top-bar icon for its name. **Show welcome screen** at the bottom of the help window brings the welcome screen back, and under it you can see which version you have.
+- **Random show:** the dice plays a random show from the start, right where you are.
+- **Mixtape:** endless random songs, each from a different show. Each one goes into Likes and History; remove any you don't want.
+- **Sleep timer:** 5, 15 or 30 minutes, 1 hour, end of song, end of show or your own time, with **+5 min** while it runs. The music fades out, even with the screen off.
+- **New show notifications,** plus a **NEW** label on new shows until you open them.
+- **Welcome player:** "This is Soulection Radio." Its play button starts the newest show.
+- **Top bar** on every page: Back and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name.
+
+**Backup**
+- **On this iPhone, always:** `Soulection Radio Backup.json` in Files → **On My iPhone → Soulection**, updated after every change. Nothing to set up; it survives updates but not deleting the app.
+- **iCloud Drive (turn it on once):** in Likes, tap **Turn on** → **Save a backup file**, pick a folder in iCloud Drive and tap **Save**. That file is kept up to date and survives deleting the app or switching phones.
+- **If the iCloud copy pauses,** you'll get a reminder at most once a week: tap **Reconnect**, pick the file, then save it back to the same folder (**Save**, then **Replace**; Replace just updates it). Or tap **New backup**.
+- **After a reinstall,** tap **Pick my backup file** when the app asks. Your songs come back and backup carries on.
+- **Export / Import** for one-off copies.
 
 **Accessibility**
-- The app's own features (Likes, History, the players, the sleep timer, help and messages) aim to meet **WCAG 2.2 AA**: text contrast of at least 4.5:1, labels for VoiceOver, a tap alternative for every swipe, and full keyboard use (Tab, Enter or Space, Escape closes panels).
-- **Reduce Motion** (iPhone Settings → Accessibility → Motion) turns off the app's animations.
-- VoiceOver announces song changes and messages. Messages stay on screen long enough to read.
-- Soulection's own pages (tracklists, search) are theirs; the app raises their grey text to the same contrast but can't change the rest.
-
-**Backup to iCloud Drive**
-- **Always on, on this iPhone:** your Likes and History are saved to `Soulection Radio Backup.json` in the Files app under **On My iPhone → Soulection**, after every change. Nothing to set up or reconnect, and it survives updates. It's deleted with the app, so also turn on the iCloud Drive copy below.
-- **Turn it on:** in Likes, tap **Turn on** next to Auto-backup, then **Save a backup file**. Pick a folder (iCloud Drive is best) and tap **Save**. From then on, `Soulection Radio Backup.json` is updated every time your Likes or History change. It lives outside the app, so it survives deleting the app or switching phones.
-- **If the iCloud copy pauses** (your iPhone can stop the app reaching that file, e.g. after an update), you'll see **iCloud backup paused** at most once a week (your songs are still backed up on the iPhone): tap **Reconnect**, pick `Soulection Radio Backup.json`, then save it back to the same folder (**Save**, then **Replace**). Replace is expected: iOS asks because a file with that name is already there, and replacing it just updates it with your newest songs. Or tap **New backup** to save a fresh file.
-- **After a reinstall or on a new phone:** the app asks if you want to restore. Tap **Pick my backup file** and choose `Soulection Radio Backup.json`. Your songs come back (added to anything already there) and backup stays on, saving to that same file.
-- **If your iPhone won't let the app update the file it picked,** the app says so (with iOS's reason) and opens the save screen once: choose the same folder, tap **Save**, then **Replace**.
-- **Manual backups:** **Export** saves a one-off copy anywhere; **Import** adds one back. If auto-backup is off (or failing), the app reminds you every 4 new likes.
+- The app's own screens aim for **WCAG 2.2 AA**: 4.5:1 contrast, VoiceOver labels, a tap alternative for every swipe, and full keyboard use (Escape closes panels).
+- **Reduce Motion** turns off the app's animations. VoiceOver announces song changes and messages.
 
 ## Known limits
 
-- **It depends on Soulection's website.** The app adds its features on top of radio.soulection.com. If the site changes, things like song names on the lock screen, hearts or playlists may stop working until the app is updated. Playback itself keeps working.
-- **Screen-off switching between shows** (Likes, History, Mixtape) loads the next show 90 seconds ahead and starts the switch a little early, by about as long as switches take on your phone (up to 4 seconds), so the end of a song may be cut short by a moment. On a very slow connection you may still hear a second or two of the old show; if the next show's player gets stuck, the app reloads it after 3 seconds (and with the app open, switches through the show's page after 4).
-- **Free Apple ID:** reinstall every 7 days (see above).
+- **It depends on Soulection's website.** If the site changes, extras like song names, hearts or playlists may break until the app is updated. Playback keeps working.
+- **Shows without song times:** some older shows list every song at 00:00:00, so the app can't tell which song is playing in them.
+- **Screen-off switching** (Likes, History, Mixtape) loads the next show ahead and switches a moment early, so a song's last second or two may be cut.
+- **Free Apple ID:** reinstall every 7 days.
 
 ## Feedback
 
-Found a bug or have an idea? [Open an issue](https://github.com/hotwheelz3000/soulection-app/issues) and include the version shown at the bottom of the help window (**?**). A screenshot or screen recording helps a lot.
+Found a bug or have an idea? [Open an issue](https://github.com/hotwheelz3000/soulection-app/issues) with the version from the bottom of the help window (**?**). A screenshot or screen recording helps a lot.
 
 ## How it was made
 
-I'm a beginner developer. I built this by describing what I wanted to Claude Code, testing each build on my iPhone, and sending back screenshots and screen recordings of anything that looked or felt off. I didn't write the code by hand and never opened Xcode.
+I'm a beginner developer. I built this by describing what I wanted to Claude Code, testing each build on my iPhone and sending back screenshots and recordings of anything that felt off. I never wrote the code by hand or opened Xcode.
 
-- **No Xcode app, no Mac of my own.** The app is a Swift package built with [xtool](https://xtool.sh) (it uses the iOS SDK that comes with the build server's Xcode, but nobody opens Xcode). Every push to `main` runs a GitHub Actions workflow on a macOS runner that builds an unsigned `.ipa` and publishes it as the latest release, titled with the app's version.
-- **A web view, plus a lot of glue.** The app loads the real site in a `WKWebView` and adds features with injected JavaScript:
-  - The site plays audio through an embedded SoundCloud player on another domain, so lock-screen info runs in two places: the Soulection page works out the current song from the tracklist, and a script inside the player frame sets the lock screen and track buttons.
-  - Switching shows with the screen off works like a relay: the next show is loaded ahead in a hidden player and takes over the moment the current song ends, so the sound never stops and iOS keeps the app running.
-  - Likes, history, backups and the sleep timer's fixed times are stored and run natively in Swift, so they survive website data being cleared and keep working with the screen locked.
-  - The page-side scripts wait for the site's React app to finish loading before touching it.
-- **Testing without a phone in the loop.** Each feature was checked first in headless Chromium against a mock page copying the site's real markup (plus an automated WCAG check with axe-core), then on the iPhone. The test pages aren't part of this repo.
+- **No Xcode, no Mac of my own.** The app is a Swift package built with [xtool](https://xtool.sh). Every push to `main` runs a GitHub Actions workflow on a macOS runner that builds an unsigned `.ipa` and publishes it as the latest release.
+- **A web view plus injected JavaScript.** The app loads the real site in a `WKWebView`. Lock-screen info runs both on the page (working out the song from the tracklist) and inside the SoundCloud player frame. Switching shows works like a relay: the next show starts muted next to the current one and takes over, so the sound never stops and iOS keeps the app running.
+- **Native where it matters.** Likes, history, backups and the sleep timer run in Swift, so they survive the website's data being cleared and keep working with the screen locked.
+- **Tested before the phone.** Each feature was checked in headless Chromium against a mock of the site (with an axe-core accessibility check), then on the iPhone.
 
 ## For developers
 
-- **Code:** `Sources/SoulectionRadio/`
-  - `WebView.swift`: the web view, edge-to-edge layout and safe-area fixes for the site's top bar and bottom player.
-  - `NowPlayingScript.swift`: lock-screen song info, track buttons and remote play/pause, both on the page and inside the SoundCloud player frames.
-  - `FavoritesScript.swift`: hearts, the Likes/History panel, playlists and the background relay between players, listening history, the full-size player, the mini player, the sleep timer, the dice, Mixtape, help and the welcome screen.
-  - `Favorites.swift`: saves likes and history in the app, auto-backup to iCloud Drive and restore, Export/Import, the sleep timer's countdown and fade, the volume dip between shows, AirPlay, sharing, Spotify/Apple Music links, and resuming after phone calls.
-  - `NewShows.swift`: new-show notifications: the background check of the home page, the notification permission, and opening the show when a notification is tapped.
-  - `SoulectionRadioApp.swift`: background audio setup, without interrupting other apps at launch.
-  - `BuildInfo.swift`: the version shown in the help window (written by the workflow from the version in `SoulectionRadio-Info.plist`).
-  - `ContentView.swift` and `PageAppearance.swift`: the screen that holds the web view, and matching the page's background color.
-- **Icon:** `Resources/AppIcon.png` (`scripts/fetch-app-icon.py` can fetch one from the site).
-- **App settings:** `xtool.yml` (build name, bundle ID, icon) and `SoulectionRadio-Info.plist` (home screen name "Soulection", version, background audio, background checks for new shows, dark mode).
-- **Releases:** the release title uses the version (`CFBundleShortVersionString`), and its notes come from `RELEASE_NOTES.md`. For a new version, change both.
-- **Renaming:** `./rename-app.sh <AppName> <bundle.id>` renames the app (package, source folder, app struct) and sets its bundle ID.
-- **Build:** pushes to `main` build automatically. To build locally with xtool installed: `xtool dev build --ipa`.
-- **Claude Code skills** in `.claude/skills/`: xtool reference notes, plus review, CI and documentation-audit helpers.
+- **Code** (`Sources/SoulectionRadio/`):
+  - `FavoritesScript.swift`: the injected JavaScript for hearts, Likes/History, playlists and the player relay, both players, Up Next, the sleep timer, dice, Mixtape, Continue listening, help and the welcome screen.
+  - `NowPlayingScript.swift`: lock-screen info and track buttons, on the page and inside the player frames.
+  - `Favorites.swift`: storage for likes and history, backups (on the iPhone and iCloud Drive), Export/Import, the sleep timer, the volume dip, AirPlay, sharing and Spotify/Apple Music links.
+  - `WebView.swift`: the web view and its layout fixes. `NewShows.swift`: new-show notifications. `SoulectionRadioApp.swift`: audio setup. `ContentView.swift` / `PageAppearance.swift`: the screen and background color. `BuildInfo.swift`: the version shown in Help (written by the workflow).
+- **Settings:** `xtool.yml` (name, bundle ID, icon) and `SoulectionRadio-Info.plist` (home screen name, version, background audio, file sharing). Icon: `Resources/AppIcon.png`.
+- **Releases:** the title uses `CFBundleShortVersionString`, and the notes come from `RELEASE_NOTES.md`. Change both for a new version.
+- **Build:** pushes to `main` build automatically, or run `xtool dev build --ipa` locally. `./rename-app.sh <AppName> <bundle.id>` renames the app.
+- **Claude Code skills** in `.claude/skills/`: xtool notes plus review, CI and documentation-audit helpers.
