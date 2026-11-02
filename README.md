@@ -8,7 +8,7 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 **[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)** (open the link, then tap the `.ipa` file under **Assets**)
 
-The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-4.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-4.0 2.ipa".
+The link always has the newest version. Every change to the app is built automatically and published there, usually within a few minutes. The file is named with the app's version (for example `SoulectionRadio-5.0.ipa`). If you download a newer build of the same version, delete the old file first so your phone doesn't save it as "SoulectionRadio-5.0 2.ipa".
 
 ## How to install
 
@@ -25,7 +25,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 **Listening**
 - **Keeps playing with the screen off,** and doesn't stop a podcast or music that's already playing when you open it.
 - **Lock screen and Dynamic Island** show the current song, artist and show cover, and update as the songs change. Next and previous jump between songs in the show's tracklist.
-- **Full-size player.** Tap the player at the bottom, or swipe it up by its tab: the whole player slides up in one swipe. Big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page.
+- **Full-size player.** Tap the player at the bottom, or swipe it up (from the player or its tab, not the home bar strip at the very bottom, which stays iOS's). The card grows out of the mini player: its song row rides up and fades, the cover grows into place, and the rest comes in at the end. Big artwork, the song, a progress bar you can drag, previous / play / next, a heart, the sleep timer and AirPlay. Tap **Playing from** to open that show's page. Swipe down to send it back the same way. If it's open when you leave the app, it's still open when you come back.
 - **Up Next:** in the full player, tap **Up Next**. While Likes, History or Mixtape plays, it lists the songs coming up; in a show, the show's songs, with the playing one marked. Tap a song to play it, or its heart to like it.
 - **Swipe to skip:** swipe the player at the bottom left for the next song, right for the previous one. (VoiceOver users get Previous song and Next song buttons.)
 - **Starting a show:** while a show is starting, the Soulection logo spins where the play button is. If it doesn't start, the app quietly tries again.
@@ -42,12 +42,10 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Continue listening:** at the top of History, the last few shows you were in the middle of (with how much is left). Tap one to pick it back up where you were, right where you are. Kept on your phone only.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
-**The player**
-- **Open the big player** by swiping up on the mini player (or its tab) or tapping it. The card grows out of the mini player: its song row rides up and fades, the cover grows into place, and the rest comes in at the end. Swipe down to send it back the same way.
-
 **Getting around**
 - **The top bar** has the same buttons on every page, on both sides of the search box: **Back** (dimmed when there's no page to go back to) and **Home** on the left, and Likes, Random show, Mixtape, Sleep timer and Help on the right. They stay put with the search box, even when the page bounces or changes to another page. Back uses the same page history as swiping from the left edge.
 - **Pages only scroll up and down:** long song names wrap instead of making the page slide sideways.
+- **Feels like an app:** text on the app's own screens (players, Likes, help, messages) can't be highlighted, so no Copy / Look Up pop-ups. The site's pages work as usual.
 
 **Extras**
 - **Random show:** the dice plays a random episode (any of the 750+ shows) from the very beginning, right where you are (the page doesn't change).

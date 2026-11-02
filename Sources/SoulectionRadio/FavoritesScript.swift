@@ -234,7 +234,7 @@ enum FavoritesScript {
             '.sr-mo-play svg{width:var(--sr-icon,24px);height:var(--sr-icon,24px);display:block}',
             '.sr-mini-direct [data-sr-mini-hide]{visibility:hidden}',
             '.sr-mini-direct .sr-heart-mini{position:relative;z-index:4}',
-            '.sr-note-why{font-size:11px;line-height:15px;color:' + MUTED + '}',
+            '.sr-note-why{font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-btn.sr-help-welcome{display:flex;margin:14px auto 0;padding:10px 16px;font-size:14px;line-height:20px}',
             '.sr-help-build{padding:14px 0 6px;font-size:11px;line-height:16px;color:' + MUTED + ';text-align:center}',
             '.sr-mini-direct .sr-grab{z-index:4}',
@@ -380,11 +380,9 @@ enum FavoritesScript {
             '.sr-np-sleep[aria-pressed="true"] .sr-z2{animation-delay:.3s}',
             '.sr-np-sleep[aria-pressed="true"] .sr-z3{animation-delay:.6s}',
             '.sr-grab{position:absolute;top:0;left:50%;width:64px;height:14px;margin-left:-32px;padding:0;border:0;background:none;-webkit-appearance:none;appearance:none;cursor:pointer;-webkit-tap-highlight-color:transparent}',
-            '.sr-grab::after,.sr-tab-bar,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
+            '.sr-grab::after,.sr-sheet-grab{content:"";display:block;width:36px;height:4px;border-radius:9999px;background:' + TRACK + '}',
             '.sr-grab::after{margin:5px auto 0;transition:background-color .15s ease}',
             '.sr-touching .sr-grab::after,.sr-grab:active::after{background:' + TEXT + '}',
-            '.sr-tab{position:fixed;left:50%;bottom:env(safe-area-inset-bottom);z-index:20;transform:translateX(-50%);display:flex;flex-direction:column;align-items:center;gap:2px;padding:4px 14px 3px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:9px;line-height:12px;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent;-webkit-user-select:none;user-select:none}',
-            '.sr-tab[hidden]{display:none}',
             '.sr-backdrop{position:fixed;inset:0;z-index:50;background:rgba(0,0,0,0.5);opacity:0;transition:opacity .2s ease;-webkit-tap-highlight-color:transparent}',
             '.sr-sheet{position:fixed;left:0;right:0;bottom:0;z-index:51;display:flex;flex-direction:column;min-height:55vh;max-height:85vh;background:' + BG + ';border:1px solid ' + BORDER + ';border-bottom:0;border-radius:9px 9px 0 0;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;font-weight:400;color:' + TEXT + ';transform:translateY(100%);transition:transform .22s cubic-bezier(.2,.8,.2,1);padding-bottom:env(safe-area-inset-bottom)}',
             '.sr-backdrop[hidden],.sr-sheet[hidden]{display:none}',
@@ -416,11 +414,11 @@ enum FavoritesScript {
             '.sr-backup{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-backup .sr-btn{padding:7px 12px;font-size:13px;line-height:18px;gap:6px}',
             '.sr-backup .sr-btn svg{width:15px;height:15px}',
-            '.sr-note{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 72px);z-index:60;padding:10px 12px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:12px;line-height:18px;color:' + TEXT + ';opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}',
+            '.sr-note{position:fixed;left:12px;right:12px;top:calc(env(safe-area-inset-top) + 72px);z-index:60;padding:10px 12px;background:' + BG + ';border:1px solid ' + BORDER + ';border-radius:9px;box-shadow:' + SHADOW + ';font-family:' + FONT + ';font-size:14px;line-height:20px;color:' + TEXT + ';opacity:0;transform:translateY(-8px);transition:opacity .2s ease,transform .2s ease;pointer-events:none}',
             '.sr-note.sr-show{opacity:1;transform:none;pointer-events:auto}',
             '.sr-note .sr-actions{margin-top:8px;flex-wrap:wrap;gap:6px}',
             // Message buttons: compact (still at least 30px tall to tap).
-            '.sr-note .sr-btn{padding:5px 10px;font-size:13px;line-height:18px;gap:6px;border-radius:7px}',
+            '.sr-note .sr-btn{padding:5px 10px;font-size:14px;line-height:19px;gap:6px;border-radius:7px}',
             '.sr-note .sr-btn svg{width:15px;height:15px;color:inherit}',
             // Song menu: equal tiles, icon above a small label.
             // ...and it pops out from the left, like a word bubble (same place and shape, no bounce).
@@ -437,9 +435,9 @@ enum FavoritesScript {
             '.sr-np-act:active{color:#fff}',
             '@keyframes sr-pop{0%{opacity:0;transform:translateY(18px) scale(.18,.3);border-radius:60px;filter:blur(8px)}45%{opacity:1;border-radius:30px}100%{opacity:1;transform:none;border-radius:9px;filter:none}}',
             '.sr-note.sr-tiles .sr-actions{flex-wrap:nowrap;gap:6px}',
-            '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:11px;line-height:14px;white-space:nowrap}',
+            '.sr-note.sr-tiles .sr-btn{flex:1 1 0;min-width:0;flex-direction:column;justify-content:center;gap:4px;padding:9px 4px 7px;border:0;background:rgba(255,255,255,.06);font-size:12px;line-height:15px;white-space:nowrap}',
             '.sr-note.sr-tiles .sr-btn svg{width:18px;height:18px}',
-            '.sr-note-title{font-weight:600}'
+            '.sr-note-title{font-weight:600;font-size:15px;line-height:21px}'
           ].join('\n');
 
           var favorites = [];
@@ -1779,9 +1777,7 @@ enum FavoritesScript {
             sheet.panel.addEventListener('touchcancel', end);
           }
 
-          // The tab at the bottom of the screen when no show is playing.
-          // A heart button in the site's top bar, next to the search box, opens the
-          // Favorites sheet (it replaces the old floating tab).
+          // The site's search box in its top bar (the app's buttons sit on both sides of it).
           function searchBox() {
             var input = document.querySelector('input[placeholder*="Search" i]');
             if (!input) return null;
@@ -2379,7 +2375,13 @@ enum FavoritesScript {
                 .then(function (t) { add(episodePathsIn(t)); })
                 .catch(function () {});
             }
-            return Promise.all([allEpisodes().then(add, function () {}), get('/sitemap.xml'), get('/')]).then(function () {
+            // The site's database has every show; only if that fails, fall back to the shows
+            // linked from the home page (and a sitemap, if the site ever has one again).
+            var before = Object.keys(found).length;
+            return allEpisodes().then(add, function () {}).then(function () {
+              if (Object.keys(found).length > before) return;
+              return Promise.all([get('/'), get('/sitemap.xml')]);
+            }).then(function () {
               episodeList = Object.keys(found);
               return episodeList;
             });
@@ -4860,7 +4862,7 @@ enum FavoritesScript {
           function schedule() {
             if (renderPending) return;
             renderPending = true;
-            setTimeout(render, 60);
+            setTimeout(render, 30);
           }
 
           function start() {
@@ -4872,7 +4874,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-tab, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar, .sr-appbar-side')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar, .sr-appbar-side')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });

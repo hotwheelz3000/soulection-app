@@ -1,3 +1,12 @@
+## Soulection Radio 5.0
+
+A maintenance build: nothing new to learn, just tidier and quicker.
+
+- **Quicker dice:** the first tap no longer waits on extra requests to the site; the full list of shows comes straight from the site's database.
+- **Snappier screen updates:** hearts, the mini player and the top bar catch up with the page sooner.
+- **Easier to read messages:** the text in the app's messages is a little bigger.
+- **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups).
+
 ## Soulection Radio 4.0
 
 **New**

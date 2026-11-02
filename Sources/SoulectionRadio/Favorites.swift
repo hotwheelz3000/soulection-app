@@ -61,8 +61,6 @@ final class FavoritesStore {
     private static let key = "Favorites.v1"
     private static let sinceBackupKey = "Favorites.addedSinceBackup"
     private static let historyKey = "History.v1"
-    /// Saved by older builds ("continue where you left off", since removed); cleared on launch.
-    private static let oldSpotKey = "LastSpot.v1"
     /// Keep this many songs in the listening history.
     static let historyLimit = 500
     /// Remind to back up after this many new favorites since the last export.
@@ -87,7 +85,6 @@ final class FavoritesStore {
         } else {
             history = []
         }
-        defaults.removeObject(forKey: Self.oldSpotKey)
     }
 
     /// Records a song as just played: moves it to the newest spot instead of duplicating it.
@@ -254,7 +251,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // page starts it again if it was playing before.
     override init() {
         super.init()
-        UserDefaults.standard.removeObject(forKey: Self.oldFolderKey)
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil
@@ -288,8 +284,6 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     // same file (it's opened where it is, not copied). Only if iOS won't let the app write
     // to it does the app ask to save it back once.
     private static let fileKey = "Backup.fileBookmark"
-    /// Set by an earlier test build (backing up to a folder); cleared at launch.
-    private static let oldFolderKey = "Backup.folderBookmark"
     private static let lastSavedKey = "Backup.lastSaved"
     /// Where the backup file is (folder path and file name), so the app can still say so,
     /// and open the picker right there, if iOS stops honouring the saved link after an update.

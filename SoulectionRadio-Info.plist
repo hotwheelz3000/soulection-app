@@ -5,9 +5,9 @@
     <key>CFBundleDisplayName</key>
     <string>Soulection</string>
     <key>CFBundleShortVersionString</key>
-    <string>4.0</string>
+    <string>5.0</string>
     <key>CFBundleVersion</key>
-    <string>4</string>
+    <string>5</string>
     <key>UIBackgroundModes</key>
     <array>
         <string>audio</string>
