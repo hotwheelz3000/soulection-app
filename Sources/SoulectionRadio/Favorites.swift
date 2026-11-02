@@ -470,27 +470,13 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     /// Pick an existing backup file: its songs come back and the app keeps backing up to that
     /// same file. It's opened where it is (not copied), so there's nothing to save back.
-    private func restoreBackupFile() {
-        guard let presenter = presenter() else { return }
-        pickerPurpose = .restoreBackup
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: false)
-        picker.delegate = self
-        picker.allowsMultipleSelection = false
-        presenter.present(picker, animated: true)
-    }
+    private func restoreBackupFile() { pickBackupFile(for: .restoreBackup, asCopy: false) }
 
     /// After an update: pick the backup file (read as a copy, the way that works on every
     /// phone), then save it back to the same place once, which reconnects backup.
     private func reconnectBackupFile() {
-        guard let presenter = presenter() else { return }
-        pickerPurpose = .reconnect
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: true)
-        picker.delegate = self
-        picker.allowsMultipleSelection = false
-        if let folder = UserDefaults.standard.string(forKey: Self.folderPathKey) {
-            picker.directoryURL = URL(fileURLWithPath: folder, isDirectory: true)
-        }
-        presenter.present(picker, animated: true)
+        let folder = UserDefaults.standard.string(forKey: Self.folderPathKey)
+        pickBackupFile(for: .reconnect, asCopy: true, startIn: folder.map { URL(fileURLWithPath: $0, isDirectory: true) })
     }
 
     /// Right after launch iCloud may not be ready: try reaching the file a few more times
@@ -1059,12 +1045,16 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
 
     // MARK: Import
 
-    private func importFavorites() {
+    private func importFavorites() { pickBackupFile(for: .importFile, asCopy: true) }
+
+    /// Shows the file picker for one backup file (the result arrives in `documentPicker`).
+    private func pickBackupFile(for purpose: PickerPurpose, asCopy: Bool, startIn folder: URL? = nil) {
         guard let presenter = presenter() else { return }
-        pickerPurpose = .importFile
-        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: true)
+        pickerPurpose = purpose
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: Self.backupTypes, asCopy: asCopy)
         picker.delegate = self
         picker.allowsMultipleSelection = false
+        if let folder { picker.directoryURL = folder }
         presenter.present(picker, animated: true)
     }
 

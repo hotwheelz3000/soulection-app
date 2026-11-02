@@ -6,7 +6,7 @@ A maintenance build: nothing new to learn, just tidier and quicker.
 - **Snappier screen updates:** hearts, the mini player and the top bar catch up with the page sooner.
 - **No more accidental resets:** pulling down at the top of a page no longer reloads it (that stopped the music and reset the player). If the app opens without a connection, it tries loading again by itself.
 - **Easier to read messages:** the text in the app's messages is a little bigger.
-- **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups).
+- **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups), and the Likes, Sleep timer and Help panels now share one piece of code, so Sleep timer and Help get the same smooth pull-down to close as Likes.
 
 ## Soulection Radio 4.0
 

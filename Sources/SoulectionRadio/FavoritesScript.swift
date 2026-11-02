@@ -1047,17 +1047,18 @@ enum FavoritesScript {
             if (!st || !st.tracks || st.index == null || st.index < 0) return null;
             return st.tracks[st.index] || null;
           }
-          function currentTrack() {
-            var st = npState();
-            if (!st || !st.episodeURL || st.index == null || st.index < 0 || !st.tracks || !st.tracks[st.index]) return null;
-            var t = st.tracks[st.index];
-            if (!t.title || isVoiceOver(t.artist)) return null; // no heart for voice-overs
-            var next = st.tracks[st.index + 1];
+          // Song number i of the show that's playing, as a Like (null for a voice-over, which
+          // gets no heart, or when it isn't known).
+          function trackFavorite(st, i) {
+            var t = st && st.episodeURL && st.tracks && i != null && i >= 0 ? st.tracks[i] : null;
+            if (!t || !t.title || isVoiceOver(t.artist)) return null;
+            var next = st.tracks[i + 1];
             return {
               id: favId(st.episodeURL, t.start), song: t.title || t.artist, artist: t.title ? t.artist : '', show: st.show || ('Show #' + st.number),
               episodeURL: st.episodeURL, cover: st.cover, start: t.start, end: next ? next.start : null
             };
           }
+          function currentTrack() { var st = npState(); return trackFavorite(st, st && st.index); }
 
           // The site's × (close) button on the mini player: found by its label or text, or as
           // a small button sitting on the card's top-right corner.
@@ -1411,10 +1412,10 @@ enum FavoritesScript {
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
             sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, cont: cont, contKey: null, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
-            attachSheetDrag();
+            attachPanelDrag(sheet, closeSheet);
           }
 
-          function isOpen() { return !!(sheet && sheet.root.classList.contains('sr-open')); }
+          function isOpen() { return panelIsOpen(sheet); }
 
           // ---------------------------------------------------------------------------
           // Continue listening: where you were in the last few shows you listened to (not
@@ -1496,28 +1497,12 @@ enum FavoritesScript {
               if (sheet.search) sheet.search.value = '';
             }
             renderSheet();
-            sheet.backdrop.hidden = sheet.panel.hidden = false;
-            sheet.panel.style.transform = '';
             sheet.list.scrollTop = 0;
-            document.documentElement.classList.add('sr-lock');
-            void sheet.panel.offsetHeight; // start the slide-up from the closed position
-            sheet.root.classList.add('sr-open');
+            openPanel(sheet, closeSheet);
             renderTab();
-            dialogOpened(sheet.panel, closeSheet);
           }
 
-          function closeSheet() {
-            if (!isOpen()) return;
-            dialogClosed(sheet.panel);
-            sheet.root.classList.remove('sr-open');
-            sheet.panel.style.transform = '';
-            document.documentElement.classList.remove('sr-lock');
-            setTimeout(function () {
-              if (isOpen()) return;
-              sheet.backdrop.hidden = sheet.panel.hidden = true;
-              renderTab();
-            }, 300);
-          }
+          function closeSheet() { closePanel(sheet, renderTab); }
 
           function setMode(mode) {
             if (!sheet || sheet.mode === mode) return;
@@ -1724,34 +1709,59 @@ enum FavoritesScript {
             });
           }
 
-          // Swipe down on the sheet (from its header, or from the list when it's scrolled
-          // to the top) to close it.
-          function attachSheetDrag() {
+          // ---------------------------------------------------------------------------
+          // Slide-up panels (Likes, Sleep timer, Help): one way to open, close and pull down.
+          // p = {root, backdrop, panel, list}
+          // ---------------------------------------------------------------------------
+          function panelIsOpen(p) { return !!(p && p.root.classList.contains('sr-open')); }
+          function openPanel(p, closeFn) {
+            p.backdrop.hidden = p.panel.hidden = false;
+            p.panel.style.transform = '';
+            document.documentElement.classList.add('sr-lock');
+            void p.panel.offsetHeight; // start the slide-up from the closed position
+            p.root.classList.add('sr-open');
+            dialogOpened(p.panel, closeFn);
+          }
+          // Returns false if it wasn't open. `after` runs once it has slid away.
+          function closePanel(p, after) {
+            if (!panelIsOpen(p)) return false;
+            dialogClosed(p.panel);
+            p.root.classList.remove('sr-open');
+            p.panel.style.transform = '';
+            document.documentElement.classList.remove('sr-lock');
+            setTimeout(function () {
+              if (panelIsOpen(p)) return;
+              p.backdrop.hidden = p.panel.hidden = true;
+              if (after) after();
+            }, 300);
+            return true;
+          }
+          // Swipe down on a panel (from its header, or from its list when that's scrolled to
+          // the top) to close it. Decided on the first move down, so the list never starts
+          // bouncing first (that fought the panel and made it jumpy). It follows the finger,
+          // the backdrop fades with it, and a quick flick closes it too.
+          function attachPanelDrag(p, closeFn) {
             var y0 = 0, x0 = 0, yStart = 0, dy = 0, mode = null, fromList = false, track = null, frame = 0;
             function place() {
               frame = 0;
-              sheet.panel.style.transform = 'translate3d(0,' + dy.toFixed(1) + 'px,0)';
-              var h = sheet.panel.offsetHeight || 1;
-              sheet.backdrop.style.opacity = Math.max(0, 1 - dy / h).toFixed(3);
+              p.panel.style.transform = 'translate3d(0,' + dy.toFixed(1) + 'px,0)';
+              p.backdrop.style.opacity = Math.max(0, 1 - dy / (p.panel.offsetHeight || 1)).toFixed(3);
             }
-            sheet.panel.addEventListener('touchstart', function (e) {
+            p.panel.addEventListener('touchstart', function (e) {
               if (e.touches.length !== 1) return;
               y0 = e.touches[0].clientY; x0 = e.touches[0].clientX; dy = 0; mode = null;
-              fromList = sheet.list.contains(e.target);
+              fromList = !!(p.list && p.list.contains(e.target));
               track = velocityTracker();
               track.add(y0);
             }, { passive: true });
-            sheet.panel.addEventListener('touchmove', function (e) {
+            p.panel.addEventListener('touchmove', function (e) {
               var y = e.touches[0].clientY, ddy = y - y0, ddx = e.touches[0].clientX - x0;
               if (!mode) {
-                // Decided on the first move down, so the list never starts bouncing first
-                // (that fought the sheet and made it jumpy).
                 if (Math.abs(ddx) > 6 && Math.abs(ddx) > Math.abs(ddy)) mode = 'other';
-                else if (ddy > 0 && (!fromList || sheet.list.scrollTop <= 0)) {
+                else if (ddy > 0 && (!fromList || p.list.scrollTop <= 0)) {
                   mode = 'drag';
                   yStart = y;
-                  sheet.panel.style.transition = 'none';
-                  sheet.backdrop.style.transition = 'none';
+                  p.panel.style.transition = p.backdrop.style.transition = 'none';
                 } else if (Math.abs(ddy) > 6) mode = 'other';
                 else return;
               }
@@ -1766,15 +1776,12 @@ enum FavoritesScript {
               mode = null;
               if (frame) { cancelAnimationFrame(frame); frame = 0; }
               var v = track ? track.velocity() : 0; // px per second, positive = down
-              sheet.panel.style.transition = '';
-              sheet.backdrop.style.transition = '';
-              sheet.backdrop.style.opacity = '';
-              // A quick flick down closes it too, not only a long pull.
-              if (v > 450 || (v > -300 && dy > Math.min(120, sheet.panel.offsetHeight * 0.25))) closeSheet();
-              else sheet.panel.style.transform = '';
+              p.panel.style.transition = p.backdrop.style.transition = p.backdrop.style.opacity = '';
+              if (v > 450 || (v > -300 && dy > Math.min(120, p.panel.offsetHeight * 0.25))) closeFn();
+              else p.panel.style.transform = '';
             }
-            sheet.panel.addEventListener('touchend', end);
-            sheet.panel.addEventListener('touchcancel', end);
+            p.panel.addEventListener('touchend', end);
+            p.panel.addEventListener('touchcancel', end);
           }
 
           // The site's search box in its top bar (the app's buttons sit on both sides of it).
@@ -2030,40 +2037,15 @@ enum FavoritesScript {
               root.appendChild(panel);
               document.body.appendChild(root);
               backdrop.addEventListener('click', closeHelp);
-              var y0 = 0, dy = 0;
-              panel.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; dy = 0; }, { passive: true });
-              panel.addEventListener('touchmove', function (e) {
-                if (list.scrollTop > 0) return;
-                dy = Math.max(0, e.touches[0].clientY - y0);
-                if (dy > 0) { panel.style.transition = 'none'; panel.style.transform = 'translateY(' + dy + 'px)'; }
-              }, { passive: true });
-              panel.addEventListener('touchend', function () {
-                panel.style.transition = '';
-                if (dy > 90) closeHelp(); else panel.style.transform = '';
-              });
-              helpPanel = { root: root, backdrop: backdrop, panel: panel };
+              helpPanel = { root: root, backdrop: backdrop, panel: panel, list: list };
+              attachPanelDrag(helpPanel, closeHelp);
             }
             var buildEl = helpPanel.root.querySelector('.sr-help-build');
             if (buildEl) buildEl.textContent = buildLabel;
             closeSheet();
-            helpPanel.backdrop.hidden = helpPanel.panel.hidden = false;
-            helpPanel.panel.style.transform = '';
-            document.documentElement.classList.add('sr-lock');
-            void helpPanel.panel.offsetHeight;
-            helpPanel.root.classList.add('sr-open');
-            dialogOpened(helpPanel.panel, closeHelp);
+            openPanel(helpPanel, closeHelp);
           }
-          function closeHelp() {
-            if (!helpPanel || !helpPanel.root.classList.contains('sr-open')) return;
-            dialogClosed(helpPanel.panel);
-            helpPanel.root.classList.remove('sr-open');
-            helpPanel.panel.style.transform = '';
-            document.documentElement.classList.remove('sr-lock');
-            setTimeout(function () {
-              if (helpPanel.root.classList.contains('sr-open')) return;
-              helpPanel.backdrop.hidden = helpPanel.panel.hidden = true;
-            }, 300);
-          }
+          function closeHelp() { closePanel(helpPanel); }
 
           // Shows on each launch (once per app session, not on every page load) until
           // "Don't show again" is ticked.
@@ -2155,7 +2137,7 @@ enum FavoritesScript {
             if (moon.getAttribute('aria-pressed') !== String(on)) moon.setAttribute('aria-pressed', String(on));
             var label = on ? 'Sleep timer on, ' + (sleep.type === 'time' ? sleepText() + ' left' : 'stops at the end of the ' + (sleep.type === 'song' ? 'song' : 'show')) : 'Sleep timer';
             if (moon.getAttribute('aria-label') !== label) moon.setAttribute('aria-label', label);
-            if (sleepPanel && sleepPanel.root.classList.contains('sr-open')) renderSleepStatus();
+            if (panelIsOpen(sleepPanel)) renderSleepStatus();
           }
           function startTick() {
             if (sleepTick) return;
@@ -2256,19 +2238,8 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSleep);
-            // Swipe down to close.
-            var y0 = 0, dy = 0, dragging = false;
-            panel.addEventListener('touchstart', function (e) { y0 = e.touches[0].clientY; dy = 0; dragging = list.scrollTop <= 0; }, { passive: true });
-            panel.addEventListener('touchmove', function (e) {
-              if (!dragging) return;
-              dy = Math.max(0, e.touches[0].clientY - y0);
-              if (dy > 0) { panel.style.transition = 'none'; panel.style.transform = 'translateY(' + dy + 'px)'; }
-            }, { passive: true });
-            panel.addEventListener('touchend', function () {
-              panel.style.transition = '';
-              if (dragging && dy > 90) closeSleep(); else panel.style.transform = '';
-            });
             sleepPanel = { root: root, backdrop: backdrop, panel: panel, list: list, status: status, plus: plus };
+            attachPanelDrag(sleepPanel, closeSleep);
           }
           function row(label, onTap, extra) {
             var r = el('button', 'sr-sleep-row', '<span class="sr-grow">' + esc(label) + '</span>');
@@ -2331,24 +2302,9 @@ enum FavoritesScript {
             if (!sleepPanel) return;
             closeSheet();
             renderSleep();
-            sleepPanel.backdrop.hidden = sleepPanel.panel.hidden = false;
-            sleepPanel.panel.style.transform = '';
-            document.documentElement.classList.add('sr-lock');
-            void sleepPanel.panel.offsetHeight;
-            sleepPanel.root.classList.add('sr-open');
-            dialogOpened(sleepPanel.panel, closeSleep);
+            openPanel(sleepPanel, closeSleep);
           }
-          function closeSleep() {
-            if (!sleepPanel || !sleepPanel.root.classList.contains('sr-open')) return;
-            dialogClosed(sleepPanel.panel);
-            sleepPanel.root.classList.remove('sr-open');
-            sleepPanel.panel.style.transform = '';
-            document.documentElement.classList.remove('sr-lock');
-            setTimeout(function () {
-              if (sleepPanel.root.classList.contains('sr-open')) return;
-              sleepPanel.backdrop.hidden = sleepPanel.panel.hidden = true;
-            }, 300);
-          }
+          function closeSleep() { closePanel(sleepPanel); }
           if (sleep) {
             // Page reloaded while a timer was running: make sure the app's timer matches.
             if (sleep.type === 'time') native({ op: 'sleepStart', seconds: (sleep.endsAt - Date.now()) / 1000 });
@@ -3553,16 +3509,7 @@ enum FavoritesScript {
               try { fp.songsBtn.focus({ preventScroll: true }); } catch (e) {}
             }
           }
-          function songRowFavorite(i) {
-            var st = npState();
-            var t = st && st.tracks && st.tracks[i];
-            if (!t || !st.episodeURL || !t.title || isVoiceOver(t.artist)) return null;
-            var next = st.tracks[i + 1];
-            return {
-              id: favId(st.episodeURL, t.start), song: t.title || t.artist, artist: t.title ? t.artist : '', show: st.show || ('Show #' + st.number),
-              episodeURL: st.episodeURL, cover: st.cover, start: t.start, end: next ? next.start : null
-            };
-          }
+          function songRowFavorite(i) { return trackFavorite(npState(), i); }
           function renderSongs(force) {
             // Keep keyboard / VoiceOver focus on the same row when the list is redrawn.
             var a = document.activeElement;
@@ -3931,8 +3878,7 @@ enum FavoritesScript {
           function healScrollLock() {
             if (fp && isPlayerOpen() && fpP < 0.02 && fpAnim == null) finishClose();
             var anyOpen = isOpen() || isPlayerOpen() || welcomeOpen ||
-              !!(helpPanel && helpPanel.root.classList.contains('sr-open')) ||
-              !!(sleepPanel && sleepPanel.root.classList.contains('sr-open'));
+              panelIsOpen(helpPanel) || panelIsOpen(sleepPanel);
             if (!anyOpen && document.documentElement.classList.contains('sr-lock')) document.documentElement.classList.remove('sr-lock');
           }
           // Closes the player instantly (no animation; the music isn't touched).
