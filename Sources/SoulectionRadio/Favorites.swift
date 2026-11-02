@@ -255,6 +255,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     override init() {
         super.init()
         UserDefaults.standard.removeObject(forKey: Self.oldFolderKey)
+        tapHaptic.prepare()
         NotificationCenter.default.addObserver(
             self, selector: #selector(audioInterrupted(_:)),
             name: AVAudioSession.interruptionNotification, object: nil
@@ -278,6 +279,10 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
     /// Sleep timer for fixed durations. It runs in the app (not the web page), so it
     /// keeps counting while the screen is locked and audio plays in the background.
     private var sleepTimer: Timer?
+
+    // Haptics, created once and kept warmed up (see the "haptic" op).
+    private let tapHaptic = UIImpactFeedbackGenerator(style: .medium)
+    private let successHaptic = UINotificationFeedbackGenerator()
 
     // MARK: Auto-backup
     //
@@ -621,10 +626,14 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             NewShows.shared.askPermissionOnce()
             return
         case "haptic":
+            // Kept ready (prepared) so the tap fires right away instead of being dropped, and
+            // a medium tap so it's actually felt.
             if (body["kind"] as? String) == "success" {
-                UINotificationFeedbackGenerator().notificationOccurred(.success)
+                successHaptic.notificationOccurred(.success)
+                successHaptic.prepare()
             } else {
-                UIImpactFeedbackGenerator(style: .light).impactOccurred()
+                tapHaptic.impactOccurred()
+                tapHaptic.prepare()
             }
             return
         case "share":
