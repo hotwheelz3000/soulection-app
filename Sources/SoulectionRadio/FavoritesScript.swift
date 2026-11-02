@@ -249,6 +249,19 @@ enum FavoritesScript {
             '.sr-bars i:nth-child(3){animation-delay:-.7s}',
             '.sr-bars.sr-paused i{animation-play-state:paused}',
             '@keyframes sr-bar{0%,100%{transform:scaleY(.3)}50%{transform:scaleY(1)}}',
+            // Continue listening: a row of the last few shows you were in the middle of.
+            '.sr-continue{flex:none;padding:0 12px 10px}',
+            '.sr-continue[hidden]{display:none}',
+            '.sr-continue-title{font-size:12px;line-height:16px;font-weight:600;color:' + MUTED + ';margin:0 0 6px}',
+            '.sr-continue-row{display:flex;gap:10px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;margin:0 -12px;padding:0 12px;overscroll-behavior-x:contain}',
+            '.sr-continue-row::-webkit-scrollbar{display:none}',
+            '.sr-continue-item{-webkit-appearance:none;appearance:none;flex:none;width:72px;display:grid;gap:4px;padding:0;margin:0;border:0;background:none;text-align:left;font-family:' + FONT + ';color:' + TEXT + ';cursor:pointer;-webkit-tap-highlight-color:transparent}',
+            '.sr-continue-item img{width:72px;height:72px;border-radius:4px;object-fit:cover;background:' + TRACK + ';display:block}',
+            '.sr-continue-bar{height:3px;border-radius:9999px;background:' + TRACK + ';overflow:hidden}',
+            '.sr-continue-bar i{display:block;height:100%;background:#fff}',
+            '.sr-continue-name{font-size:12px;line-height:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
+            '.sr-continue-left{font-size:11px;line-height:14px;color:' + MUTED + '}',
+            '.sr-continue-item:active{opacity:.6}',
             '.sr-auto{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-auto .sr-auto-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
@@ -500,7 +513,6 @@ enum FavoritesScript {
             else favorites = favorites.concat([fav]);
             native({ op: 'toggle', favorite: fav });
             if (!quiet) {
-              haptic('light');
               announce(existing ? 'Removed from Likes' : 'Added to Likes');
             }
             schedule();
@@ -623,7 +635,6 @@ enum FavoritesScript {
             announce('Now playing: ' + t.song + (t.artist ? ' by ' + t.artist : ''));
           }
           // A light tap you can feel (hearts, timers).
-          function haptic(kind) { native({ op: 'haptic', kind: kind || 'light' }); }
 
           // Share, or find the song on Spotify / Apple Music.
           var menuTrigger = null; // the ... button whose menu is open
@@ -1385,17 +1396,91 @@ enum FavoritesScript {
             auto.appendChild(autoBtn);
             head.appendChild(auto);
             var list = el('div', 'sr-list');
+            var cont = el('div', 'sr-continue', '<div class="sr-continue-title" aria-hidden="true">Continue listening</div><div class="sr-continue-row" role="group" aria-label="Continue listening"></div>');
+            cont.hidden = true;
+            cont.addEventListener('click', function (e) {
+              var b = e.target.closest && e.target.closest('.sr-continue-item');
+              if (!b) return;
+              var entry = continueList().filter(function (x) { return x.path === b.getAttribute('data-path'); })[0];
+              if (entry) resumeShow(entry);
+            });
             panel.appendChild(head);
+            panel.appendChild(cont);
             panel.appendChild(list);
             root.appendChild(backdrop);
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, cont: cont, contKey: '', sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
             attachSheetDrag();
           }
 
           function isOpen() { return !!(sheet && sheet.root.classList.contains('sr-open')); }
+
+          // ---------------------------------------------------------------------------
+          // Continue listening: where you were in the last few shows you listened to (not
+          // Likes, History or Mixtape, which play single songs). Kept on this phone. A show
+          // you finished (or almost) drops off the list.
+          // ---------------------------------------------------------------------------
+          var CONTINUE_KEY = 'sr-continue';
+          function continueList() {
+            try { var l = JSON.parse(localStorage.getItem(CONTINUE_KEY) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
+          }
+          function saveContinue(l) { try { localStorage.setItem(CONTINUE_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {} }
+          function playingShowPath(st) {
+            return (directShown && activeOurs() && directShown.episodeURL) || (st && st.episodeURL) || '';
+          }
+          // Every 10 seconds while a show plays: remember where you are in it.
+          function noteListening() {
+            try {
+              var st = npState();
+              if (!st || st.paused !== false || playlist || starting) return;
+              var path = playingShowPath(st);
+              var t = st.t, d = st.duration;
+              if (!path || !(t > 0) || !(d > 0)) return;
+              var l = continueList().filter(function (x) { return x.path !== path; });
+              if (t >= 60 && t < d - 120) {
+                var shown = directShown && activeOurs() ? directShown : null;
+                l.unshift({ path: path, show: ((shown && shown.show) || st.show || ('Show #' + st.number)).split(' | ')[0],
+                  cover: (shown && shown.cover) || st.cover || '', t: Math.floor(t), d: Math.floor(d), at: Date.now() });
+              }
+              saveContinue(l);
+            } catch (e) {}
+          }
+          setInterval(noteListening, 10000);
+          function renderContinue(show) {
+            if (!sheet || !sheet.cont) return;
+            var nowPath = playingShowPath(npState());
+            var items = show ? continueList().filter(function (x) { return x.path !== nowPath; }).slice(0, 5) : [];
+            var key = items.map(function (x) { return x.path + ':' + Math.floor(x.t / 60); }).join('|');
+            if (sheet.contKey !== key) {
+              sheet.contKey = key;
+              sheet.cont.querySelector('.sr-continue-row').innerHTML = items.map(function (x) {
+                var left = Math.max(1, Math.round((x.d - x.t) / 60));
+                var leftText = left >= 60 ? Math.floor(left / 60) + ' h ' + (left % 60) + ' min left' : left + ' min left';
+                return '<button type="button" class="sr-continue-item" data-path="' + esc(x.path) + '" aria-label="' + esc('Continue ' + x.show + ', ' + leftText) + '">' +
+                  '<img alt="" aria-hidden="true"' + (x.cover ? ' src="' + esc(x.cover) + '"' : '') + '>' +
+                  '<span class="sr-continue-bar" aria-hidden="true"><i style="width:' + Math.min(100, Math.max(2, x.t / x.d * 100)).toFixed(1) + '%"></i></span>' +
+                  '<span class="sr-continue-name" aria-hidden="true">' + esc(x.show) + '</span>' +
+                  '<span class="sr-continue-left" aria-hidden="true">' + esc(leftText) + '</span></button>';
+              }).join('');
+            }
+            if (sheet.cont.hidden !== !items.length) sheet.cont.hidden = !items.length;
+          }
+          // Picks a show back up where you left it, right here (the page doesn't change), the
+          // same way the dice switches shows.
+          function resumeShow(entry) {
+            var wasPlaying = !isPaused();
+            closeSheet();
+            cancelShowSwitch();
+            var mine = ++diceTry;
+            beginStarting();
+            renderPlayButtons();
+            endPlaylist(false, true);
+            switchShowHere(entry.path, Math.max(0, entry.t - 3), wasPlaying, mine, function (ok) {
+              if (!ok) showToast("Couldn't pick that show back up. Try again in a moment.");
+            });
+          }
 
 
           function openSheet() {
@@ -1516,6 +1601,7 @@ enum FavoritesScript {
               sheet.key = key;
               buildSheetList(sorted, hist, playingId, count, q);
             }
+            renderContinue(hist && !q);
             var st = npState();
             var paused = !st || !!st.paused;
             var sb = sheet.list.querySelector('.sr-sheet-bars');
@@ -1579,6 +1665,7 @@ enum FavoritesScript {
               keyClickable(main.querySelector('.sr-item-text'), 'Play ' + f.song + (f.artist ? ' by ' + f.artist : '') + (f.id === playingId ? ', playing now' : ''));
               // Tapping the cover opens the song's show instead of playing it.
               var cover = main.querySelector('img');
+              cover.removeAttribute('alt'); // it's a button with its own label, not decoration
               keyClickable(cover, 'Open ' + (f.show || 'the show') + ' at ' + f.song);
               cover.addEventListener('click', function (e) {
                 if (main.getAttribute('data-swiped')) return;
@@ -1877,7 +1964,6 @@ enum FavoritesScript {
             void tip.offsetHeight;
             tip.classList.add('sr-show');
             tipShownFor = btn;
-            try { navigator.vibrate && navigator.vibrate(8); } catch (e) {}
           }
           function hideTip(now) {
             if (!tip) return;
@@ -1893,7 +1979,7 @@ enum FavoritesScript {
           function helpItems() {
             return [
               [HOME, 'Back and Home', 'Top left, on every page: go back a page (when there is one), or straight to the home page.'],
-              [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show.'],
+              [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show. Under History, Continue listening picks a show back up where you left it.'],
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
@@ -2087,7 +2173,7 @@ enum FavoritesScript {
             if (sleep) startTick();
             renderMoon();
           }
-          function startTimer(minutes) { setSleep({ type: 'time', endsAt: Date.now() + minutes * 60000 }); haptic('light'); closeSleep(); showToast('Sleep timer: ' + durationLabel(minutes) + '.'); }
+          function startTimer(minutes) { setSleep({ type: 'time', endsAt: Date.now() + minutes * 60000 }); closeSleep(); showToast('Sleep timer: ' + durationLabel(minutes) + '.'); }
           function stopAfterSong() {
             var t = currentTrack();
             if (!t) return showToast('Play a song from a show first.');
@@ -2158,7 +2244,6 @@ enum FavoritesScript {
             plus.addEventListener('click', function () {
               if (!sleep || sleep.type !== 'time') return;
               setSleep({ type: 'time', endsAt: Math.max(Date.now(), sleep.endsAt) + 5 * 60000 });
-              haptic('light');
               renderSleepStatus();
               announce('Sleep timer: ' + sleepText() + ' left.');
             });
@@ -2576,7 +2661,7 @@ enum FavoritesScript {
               }
               var prevWin = relay && m.activeFrame ? m.activeFrame() : null;
               var prevShown = directShown, prevDirect = direct;
-              var frame = makeFrame(playerURL(info.link, 0, false));
+              var frame = makeFrame(playerURL(info.link, (opts && opts.start) || 0, false));
               m.setActiveFrame(frame.contentWindow);
               if (relay) {
                 var t0 = Date.now();
@@ -2891,48 +2976,54 @@ enum FavoritesScript {
                 return showToast(gaveUp ? "Couldn't load the list of shows. Tap the dice to try again." : "Couldn't find any shows.");
               }
               var path = choices[Math.floor(Math.random() * choices.length)];
-              haptic('light');
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
-              var diceFail = function () {
-                if (mine !== diceTry) return;
+              switchShowHere(path, 0, wasPlaying, mine, function (ok) {
                 diceBusy(false);
-                showToast("The random show didn't start. Tap the dice to try again.");
-              };
-              if (wasPlaying) {
-                // Something is playing: switch the way Likes and Mixtape do. The new show is
-                // loaded muted and started (iPhone lets a muted player start next to a playing
-                // one), then it's unmuted and the old one pauses in the same instant.
-                episodeInfo(path).then(function (info) {
-                  if (mine !== diceTry) return;
-                  if (!info.link) return diceFail();
-                  var label = 'Show #' + info.number;
-                  diceSwitch = { id: 'dice:' + path + ':' + Date.now(), episodeURL: path, start: 0, show: label, cover: info.cover, song: label, artist: 'Soulection Radio' };
-                  pageFallbackFor = diceSwitch.id; // stay on this page: no switching through the show's page
-                  handoff(diceSwitch);
-                }).catch(diceFail);
-              } else {
-                playShowHere(path, 1, diceFail, { relay: true });
-              }
-              // Still silent after a while: say so (the dice works again on the next tap).
-              var t1 = Date.now();
-              (function check() {
-                var st = npState();
-                if (mine !== diceTry) return; // tapped again, or something else was played
-                if (st && st.paused === false && directShown && directShown.episodeURL === path) { diceBusy(false); return; }
-                if (Date.now() - t1 > 20000) {
-                  diceBusy(false);
-                  // A switch that never got going: stop it, and what was playing carries on.
-                  if (handing && diceSwitch && handing.f === diceSwitch) {
-                    clearTimeout(handing.timer); clearInterval(handing.poke); handing = null;
-                    discardStandby();
-                  }
-                  if (!starting || isPaused()) { endStarting(); renderPlayButtons(); showToast("The random show didn't start. Tap the dice to try again."); }
-                  return;
-                }
-                setTimeout(check, 1000);
-              })();
+                if (!ok) showToast("The random show didn't start. Tap the dice to try again.");
+              });
             });
+          }
+
+          // Plays a show from `start` (seconds) right here, without leaving the page: used by
+          // the dice and Continue listening. If something is playing, it switches the way Likes
+          // and Mixtape do: the new show is loaded muted and started (iPhone lets a muted player
+          // start next to a playing one), then it's unmuted and the old one pauses in the same
+          // instant. If nothing is playing, it's simply started. `mine` is the try's number
+          // (diceTry): a newer try or anything else played makes this one let go. `done(ok)` is
+          // called once: true when it plays, false if it never got going (after 20 seconds
+          // what was playing just carries on).
+          function switchShowHere(path, start, wasPlaying, mine, done) {
+            var finished = false;
+            var finish = function (ok) { if (finished) return; finished = true; if (mine === diceTry) done(ok); };
+            if (wasPlaying) {
+              episodeInfo(path).then(function (info) {
+                if (mine !== diceTry) return;
+                if (!info.link) return finish(false);
+                var label = 'Show #' + info.number;
+                diceSwitch = { id: 'switch:' + path + ':' + Date.now(), episodeURL: path, start: start, show: label, cover: info.cover, song: label, artist: 'Soulection Radio' };
+                pageFallbackFor = diceSwitch.id; // stay on this page: no switching through the show's page
+                handoff(diceSwitch);
+              }).catch(function () { finish(false); });
+            } else {
+              playShowHere(path, 1, function () { finish(false); }, { relay: true, start: start });
+            }
+            var t1 = Date.now();
+            (function check() {
+              if (finished || mine !== diceTry) return; // tapped again, or something else was played
+              var st = npState();
+              if (st && st.paused === false && directShown && directShown.episodeURL === path) return finish(true);
+              if (Date.now() - t1 > 20000) {
+                // A switch that never got going: stop it, and what was playing carries on.
+                if (handing && diceSwitch && handing.f === diceSwitch) {
+                  clearTimeout(handing.timer); clearInterval(handing.poke); handing = null;
+                  discardStandby();
+                }
+                if (!starting || isPaused()) { endStarting(); renderPlayButtons(); }
+                return finish(false);
+              }
+              setTimeout(check, 1000);
+            })();
           }
 
           // ---------------------------------------------------------------------------

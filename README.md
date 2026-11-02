@@ -39,6 +39,7 @@ With a free Apple ID, the app stops opening after 7 days. Install it again the s
 - **Your Likes, in one place:** tap the heart at the top (it opens on **History**; **Likes** is the second tab). Search them with the box at the top. Swipe a song left to remove it (or use its **⋯** button). Tap a song's cover to open its show at that song.
 - **⋯ More:** on any song in Likes or History, and in the full player: share it, or open it on Spotify (its search for the song) or Apple Music (the song itself, looked up in Apple's catalog; only the song, artist and your country are sent).
 - **Play them as a playlist:** **Play in order** (top to bottom, like the list) or **Shuffle**, or tap a song to start there. Each song plays from its spot in its show, then the next one starts, even from a different show, including with the screen off.
+- **Continue listening:** at the top of History, the last few shows you were in the middle of (with how much is left). Tap one to pick it back up where you were, right where you are. Kept on your phone only.
 - **Listening history:** every song you play is saved the moment it starts (the show's intro isn't counted). It's the first tab in the same panel. It keeps your last 500 songs; **Clear** asks twice and offers to export first.
 
 **The player**
@@ -97,7 +98,7 @@ I'm a beginner developer. I built this by describing what I wanted to Claude Cod
   - `WebView.swift`: the web view, edge-to-edge layout and safe-area fixes for the site's top bar and bottom player.
   - `NowPlayingScript.swift`: lock-screen song info, track buttons and remote play/pause, both on the page and inside the SoundCloud player frames.
   - `FavoritesScript.swift`: hearts, the Likes/History panel, playlists and the background relay between players, listening history, the full-size player, the mini player, the sleep timer, the dice, Mixtape, help and the welcome screen.
-  - `Favorites.swift`: saves likes and history in the app, auto-backup to iCloud Drive and restore, Export/Import, the sleep timer's countdown and fade, the volume dip between shows, AirPlay, sharing, Spotify/Apple Music links, haptics, and resuming after phone calls.
+  - `Favorites.swift`: saves likes and history in the app, auto-backup to iCloud Drive and restore, Export/Import, the sleep timer's countdown and fade, the volume dip between shows, AirPlay, sharing, Spotify/Apple Music links, and resuming after phone calls.
   - `NewShows.swift`: new-show notifications: the background check of the home page, the notification permission, and opening the show when a notification is tapped.
   - `SoulectionRadioApp.swift`: background audio setup, without interrupting other apps at launch.
   - `BuildInfo.swift`: the version shown in the help window (written by the workflow from the version in `SoulectionRadio-Info.plist`).
