@@ -27,7 +27,7 @@ With a free Apple ID the app stops opening after 7 days; install it again the sa
 - **Lock screen and Dynamic Island** show the song, artist and cover; next / previous jump between songs in the show.
 - **Big player:** tap the player at the bottom, or swipe it up (from the player or its tab). Big artwork, a draggable progress bar, previous / play / next, a heart, the sleep timer and AirPlay. **Playing from** opens the show's page. Swipe down to close; if it's open when you leave the app, it's still open when you come back.
 - **Up Next:** the songs coming up (in Likes, History or Mixtape) or the show's songs. Tap one to play it, or its heart to like it.
-- **Swipe to skip:** swipe the mini player left or right. (VoiceOver gets Previous / Next buttons.)
+- **Swipe to skip:** swipe the mini player left for the next song, right for the one before. (VoiceOver gets Previous / Next buttons.) The back button in the big player restarts the song first, like Spotify.
 - **Starting a show:** the Soulection logo spins in the play button until the sound starts.
 - **The playing song is marked** in a show's tracklist with small moving bars.
 - **Smooth switches between shows:** with the app open, the volume dips at the end of a song and comes back up on the next one.

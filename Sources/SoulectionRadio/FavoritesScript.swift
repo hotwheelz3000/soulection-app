@@ -3134,7 +3134,7 @@ enum FavoritesScript {
           // The swipe has no meaning for VoiceOver or a keyboard, so the mini players also hold
           // two buttons only they see: Previous song and Next song.
           function addSkipButtons(box) {
-            [['Previous song', function () { previousSong(); }], ['Next song', function () { nextSong(); }]].forEach(function (b) {
+            [['Previous song', function () { previousSong(true); }], ['Next song', function () { nextSong(); }]].forEach(function (b) {
               var btn = el('button', 'sr-vh sr-skip-btn', esc(b[0]));
               btn.type = 'button';
               btn.addEventListener('click', function (e) { e.preventDefault(); e.stopPropagation(); b[1](); });
@@ -3169,12 +3169,12 @@ enum FavoritesScript {
             if (!dir || reduceMotion) {
               moveSkip(0, !reduceMotion);
               setTimeout(function () { targets.forEach(function (n) { n.style.transition = ''; }); }, 220);
-              if (dir) dir > 0 ? nextSong() : previousSong();
+              if (dir) dir > 0 ? nextSong() : previousSong(true);
               return;
             }
             moveSkip(-dir * w * 0.6, true);
             setTimeout(function () {
-              dir > 0 ? nextSong() : previousSong();
+              dir > 0 ? nextSong() : previousSong(true);
               targets.forEach(function (n) {
                 n.style.transition = 'none';
                 n.style.transform = 'translateX(' + (dir * 40) + 'px)';
@@ -3453,7 +3453,7 @@ enum FavoritesScript {
               showSongInShow(f);
             });
             fp.play.addEventListener('click', togglePlay);
-            root.querySelector('.sr-np-prev').addEventListener('click', previousSong);
+            root.querySelector('.sr-np-prev').addEventListener('click', function () { previousSong(); });
             root.querySelector('.sr-np-next').addEventListener('click', nextSong);
             fp.sleep.addEventListener('click', function () { openSleep(); });
             root.querySelector('.sr-np-airplay').addEventListener('click', function () { native({ op: 'airplay' }); });
@@ -4007,14 +4007,16 @@ enum FavoritesScript {
               if (st.tracks[i].start > st.t + 1) { np().seek(st.tracks[i].start); return; }
             }
           }
-          function previousSong() {
-            if (playlist) return previousFavorite();
+          // `always`: go to the song before even when this one is well under way (swiping the
+          // mini player). Otherwise, like Spotify's back button, it first restarts the song.
+          function previousSong(always) {
+            if (playlist) return previousFavorite(always);
             var st = npState();
             if (!st || !st.tracks || st.t == null) return;
             var i = -1;
             for (var j = 0; j < st.tracks.length; j++) if (st.tracks[j].start <= st.t + 0.25) i = j;
             // Like Spotify: restart the song unless it just started.
-            if (i >= 0 && st.t - st.tracks[i].start > 3) return np().seek(st.tracks[i].start);
+            if (!always && i >= 0 && st.t - st.tracks[i].start > 3) return np().seek(st.tracks[i].start);
             np().seek(i > 0 ? st.tracks[i - 1].start : 0);
           }
 
@@ -4675,13 +4677,13 @@ enum FavoritesScript {
             playCurrent();
           }
 
-          function previousFavorite() {
+          function previousFavorite(always) {
             if (!playlist || !playlist.current) return;
             var st = npState();
             var f = playlist.current;
             var n = np();
             // Like the lock screen elsewhere: restart the song unless it just started.
-            if ((st && st.t != null && st.t - f.start > 3) || playlist.pos === 0) {
+            if ((!always && st && st.t != null && st.t - f.start > 3) || playlist.pos === 0) {
               n && n.seek(f.start);
               return;
             }
