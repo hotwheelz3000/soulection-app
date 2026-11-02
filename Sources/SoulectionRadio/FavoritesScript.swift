@@ -2547,7 +2547,7 @@ enum FavoritesScript {
           }
           // Plays a show from 0:00 in the app's own player without opening its page. If it
           // can't, it quietly tries again (a few times), with no message.
-          var diceTry = 0, showSwitch = 0;
+          var diceTry = 0, showSwitch = 0, diceSwitch = null;
           function playShowHere(path, tries, onFail, opts) {
             tries = tries || 1;
             var relay = !!(opts && opts.relay);
@@ -2865,6 +2865,7 @@ enum FavoritesScript {
             if (diceBusySince && Date.now() - diceBusySince < 10000) return;
             diceBusy(true);
             var mine = ++diceTry;
+            var wasPlaying = !isPaused();
             try {
               closeSheet();
               beginStarting(); // the logo spins in the play button while it switches
@@ -2893,11 +2894,26 @@ enum FavoritesScript {
               haptic('light');
               // Plays right here, from the start, in the app's own player: the page you're on
               // stays (no jump to the show's page).
-              playShowHere(path, 1, function () {
+              var diceFail = function () {
                 if (mine !== diceTry) return;
                 diceBusy(false);
                 showToast("The random show didn't start. Tap the dice to try again.");
-              }, { relay: true });
+              };
+              if (wasPlaying) {
+                // Something is playing: switch the way Likes and Mixtape do. The new show is
+                // loaded muted and started (iPhone lets a muted player start next to a playing
+                // one), then it's unmuted and the old one pauses in the same instant.
+                episodeInfo(path).then(function (info) {
+                  if (mine !== diceTry) return;
+                  if (!info.link) return diceFail();
+                  var label = 'Show #' + info.number;
+                  diceSwitch = { id: 'dice:' + path + ':' + Date.now(), episodeURL: path, start: 0, show: label, cover: info.cover, song: label, artist: 'Soulection Radio' };
+                  pageFallbackFor = diceSwitch.id; // stay on this page: no switching through the show's page
+                  handoff(diceSwitch);
+                }).catch(diceFail);
+              } else {
+                playShowHere(path, 1, diceFail, { relay: true });
+              }
               // Still silent after a while: say so (the dice works again on the next tap).
               var t1 = Date.now();
               (function check() {
@@ -2906,6 +2922,11 @@ enum FavoritesScript {
                 if (st && st.paused === false && directShown && directShown.episodeURL === path) { diceBusy(false); return; }
                 if (Date.now() - t1 > 20000) {
                   diceBusy(false);
+                  // A switch that never got going: stop it, and what was playing carries on.
+                  if (handing && diceSwitch && handing.f === diceSwitch) {
+                    clearTimeout(handing.timer); clearInterval(handing.poke); handing = null;
+                    discardStandby();
+                  }
                   if (!starting || isPaused()) { endStarting(); renderPlayButtons(); showToast("The random show didn't start. Tap the dice to try again."); }
                   return;
                 }
