@@ -1,7 +1,7 @@
 ## Soulection Radio 4.0
 
 **New**
-- **Continue listening:** in Likes (History tab), a row of the last few shows you were in the middle of, with how much is left. Tap one to pick it back up right where you were, without leaving the page.
+- **Continue listening:** in Likes (History tab), a row of the last few shows you were in the middle of, with how much is left. Tap one to pick it back up right where you were, without leaving the page. A show counts after 20 seconds (dice shows too), and until there's one the row says what will appear there.
 - **Leaving the app:** swiping up from the bottom to leave the app or open the app switcher no longer opens the big player, and a big player that's open stays open when you come back.
 - **Show pages:** a sideways drag on the song list no longer moves it (the show's player is left untouched, so timestamps play as before).
 - **Dice while a show plays:** switches the same way Mixtape does (the new show starts muted next to the old one, then takes over), so it no longer spins forever.

@@ -262,6 +262,7 @@ enum FavoritesScript {
             '.sr-continue-name{font-size:12px;line-height:15px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-continue-left{font-size:11px;line-height:14px;color:' + MUTED + '}',
             '.sr-continue-item:active{opacity:.6}',
+            '.sr-continue-empty{font-size:12px;line-height:16px;color:' + MUTED + ';padding:2px 0 4px}',
             '.sr-auto{display:flex;align-items:center;gap:10px;margin-top:10px;font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-auto .sr-auto-text{flex:1;min-width:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-auto .sr-auto-text b{color:' + TEXT + ';font-weight:600}',
@@ -1411,7 +1412,7 @@ enum FavoritesScript {
             root.appendChild(panel);
             document.body.appendChild(root);
             backdrop.addEventListener('click', closeSheet);
-            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, cont: cont, contKey: '', sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
+            sheet = { root: root, backdrop: backdrop, panel: panel, head: head, list: list, cont: cont, contKey: null, sub: sub, playBtn: playBtn, shuffleBtn: shuffleBtn, clearBtn: clearBtn, favTab: favTab, histTab: histTab, autoText: auto.querySelector('.sr-auto-text'), autoBtn: autoBtn, search: search, query: '', mode: 'history', key: '' };
             attachSheetDrag();
           }
 
@@ -1419,8 +1420,8 @@ enum FavoritesScript {
 
           // ---------------------------------------------------------------------------
           // Continue listening: where you were in the last few shows you listened to (not
-          // Likes, History or Mixtape, which play single songs). Kept on this phone. A show
-          // you finished (or almost) drops off the list.
+          // Likes, History or Mixtape, which play single songs), once you've heard 20 seconds.
+          // Kept on this phone. A show you finished (or almost) drops off the list.
           // ---------------------------------------------------------------------------
           var CONTINUE_KEY = 'sr-continue';
           function continueList() {
@@ -1439,7 +1440,7 @@ enum FavoritesScript {
               var t = st.t, d = st.duration;
               if (!path || !(t > 0) || !(d > 0)) return;
               var l = continueList().filter(function (x) { return x.path !== path; });
-              if (t >= 60 && t < d - 120) {
+              if (t >= 20 && t < d - 120) {
                 var shown = directShown && activeOurs() ? directShown : null;
                 l.unshift({ path: path, show: ((shown && shown.show) || st.show || ('Show #' + st.number)).split(' | ')[0],
                   cover: (shown && shown.cover) || st.cover || '', t: Math.floor(t), d: Math.floor(d), at: Date.now() });
@@ -1455,7 +1456,10 @@ enum FavoritesScript {
             var key = items.map(function (x) { return x.path + ':' + Math.floor(x.t / 60); }).join('|');
             if (sheet.contKey !== key) {
               sheet.contKey = key;
-              sheet.cont.querySelector('.sr-continue-row').innerHTML = items.map(function (x) {
+              // Nothing yet: say what will show up here, so the row isn't a mystery.
+              sheet.cont.querySelector('.sr-continue-row').innerHTML = !items.length
+                ? '<div class="sr-continue-empty">Shows you start will show up here, so you can pick them back up.</div>'
+                : items.map(function (x) {
                 var left = Math.max(1, Math.round((x.d - x.t) / 60));
                 var leftText = left >= 60 ? Math.floor(left / 60) + ' h ' + (left % 60) + ' min left' : left + ' min left';
                 return '<button type="button" class="sr-continue-item" data-path="' + esc(x.path) + '" aria-label="' + esc('Continue ' + x.show + ', ' + leftText) + '">' +
@@ -1465,7 +1469,7 @@ enum FavoritesScript {
                   '<span class="sr-continue-left" aria-hidden="true">' + esc(leftText) + '</span></button>';
               }).join('');
             }
-            if (sheet.cont.hidden !== !items.length) sheet.cont.hidden = !items.length;
+            if (sheet.cont.hidden !== !show) sheet.cont.hidden = !show;
           }
           // Picks a show back up where you left it, right here (the page doesn't change), the
           // same way the dice switches shows.
