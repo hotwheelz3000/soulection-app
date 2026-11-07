@@ -65,6 +65,7 @@ enum FavoritesScript {
 
           var BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>';
           var HOME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v10h4.5v-6h3v6H18V10"/></svg>';
+          var SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>';
           var DICE = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="3"/><circle cx="8" cy="8" r="1.2" fill="currentColor"/><circle cx="16" cy="8" r="1.2" fill="currentColor"/><circle cx="12" cy="12" r="1.2" fill="currentColor"/><circle cx="8" cy="16" r="1.2" fill="currentColor"/><circle cx="16" cy="16" r="1.2" fill="currentColor"/></svg>';
 
           // Sleep timer icon: three Z's, small to big, that light up in a wave while it's on.
@@ -120,12 +121,16 @@ enum FavoritesScript {
             '.sr-heart-mini{font-size:23px;padding:9px;border-radius:9999px;flex:none;margin-left:auto;order:1}',
             '.sr-heart-mini[hidden]{display:none}',
             // The app's top bar (fixed, on every page).
-            '.sr-appbar{position:fixed;left:0;right:0;top:0;z-index:44;display:flex;align-items:center;justify-content:space-between;background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding:env(safe-area-inset-top) max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));min-height:calc(env(safe-area-inset-top) + 44px);box-sizing:border-box}',
+            '.sr-appbar{position:fixed;left:0;right:0;top:0;z-index:50;display:flex;align-items:center;justify-content:space-between;background:' + BG + ';border-bottom:1px solid ' + BORDER + ';padding:env(safe-area-inset-top) max(4px,env(safe-area-inset-right)) 0 max(4px,env(safe-area-inset-left));min-height:calc(env(safe-area-inset-top) + 44px);box-sizing:border-box}',
             '.sr-appbar[hidden]{display:none}',
+            '.sr-appbar.sr-appbar-cover{align-items:flex-start;min-height:0;padding-bottom:0;box-sizing:border-box}',
+            'html.sr-lock .sr-appbar{visibility:hidden}',
             '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
+            '.sr-search-top{display:none}',
+            '.sr-appbar-cover .sr-search-top{display:block}',
             'html.sr-lock .sr-appbar{visibility:hidden}',
             '.sr-heart-top{font-size:23px;padding:8px;margin:0 -4px 0 4px;flex:none;align-self:center}',
             '.sr-dice-top{font-size:23px;padding:8px;margin:0 -4px 0 0;flex:none;align-self:center}',
@@ -1841,14 +1846,28 @@ enum FavoritesScript {
               closeSheet(); closePlayer();
               if (location.pathname !== '/') goTo('/', 'sr-home', '1'); else window.scrollTo(0, 0);
             });
+            // Search: only when the app's bar covers a page's top bar (that page has no search
+            // box of its own to use). Opens the home page with its search box ready to type in.
+            var search = heartButton('sr-appbar-btn sr-search-top');
+            search.innerHTML = SEARCH;
+            search.removeAttribute('aria-pressed');
+            search.setAttribute('aria-label', 'Search');
+            search.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              closeSheet(); closePlayer();
+              try { sessionStorage.setItem(FOCUS_SEARCH_KEY, '1'); } catch (err) {}
+              if (location.pathname !== '/') goTo('/', 'sr-home', '1');
+            });
             left.appendChild(back);
             left.appendChild(home);
+            left.appendChild(search);
             root.appendChild(left);
             root.appendChild(right);
             document.body.appendChild(root);
-            appBar = { root: root, left: left, right: right, back: back, home: home };
+            appBar = { root: root, left: left, right: right, back: back, home: home, search: search };
             attachLabel(back, 'Back');
             attachLabel(home, 'Home');
+            attachLabel(search, 'Search');
           }
           // Whether there's a page to go back to: told by the app (its page history, the same
           // one the edge swipe uses).
@@ -1929,8 +1948,16 @@ enum FavoritesScript {
               // Remember exactly where the buttons sit, for the moment the site swaps pages.
               var lr = appBar.left.getBoundingClientRect(), gr = appBar.right.getBoundingClientRect();
               rowGoneAt = 0;
+              appBar.root.classList.remove('sr-appbar-cover');
+              // Arrived from the Search button: the search box is ready to type in.
+              try {
+                if (sessionStorage.getItem(FOCUS_SEARCH_KEY)) {
+                  sessionStorage.removeItem(FOCUS_SEARCH_KEY);
+                  setTimeout(function () { box.focus(); }, 150);
+                }
+              } catch (err) {}
               if (lr.height && lr.top >= 0 && lr.top < 200) {
-                lastRow = { top: lr.top, height: lr.height, left: lr.left, right: window.innerWidth - gr.right };
+                lastRow = { top: lr.top, height: lr.height, left: lr.left, right: window.innerWidth - gr.right, bottom: row.getBoundingClientRect().bottom };
               }
             } else {
               if (appBar.left.parentElement !== appBar.root) appBar.root.appendChild(appBar.left);
@@ -1942,19 +1969,32 @@ enum FavoritesScript {
               var hold = lastRow && Date.now() - rowGoneAt < 4000;
               var st = appBar.root.style;
               if (hold) {
+                appBar.root.classList.remove('sr-appbar-cover');
+                appBar.root.style.paddingTop = '';
                 appBar.root.classList.add('sr-appbar-hold');
                 st.top = lastRow.top + 'px'; st.height = lastRow.height + 'px';
                 st.paddingLeft = lastRow.left + 'px'; st.paddingRight = lastRow.right + 'px';
                 clearTimeout(holdTimer);
                 holdTimer = setTimeout(fitAppBar, 4100 - (Date.now() - rowGoneAt));
-              } else if (appBar.root.classList.contains('sr-appbar-hold')) {
+              } else {
                 appBar.root.classList.remove('sr-appbar-hold');
-                st.top = st.height = st.paddingLeft = st.paddingRight = '';
+                if (lastRow) {
+                  // No search box to sit next to on this page (the site built it differently):
+                  // the app's own bar covers the site's top bar, with every button exactly
+                  // where it is on the other pages, so Back and the rest are always there.
+                  appBar.root.classList.add('sr-appbar-cover');
+                  st.top = '0'; st.height = Math.max(lastRow.bottom, lastRow.top + lastRow.height) + 'px';
+                  st.paddingTop = lastRow.top + 'px';
+                  st.paddingLeft = lastRow.left + 'px'; st.paddingRight = lastRow.right + 'px';
+                } else {
+                  appBar.root.classList.remove('sr-appbar-cover');
+                  st.top = st.height = st.paddingTop = st.paddingLeft = st.paddingRight = '';
+                }
               }
               if (appBar.root.hidden) appBar.root.hidden = false;
             }
           }
-          var lastRow = null, rowGoneAt = 0, holdTimer = null;
+          var lastRow = null, rowGoneAt = 0, holdTimer = null, FOCUS_SEARCH_KEY = 'sr-focus-search';
 
 
           // ---------------------------------------------------------------------------

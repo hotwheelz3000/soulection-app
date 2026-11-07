@@ -10,6 +10,7 @@ A maintenance build: nothing new to learn, just tidier and quicker.
 - **New-show alerts more often:** the app asks iOS to check every 15 minutes (it was an hour), checks every 30 minutes while music plays in the background, and checks when you leave the app. Help explains the two settings that make alerts work when the app is closed.
 - **Build numbers:** after the first build of a version, the download is named with its build number (e.g. SoulectionRadio-5.0-12.ipa) and Help shows "(build 12)", so each download has its own name.
 - **Timestamps:** tapping a timestamp jumps to that song again (taps were being held back), and a long tap no longer selects text.
+- **Top bar on every page:** on pages where the site builds its top bar differently (show and song pages right now), the app's own bar covers it, with Back, Home, a Search button (opens the home page's search, ready to type) and all the other buttons in their usual spots.
 - **Easier to read messages:** the text in the app's messages is a little bigger.
 - **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups), and the Likes, Sleep timer and Help panels now share one piece of code, so Sleep timer and Help get the same smooth pull-down to close as Likes.
 
