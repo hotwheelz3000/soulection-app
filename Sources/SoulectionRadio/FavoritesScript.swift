@@ -2348,11 +2348,11 @@ enum FavoritesScript {
                 .catch(function () {});
             }
             // The site's database has every show; only if that fails, fall back to the shows
-            // linked from the home page (and a sitemap, if the site ever has one again).
+            // linked from the home page.
             var before = Object.keys(found).length;
             return allEpisodes().then(add, function () {}).then(function () {
               if (Object.keys(found).length > before) return;
-              return Promise.all([get('/'), get('/sitemap.xml')]);
+              return get('/');
             }).then(function () {
               episodeList = Object.keys(found);
               return episodeList;
@@ -2360,7 +2360,7 @@ enum FavoritesScript {
           }
           // Every show, from the site's own database (the same request the site makes, with
           // the public read key in the site's code). The home page alone only has the newest
-          // few, and the site no longer has a sitemap. The address and key are read from the
+          // few. The address and key are read from the
           // site's code each time it's needed (and remembered), so a change there is picked up.
           var DB_KEY = 'sr-db';
           function siteDatabase(fresh) {
@@ -2610,7 +2610,7 @@ enum FavoritesScript {
           }
           // Plays a show from 0:00 in the app's own player without opening its page. If it
           // can't, it quietly tries again (a few times), with no message.
-          var diceTry = 0, showSwitch = 0, diceSwitch = null;
+          var diceTry = 0, showSwitch = 0, switchItem = null;
           function playShowHere(path, tries, onFail, opts) {
             tries = tries || 1;
             var relay = !!(opts && opts.relay);
@@ -2979,9 +2979,9 @@ enum FavoritesScript {
                 if (mine !== diceTry) return;
                 if (!info.link) return finish(false);
                 var label = 'Show #' + info.number;
-                diceSwitch = { id: 'switch:' + path + ':' + Date.now(), episodeURL: path, start: start, show: label, cover: info.cover, song: label, artist: 'Soulection Radio' };
-                pageFallbackFor = diceSwitch.id; // stay on this page: no switching through the show's page
-                handoff(diceSwitch);
+                switchItem = { id: 'switch:' + path + ':' + Date.now(), episodeURL: path, start: start, show: label, cover: info.cover, song: label, artist: 'Soulection Radio' };
+                pageFallbackFor = switchItem.id; // stay on this page: no switching through the show's page
+                handoff(switchItem);
               }).catch(function () { finish(false); });
             } else {
               playShowHere(path, 1, function () { finish(false); }, { relay: true, start: start });
@@ -2993,7 +2993,7 @@ enum FavoritesScript {
               if (st && st.paused === false && directShown && directShown.episodeURL === path) return finish(true);
               if (Date.now() - t1 > 20000) {
                 // A switch that never got going: stop it, and what was playing carries on.
-                if (handing && diceSwitch && handing.f === diceSwitch) {
+                if (handing && switchItem && handing.f === switchItem) {
                   clearTimeout(handing.timer); clearInterval(handing.poke); handing = null;
                   discardStandby();
                 }
@@ -3651,7 +3651,7 @@ enum FavoritesScript {
           var fpTravel = 0;
           var BG_RGB = BG.replace(/^rgb\(|\)$/g, '');
           // While closing, the mini player is measured every frame: where it sits can still
-          // change as the page settles (it used to land a little off and jump into place).
+          // change as the page settles, so the card always lands exactly on it.
           var fpClosing = false;
           function setClosing(on) {
             fpClosing = on;
@@ -3734,7 +3734,7 @@ enum FavoritesScript {
               var copy = card.cloneNode(true);
               copy.removeAttribute('id');
               copy.querySelectorAll('[id]').forEach(function (n) { n.removeAttribute('id'); });
-              // The tab stays on the copy, so it rides with the card (it used to pop in at the end).
+              // The tab stays on the copy, so it rides with the card.
               copy.querySelectorAll('iframe, audio, video, script').forEach(function (n) { n.remove(); });
               var cs = copy.style;
               cs.position = 'relative'; cs.inset = 'auto'; cs.left = cs.top = cs.right = cs.bottom = 'auto';
@@ -4858,12 +4858,7 @@ enum FavoritesScript {
               sessionStorage.removeItem(REVEAL_KEY);
               if (reveal && reveal.url) revealSong(reveal.url, reveal.start, showNumber(reveal.show), null);
             } catch (e) {}
-            try {
-              // Drop the spot older builds saved for "continue where you left off" (since
-              // removed), then show the welcome mini player.
-              localStorage.removeItem('sr-last-spot');
-              setTimeout(function () { showHelloCard(); }, 1200);
-            } catch (e) {}
+            setTimeout(function () { showHelloCard(); }, 1200); // the welcome mini player
             native({ op: 'get' });
             schedule();
           }
