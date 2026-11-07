@@ -217,7 +217,9 @@ enum FavoritesScript {
             // The show cards' hover / press shading is for a mouse: on a phone a finger resting
             // on a show (say, at the start of a pull) left it shaded. Touch screens only, show
             // cards only (links to a show); tracklist rows keep their press highlight.
-            '@media (hover:none){a[href*="/episodes/"]:hover,a[href*="/episodes/"]:active,a[href*="/episodes/"]:hover [class*="hover:bg-"],a[href*="/episodes/"]:active [class*="active:bg-"],a[href*="/episodes/"]:hover [class*="group-hover:bg-"]{background-color:transparent!important}}',
+            '@media (hover:none){a[href*="/episodes/"]:not([data-sr-row] a):hover,a[href*="/episodes/"]:not([data-sr-row] a):active,a[href*="/episodes/"]:not([data-sr-row] a):hover [class*="hover:bg-"],a[href*="/episodes/"]:not([data-sr-row] a):active [class*="active:bg-"],a[href*="/episodes/"]:not([data-sr-row] a):hover [class*="group-hover:bg-"]{background-color:transparent!important}}',
+            // Tracklist rows: a slightly long tap on a timestamp jumps, it never selects text.
+            '[data-sr-row],[data-sr-row] *{-webkit-user-select:none;user-select:none;-webkit-touch-callout:none}',
             'main{overflow-x:clip}',
             // Only the song-list rows the app recognises (it puts hearts on them), so other
             // lists built the same way, like Trending tracks, scroll as the site made them.
@@ -4827,7 +4829,9 @@ enum FavoritesScript {
           function schedule() {
             if (renderPending) return;
             renderPending = true;
-            setTimeout(render, 30);
+            // 60 ms: quick, but after iPhone's check for "did this tap change the page?" (an
+            // update inside that check made iPhone hold back taps on timestamps).
+            setTimeout(render, 60);
           }
 
           function start() {

@@ -3,13 +3,13 @@
 A maintenance build: nothing new to learn, just tidier and quicker.
 
 - **Quicker dice:** the first tap no longer waits on extra requests to the site; the full list of shows comes straight from the site's database.
-- **Snappier screen updates:** hearts, the mini player and the top bar catch up with the page sooner.
 - **No more accidental resets:** pulling down at the top of a page no longer reloads it (that stopped the music and reset the player). If the app opens without a connection, it tries loading again by itself.
 - **No more shading** on a show card when a scroll or pull starts on it (tracklist rows keep their press highlight).
 - **Backup you never have to reconnect:** your Likes and History are now also saved on the iPhone itself (Files → On My iPhone → Soulection), after every change. If the iCloud copy pauses, the reminder comes at most once a week instead of on every launch, and shows iOS's reason. The app also re-checks its link to the iCloud file after saving, so it should stop pausing.
 - **Swipe back goes back:** swiping the mini player right now always plays the song before (the back button in the big player still restarts the song first, like Spotify).
 - **New-show alerts more often:** the app asks iOS to check every 15 minutes (it was an hour), checks every 30 minutes while music plays in the background, and checks when you leave the app. Help explains the two settings that make alerts work when the app is closed.
 - **Build numbers:** after the first build of a version, the download is named with its build number (e.g. SoulectionRadio-5.0-12.ipa) and Help shows "(build 12)", so each download has its own name.
+- **Timestamps:** tapping a timestamp jumps to that song again (taps were being held back), and a long tap no longer selects text.
 - **Easier to read messages:** the text in the app's messages is a little bigger.
 - **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups), and the Likes, Sleep timer and Help panels now share one piece of code, so Sleep timer and Help get the same smooth pull-down to close as Likes.
 
