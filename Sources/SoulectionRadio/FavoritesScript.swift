@@ -3022,7 +3022,7 @@ enum FavoritesScript {
           // start next to a playing one), then it's unmuted and the old one pauses in the same
           // instant. If nothing is playing, it's simply started. `mine` is the try's number
           // (diceTry): a newer try or anything else played makes this one let go. `done(ok)` is
-          // called once: true when it plays, false if it never got going (after 20 seconds
+          // called once: true when it plays, false if it never got going (after about 20 seconds
           // what was playing just carries on).
           function switchShowHere(path, start, wasPlaying, mine, done) {
             var finished = false;
@@ -3039,12 +3039,17 @@ enum FavoritesScript {
             } else {
               playShowHere(path, 1, function () { finish(false); }, { relay: true, start: start });
             }
-            var t1 = Date.now();
+            var t1 = Date.now(), okSince = 0;
             (function check() {
               if (finished || mine !== diceTry) return; // tapped again, or something else was played
               var st = npState();
-              if (st && st.paused === false && directShown && directShown.episodeURL === path) return finish(true);
-              if (Date.now() - t1 > 20000) {
+              // Done once the new show has kept playing for 3 seconds (the old player can
+              // briefly come back right after a switch).
+              if (st && st.paused === false && directShown && directShown.episodeURL === path) {
+                if (!okSince) okSince = Date.now();
+                else if (Date.now() - okSince >= 3000) return finish(true);
+              } else okSince = 0;
+              if (Date.now() - t1 > 23000) {
                 // A switch that never got going: stop it, and what was playing carries on.
                 if (handing && switchItem && handing.f === switchItem) {
                   clearTimeout(handing.timer); clearInterval(handing.poke); handing = null;
@@ -4578,10 +4583,14 @@ enum FavoritesScript {
             n.setDirect(directShown);
             direct = { number: directShown.number, id: h.f.id, heard: true };
             if (h.oldFrame) setTimeout(function () { removeFrame(h.oldFrame); }, 3000);
+            justSwitched = { oldWin: h.oldWin, win: h.win, at: Date.now() };
             renderMiniPlayer(miniPlayer());
             blendIn();
           }
           function switchInPlayer(f) { return handoff(f); }
+          // The last switch: for a few seconds after it, the old player starting up again
+          // (the site's own player can) is a leftover, not something to follow.
+          var justSwitched = null;
 
           // A player is playing out loud but isn't the one the app shows (a switch that didn't
           // go cleanly). Follow that one: show its show and song, and pause any other player.
@@ -4590,6 +4599,12 @@ enum FavoritesScript {
             var win = e.detail && e.detail.win;
             var n = np();
             if (!win || !n || !n.setActiveFrame) return;
+            // The old player came back right after a switch: pause it again and keep the new one.
+            if (justSwitched && win === justSwitched.oldWin && Date.now() - justSwitched.at < 8000) {
+              n.toFrame(win, { pause: true, unmute: true });
+              if (justSwitched.win) n.toFrame(justSwitched.win, { play: true, unmute: true });
+              return;
+            }
             // While Mixtape, Likes or History plays, a different player starting is a mistake
             // (a play command that went to the wrong player): pause it and carry on with the
             // right one instead of following it.

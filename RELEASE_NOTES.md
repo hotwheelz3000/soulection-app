@@ -2,6 +2,7 @@
 
 A maintenance build: nothing new to learn, just tidier and quicker.
 
+- **Dice while a show from its page plays:** the switch now holds even when the site's own player tries to carry on, and if it doesn't take, you get a message instead of nothing.
 - **Quicker dice:** the first tap no longer waits on extra requests to the site; the full list of shows comes straight from the site's database.
 - **No more accidental resets:** pulling down at the top of a page no longer reloads it (that stopped the music and reset the player). If the app opens without a connection, it tries loading again by itself.
 - **No more shading** on a show card when a scroll or pull starts on it (tracklist rows keep their press highlight).
