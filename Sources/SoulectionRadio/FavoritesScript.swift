@@ -2006,6 +2006,7 @@ enum FavoritesScript {
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],
               [MOON, 'Sleep timer', 'Turns the music down slowly and stops it after a set time, or at the end of a song or show.'],
+              [NOTE, 'New show alerts', 'You get a notification when a new show is out. For it to work while the app is closed, keep Background App Refresh on (Settings → General) and leave the app in the app switcher instead of swiping it away.'],
               [PLAYBIG, 'Big player', 'Tap or swipe up on the player at the bottom to see big art and controls. Tap Up Next for the songs coming up. Swipe the player at the bottom left or right to skip songs.'],
               [HEART, 'Like any song', 'Tap the heart next to a song in a show, or in the player.'],
               [MORE, 'More', 'Share a song, or find it on Spotify or Apple Music.'],

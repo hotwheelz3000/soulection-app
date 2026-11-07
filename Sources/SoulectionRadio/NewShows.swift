@@ -44,7 +44,15 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
         }
         let center = NotificationCenter.default
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { NewShows.shared.schedule() }
+            MainActor.assumeIsolated {
+                NewShows.shared.schedule()
+                NewShows.shared.check()
+            }
+        }
+        // While music plays (also with the screen off) the app stays awake: check every 30
+        // minutes then too. When the app is asleep this timer simply doesn't run.
+        Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in
+            MainActor.assumeIsolated { NewShows.shared.check() }
         }
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated { NewShows.shared.check() }
@@ -62,10 +70,11 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
         }
     }
 
-    /// Asks iOS for the next background check, at the earliest an hour from now.
+    /// Asks iOS for the next background check, at the earliest 15 minutes from now (iOS
+    /// decides when it actually runs; apps that ask often and get used get more checks).
     func schedule() {
         let request = BGAppRefreshTaskRequest(identifier: Self.taskID)
-        request.earliestBeginDate = Date(timeIntervalSinceNow: 60 * 60)
+        request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         try? BGTaskScheduler.shared.submit(request)
     }
 

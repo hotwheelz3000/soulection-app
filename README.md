@@ -6,9 +6,9 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 ## Download
 
-**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)**: open the link, then tap the `.ipa` file under **Assets** (named with the version, e.g. `SoulectionRadio-5.0.ipa`).
+**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)**: open the link, then tap the `.ipa` file under **Assets** (named with the version and build, e.g. `SoulectionRadio-5.0-12.ipa`; the first build of a version has no build number).
 
-The link always has the newest build. Delete an older download first, so your phone doesn't save the new one as "… 2.ipa".
+The link always has the newest build. Each build has its own file name, so downloads never clash.
 
 ## How to install
 
@@ -46,7 +46,7 @@ With a free Apple ID the app stops opening after 7 days; install it again the sa
 - **Random show:** the dice plays a random show from the start, right where you are.
 - **Mixtape:** endless random songs, each from a different show. Each one goes into Likes and History; remove any you don't want.
 - **Sleep timer:** 5, 15 or 30 minutes, 1 hour, end of song, end of show or your own time, with **+5 min** while it runs. The music fades out, even with the screen off.
-- **New show notifications,** plus a **NEW** label on new shows until you open them.
+- **New show notifications,** plus a **NEW** label on new shows until you open them. For alerts while the app is closed, keep Background App Refresh on and don't swipe the app away (iOS decides when it checks).
 - **Welcome player:** "This is Soulection Radio." Its play button starts the newest show.
 - **Top bar** on every page: Back and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name.
 
