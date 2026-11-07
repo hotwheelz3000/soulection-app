@@ -770,6 +770,7 @@ enum FavoritesScript {
               favorites = Array.isArray(list) ? list : [];
               if (opts && typeof opts.build === 'string') buildLabel = opts.build;
               if (opts && Array.isArray(opts.history)) history = opts.history;
+              if (opts && Array.isArray(opts.continueListening)) mergeContinue(opts.continueListening);
               if (opts && opts.autoBackup) {
                 autoBackup = opts.autoBackup;
                 if (opts.welcome) showWelcome();
@@ -1449,7 +1450,30 @@ enum FavoritesScript {
           function continueList() {
             try { var l = JSON.parse(localStorage.getItem(CONTINUE_KEY) || '[]'); return Array.isArray(l) ? l : []; } catch (e) { return []; }
           }
-          function saveContinue(l) { try { localStorage.setItem(CONTINUE_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {} }
+          function saveContinue(l) { try { localStorage.setItem(CONTINUE_KEY, JSON.stringify(l.slice(0, 6))); } catch (e) {} syncContinue(); }
+          // The app keeps a copy for backups: sent when the list of shows changes, and
+          // otherwise at most once a minute (the spots move every 10 seconds).
+          var contSent = null, contSentAt = 0;
+          function syncContinue(force) {
+            var l = continueList();
+            var key = l.map(function (x) { return x.path; }).join('|');
+            if (!force && key === contSent && Date.now() - contSentAt < 60000) return;
+            contSent = key;
+            contSentAt = Date.now();
+            native({ op: 'continue', list: l });
+          }
+          // The app's copy (after a restore or import, or if the website's storage was
+          // cleared): for a show in both, the more recent spot wins.
+          function mergeContinue(saved) {
+            var mine = continueList(), byPath = {};
+            mine.concat(saved).forEach(function (x) {
+              if (!x || !x.path) return;
+              if (!byPath[x.path] || (x.at || 0) > (byPath[x.path].at || 0)) byPath[x.path] = x;
+            });
+            var l = Object.keys(byPath).map(function (k) { return byPath[k]; }).sort(function (a, b) { return (b.at || 0) - (a.at || 0); }).slice(0, 6);
+            try { localStorage.setItem(CONTINUE_KEY, JSON.stringify(l)); } catch (e) {}
+            if (JSON.stringify(l) !== JSON.stringify(saved)) syncContinue(true);
+          }
           function playingShowPath(st) {
             return (directShown && activeOurs() && directShown.episodeURL) || (st && st.episodeURL) || '';
           }

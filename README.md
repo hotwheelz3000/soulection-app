@@ -55,6 +55,7 @@ With a free Apple ID the app stops opening after 7 days; install it again the sa
 - **iCloud Drive (turn it on once):** in Likes, tap **Turn on** → **Save a backup file**, pick a folder in iCloud Drive and tap **Save**. That file is kept up to date and survives deleting the app or switching phones.
 - **If the iCloud copy pauses,** you'll get a reminder at most once a week: tap **Reconnect**, pick the file, then save it back to the same folder (**Save**, then **Replace**; Replace just updates it). Or tap **New backup**.
 - **After a reinstall,** tap **Pick my backup file** when the app asks. Your songs come back and backup carries on.
+- **What's in it:** Likes, History and Continue listening.
 - **Export / Import** for one-off copies.
 
 **Accessibility**

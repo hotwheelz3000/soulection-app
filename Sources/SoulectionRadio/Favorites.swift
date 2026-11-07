@@ -44,6 +44,27 @@ extension Favorite {
     }
 }
 
+/// A show you were in the middle of (Continue listening): where you were, out of how long.
+struct ContinueEntry: Codable, Equatable, Sendable {
+    var path: String
+    var show: String
+    var cover: String
+    var t: Double
+    var d: Double
+    /// When it was last played (milliseconds since 1970).
+    var at: Double
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        path = try c.decode(String.self, forKey: .path)
+        show = (try? c.decodeIfPresent(String.self, forKey: .show)) ?? ""
+        cover = (try? c.decodeIfPresent(String.self, forKey: .cover)) ?? ""
+        t = (try? c.decodeIfPresent(Double.self, forKey: .t)) ?? 0
+        d = (try? c.decodeIfPresent(Double.self, forKey: .d)) ?? 0
+        at = (try? c.decodeIfPresent(Double.self, forKey: .at)) ?? 0
+    }
+}
+
 /// The file written by Export and read by Import.
 struct FavoritesBackup: Codable {
     var app = "SoulectionRadio"
@@ -52,6 +73,8 @@ struct FavoritesBackup: Codable {
     var favorites: [Favorite]
     /// Listening history (newest last). Missing in backups made before history existed.
     var history: [Favorite]?
+    /// Continue listening. Missing in backups made before it was saved.
+    var continueListening: [ContinueEntry]?
 }
 
 /// Favorites live in the app's UserDefaults rather than the website's storage, so
@@ -61,6 +84,9 @@ final class FavoritesStore {
     private static let key = "Favorites.v1"
     private static let sinceBackupKey = "Favorites.addedSinceBackup"
     private static let historyKey = "History.v1"
+    private static let continueKey = "Continue.v1"
+    /// Keep this many shows in Continue listening.
+    static let continueLimit = 6
     /// Keep this many songs in the listening history.
     static let historyLimit = 500
     /// Remind to back up after this many new favorites since the last export.
@@ -70,6 +96,8 @@ final class FavoritesStore {
     private(set) var favorites: [Favorite]
     /// Songs listened to, oldest first. `favoritedAt` holds when it was played.
     private(set) var history: [Favorite]
+    /// Continue listening, newest first.
+    private(set) var continueList: [ContinueEntry]
 
     init(defaults: UserDefaults = .standard) {
         self.defaults = defaults
@@ -84,6 +112,43 @@ final class FavoritesStore {
             history = saved
         } else {
             history = []
+        }
+        if let data = defaults.data(forKey: Self.continueKey),
+           let saved = try? JSONDecoder().decode([ContinueEntry].self, from: data) {
+            continueList = saved
+        } else {
+            continueList = []
+        }
+    }
+
+    /// Replaces Continue listening with the page's list. Returns whether it changed.
+    func setContinue(_ list: [ContinueEntry]) -> Bool {
+        let trimmed = Array(list.prefix(Self.continueLimit))
+        guard trimmed != continueList else { return false }
+        continueList = trimmed
+        saveContinue()
+        return true
+    }
+
+    /// Adds Continue listening from a backup: for a show in both, the more recent spot wins.
+    func mergeContinue(_ incoming: [ContinueEntry]) {
+        var byPath = [String: ContinueEntry]()
+        for entry in continueList + incoming {
+            if let existing = byPath[entry.path], existing.at >= entry.at { continue }
+            byPath[entry.path] = entry
+        }
+        continueList = Array(byPath.values.sorted { $0.at > $1.at }.prefix(Self.continueLimit))
+        saveContinue()
+    }
+
+    func continueJSON() -> String {
+        guard let data = try? JSONEncoder().encode(continueList) else { return "[]" }
+        return String(decoding: data, as: UTF8.self)
+    }
+
+    private func saveContinue() {
+        if let data = try? JSONEncoder().encode(continueList) {
+            defaults.set(data, forKey: Self.continueKey)
         }
     }
 
@@ -176,12 +241,12 @@ final class FavoritesStore {
         return String(decoding: data, as: UTF8.self)
     }
 
-    /// The backup file's contents: favorites and history.
+    /// The backup file's contents: favorites, history and Continue listening.
     func backupData() throws -> Data {
         let encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys]
         encoder.dateEncodingStrategy = .iso8601
-        return try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history))
+        return try encoder.encode(FavoritesBackup(exportedAt: Date(), favorites: favorites, history: history, continueListening: continueList))
     }
 
     var isEmpty: Bool { favorites.isEmpty && history.isEmpty }
@@ -197,13 +262,13 @@ final class FavoritesStore {
     }
 
     /// Reads a backup file: the Export format, or a plain list of favorites.
-    static func readBackup(_ data: Data) -> (favorites: [Favorite], history: [Favorite])? {
+    static func readBackup(_ data: Data) -> (favorites: [Favorite], history: [Favorite], continueListening: [ContinueEntry])? {
         let decoder = JSONDecoder()
         decoder.dateDecodingStrategy = .iso8601
         if let backup = try? decoder.decode(FavoritesBackup.self, from: data) {
-            return (backup.favorites, backup.history ?? [])
+            return (backup.favorites, backup.history ?? [], backup.continueListening ?? [])
         }
-        if let list = try? decoder.decode([Favorite].self, from: data) { return (list, []) }
+        if let list = try? decoder.decode([Favorite].self, from: data) { return (list, [], []) }
         return nil
     }
 
@@ -226,7 +291,7 @@ final class FavoritesStore {
 /// op "get", "toggle" (with `favorite`), "remove" (with `id`), "export", "import",
 /// "backupLater" (dismiss the backup reminder until the next few favorites),
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
-/// "historyClear", "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
+/// "historyClear", "continue" (with `list`: Continue listening), "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
 /// `seconds`), "sleepNow" or
 /// "airplay" (show the AirPlay picker), "goBack" (the app's Back button),
 /// "backupCreate" (turn on auto-backup: save the backup file somewhere), "restoreBackup"
@@ -529,7 +594,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         return true
     }
 
-    private func readBackup(at url: URL, scope: URL? = nil) -> (favorites: [Favorite], history: [Favorite])? {
+    private func readBackup(at url: URL, scope: URL? = nil) -> (favorites: [Favorite], history: [Favorite], continueListening: [ContinueEntry])? {
         let access = scope ?? url
         let accessing = access.startAccessingSecurityScopedResource()
         defer { if accessing { access.stopAccessingSecurityScopedResource() } }
@@ -591,6 +656,15 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             store.removeFromHistory(id: id)
         case "historyClear":
             store.clearHistory()
+        case "continue":
+            // Continue listening changed on the page: keep it for backups. Nothing to send back.
+            guard let raw = body["list"],
+                  JSONSerialization.isValidJSONObject(raw),
+                  let data = try? JSONSerialization.data(withJSONObject: raw),
+                  let list = try? JSONDecoder().decode([ContinueEntry].self, from: data)
+            else { return }
+            if store.setContinue(list) { scheduleAutoBackup() }
+            return
         case "sleepStart":
             guard let seconds = body["seconds"] as? Double, seconds > 0 else { return }
             startSleepTimer(seconds: seconds)
@@ -903,7 +977,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         let welcome = UserDefaults.standard.bool(forKey: Self.welcomeSeenKey) ? "false" : "true"
         let build = (try? JSONEncoder().encode(BuildInfo.label)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build)});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), continueListening: \(store.continueJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build)});",
             completionHandler: nil
         )
     }
@@ -1109,6 +1183,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
                 return
             }
             let restored = store.merge(incoming.favorites) + (incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history))
+            if !incoming.continueListening.isEmpty { store.mergeContinue(incoming.continueListening) }
             UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
             // Keep backing up to this same file.
             let previousFile = UserDefaults.standard.data(forKey: Self.fileKey)
@@ -1148,6 +1223,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         }
         let added = store.merge(incoming.favorites)
         let addedHistory = incoming.history.isEmpty ? 0 : store.mergeHistory(incoming.history)
+        if !incoming.continueListening.isEmpty { store.mergeContinue(incoming.continueListening) }
         UserDefaults.standard.set(true, forKey: Self.restoreOfferedKey)
         scheduleAutoBackup()
         send()
