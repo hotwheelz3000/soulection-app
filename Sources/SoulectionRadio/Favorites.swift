@@ -612,6 +612,13 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             // The app's Back button: the same page history as swiping from the left edge.
             if let view = message.webView, view.canGoBack { view.goBack() }
             return
+        case "backState":
+            // The page changed address without a full load (the site moves between its pages
+            // in place, and iOS doesn't always report that): tell the page whether Back works.
+            if let view = message.webView {
+                view.evaluateJavaScript("window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(view.canGoBack));")
+            }
+            return
         case "airplay":
             showAirPlayPicker()
             return

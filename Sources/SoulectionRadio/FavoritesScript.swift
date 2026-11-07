@@ -1879,9 +1879,19 @@ enum FavoritesScript {
             var v = canBack ? 'false' : 'true';
             if (appBar.back.getAttribute('aria-disabled') !== v) appBar.back.setAttribute('aria-disabled', v);
           }
+          // Whenever the page's address changes, ask the app again whether Back works, so Back
+          // lights up as soon as there's a page to go back to (also on the home page).
+          var backHref = '';
+          function checkBackState() {
+            if (location.href === backHref) return;
+            backHref = location.href;
+            native({ op: 'backState' });
+            setTimeout(function () { native({ op: 'backState' }); }, 400); // after iOS catches up
+          }
           function renderTab() {
             buildAppBar();
             if (!appBar) return;
+            checkBackState();
             if (!tab) {
               tab = heartButton('sr-heart-top');
               tab.setAttribute('aria-label', 'Open Likes and History');

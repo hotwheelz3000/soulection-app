@@ -11,6 +11,7 @@ A maintenance build: nothing new to learn, just tidier and quicker.
 - **Build numbers:** after the first build of a version, the download is named with its build number (e.g. SoulectionRadio-5.0-12.ipa) and Help shows "(build 12)", so each download has its own name.
 - **Timestamps:** tapping a timestamp jumps to that song again (taps were being held back), and a long tap no longer selects text.
 - **Top bar on every page:** on pages where the site builds its top bar differently (show and song pages right now), the app's own bar covers it, with Back, Home, a Search button (opens the home page's search, ready to type) and all the other buttons in their usual spots.
+- **Back on the home page:** Back lights up and works as soon as there's a page to go back to (it's only dimmed right after opening the app).
 - **Easier to read messages:** the text in the app's messages is a little bigger.
 - **Cleanup:** leftover code from old builds removed (the old floating Likes tab and one-time settings cleanups), and the Likes, Sleep timer and Help panels now share one piece of code, so Sleep timer and Help get the same smooth pull-down to close as Likes.
 
