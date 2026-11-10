@@ -129,24 +129,8 @@ enum FavoritesScript {
             '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
-            // iPhone home page: one Trending row with an Artists / Tracks switch, in place of
-            // the site's own Trending tracks row (which it shows again for Tracks).
-            '.sr-trend{display:none}',
-            '@media (max-width:767px){' +
-              '.sr-trend{display:grid;gap:10px;margin:24px 0 8px;font-family:' + FONT + '}' +
-              '.sr-trend-head{display:flex;align-items:center;justify-content:space-between;gap:8px}' +
-              '.sr-trend-title{font-size:20px;line-height:28px;color:' + MUTED + ';margin:0;font-weight:400}' +
-              '.sr-trend-seg{display:inline-flex;gap:2px;padding:2px;border-radius:9999px;background:' + TRACK + '}' +
-              '.sr-trend-seg button{-webkit-appearance:none;appearance:none;border:0;margin:0;background:none;font:inherit;font-size:13px;line-height:18px;padding:5px 12px;border-radius:9999px;color:' + MUTED + ';cursor:pointer;-webkit-tap-highlight-color:transparent}' +
-              '.sr-trend-seg button[aria-pressed="true"]{background:rgba(255,255,255,.16);color:' + TEXT + '}' +
-              '.sr-trend-row{display:flex;gap:8px;overflow-x:auto;-webkit-overflow-scrolling:touch;scrollbar-width:none;overscroll-behavior-x:contain;margin:0 -16px;padding:0 16px}' +
-              '.sr-trend-row::-webkit-scrollbar{display:none}' +
-              '.sr-trend-row[hidden]{display:none}' +
-              '.sr-trend-chip{-webkit-appearance:none;appearance:none;flex:none;border:0;margin:0;font:inherit;font-size:15px;line-height:20px;padding:8px 14px;border-radius:9999px;background:' + TRACK + ';color:' + TEXT + ';white-space:nowrap;cursor:pointer;-webkit-tap-highlight-color:transparent}' +
-              '.sr-trend-chip:active{opacity:.6}' +
-              '.sr-trend-chip sup{font-size:10px;color:' + MUTED + ';margin-left:2px}' +
-              '[data-sr-trend-hide]{display:none!important}' +
-            '}',
+            // iPhone home page: the site's Trending tracks row, hidden.
+            '@media (max-width:767px){[data-sr-trend-hide]{display:none!important}}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
             '.sr-search-top{display:none}',
             '.sr-appbar-cover .sr-search-top{display:block}',
@@ -2958,13 +2942,8 @@ enum FavoritesScript {
           // "NEW" on the newest show until you've opened it. The first time, the newest show
           // is just remembered (so nothing is marked new right after installing).
           var SEEN_KEY = 'sr-seen-show';
-          // iPhone home page: a "Trending" row with an Artists / Tracks switch, in place of the
-          // site's own "Trending tracks" row. Artists are chips made from the site's side column
-          // (which on a phone sits at the very bottom, after the endless list of shows); a tap
-          // presses the site's own link, so the music keeps playing. Tracks shows the site's
-          // own row again. The site's elements are only marked, never moved or copied.
-          var TREND_KEY = 'sr-trend-tab';
-          var trend = null; // {root, artists, tracks, sec, head, list}
+          // iPhone home page: hides the site's own "Trending tracks" row (only marks it; the
+          // styles above do the hiding, on phones only).
           function findText(t) {
             try {
               var r = document.evaluate("//*[normalize-space(text())='" + t + "']", document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
@@ -2973,87 +2952,27 @@ enum FavoritesScript {
               return out;
             } catch (e) { return []; }
           }
-          function trendTab() {
-            try { return localStorage.getItem(TREND_KEY) === 'tracks' ? 'tracks' : 'artists'; } catch (e) { return 'artists'; }
-          }
-          function setTrendTab(tab) {
-            try { localStorage.setItem(TREND_KEY, tab); } catch (e) {}
-            showTrendTab();
-          }
-          function showTrendTab() {
-            if (!trend) return;
-            var tracks = trendTab() === 'tracks';
-            trend.artists.setAttribute('aria-pressed', String(!tracks));
-            trend.tracks.setAttribute('aria-pressed', String(tracks));
-            trend.list.hidden = tracks;
-            if (tracks) trend.sec.removeAttribute('data-sr-trend-hide'); else trend.sec.setAttribute('data-sr-trend-hide', '');
-            trend.head.setAttribute('data-sr-trend-hide', '');
-          }
-          // The side column's artist links, as {name, count, link}.
-          function trendingArtists() {
-            var h = findText('Trending artists')[0];
-            if (!h) return [];
-            var box = h.parentElement;
-            while (box && box.querySelectorAll('a[href]').length < 2 && box !== document.body) box = box.parentElement;
-            if (!box || box === document.body) return [];
-            var out = [];
-            box.querySelectorAll('a[href]').forEach(function (a) {
-              var sup = a.querySelector('sup');
-              var count = sup ? text(sup) : '';
-              var name = text(a);
-              if (count && name.slice(-count.length) === count) name = name.slice(0, -count.length).trim();
-              if (name) out.push({ name: name, count: count, link: a });
-            });
-            return out;
-          }
+          var trendHidden = null;
           function renderTrending() {
-            if (location.pathname !== '/') {
-              if (trend) { trend.root.remove(); trend = null; }
-              return;
-            }
-            if (trend && trend.root.isConnected && trend.sec.isConnected) return;
-            if (trend) { trend.root.remove(); trend = null; }
-            // The site's own "Trending tracks" row: the one that isn't in the side column
-            // (that one sits next to "Trending artists").
+            if (location.pathname !== '/') return;
+            if (trendHidden && trendHidden.isConnected) return;
             var featured = findText('Featured episodes')[0];
+            if (!featured) return;
             var artistsHead = findText('Trending artists')[0];
-            if (!featured || !artistsHead) return;
-            var head = null;
             findText('Trending tracks').forEach(function (d) {
-              // In the side column if the smallest box holding it and "Trending artists"
-              // doesn't hold the shows too.
-              var p = d.parentElement;
-              while (p && !p.contains(artistsHead)) p = p.parentElement;
-              if (p && p.contains(featured)) head = d;
+              // Skip the one in the side column, next to "Trending artists" (on iPad it shows).
+              if (artistsHead) {
+                var p = d.parentElement;
+                while (p && !p.contains(artistsHead)) p = p.parentElement;
+                if (p && !p.contains(featured)) return;
+              }
+              // The biggest box around the row that holds nothing else.
+              var sec = d;
+              while (sec.parentElement && sec.parentElement !== document.body && !sec.parentElement.contains(featured) && !/All episodes/.test(sec.parentElement.textContent || '')) sec = sec.parentElement;
+              if (sec === d || !sec.parentElement) return;
+              sec.setAttribute('data-sr-trend-hide', '');
+              trendHidden = sec;
             });
-            if (!head) return;
-            // The biggest box around that row that holds nothing else.
-            var sec = head;
-            while (sec.parentElement && sec.parentElement !== document.body && !sec.parentElement.contains(featured) && !/All episodes/.test(sec.parentElement.textContent || '')) sec = sec.parentElement;
-            if (sec === head || !sec.parentElement) return;
-            var artists = trendingArtists();
-            if (!artists.length) return;
-            var root = el('div', 'sr-trend');
-            root.innerHTML = '<div class="sr-trend-head"><h2 class="sr-trend-title">Trending</h2>' +
-              '<div class="sr-trend-seg" role="group" aria-label="Show trending"><button type="button" data-tab="artists">Artists</button><button type="button" data-tab="tracks">Tracks</button></div></div>' +
-              '<div class="sr-trend-row" role="list" aria-label="Trending artists"></div>';
-            var list = root.querySelector('.sr-trend-row');
-            list.innerHTML = artists.map(function (x, i) {
-              return '<button type="button" class="sr-trend-chip" role="listitem" data-i="' + i + '">' + esc(x.name) + (x.count ? '<sup aria-hidden="true">' + esc(x.count) + '</sup>' : '') + '</button>';
-            }).join('');
-            root.addEventListener('click', function (e) {
-              var tab = e.target.closest && e.target.closest('[data-tab]');
-              if (tab) { e.preventDefault(); return setTrendTab(tab.getAttribute('data-tab')); }
-              var chip = e.target.closest && e.target.closest('.sr-trend-chip');
-              if (!chip) return;
-              e.preventDefault();
-              // Fresh lookup: the site may have redrawn its list since the chips were made.
-              var now = trendingArtists()[+chip.getAttribute('data-i')];
-              if (now && now.link.isConnected) now.link.click();
-            });
-            sec.parentElement.insertBefore(root, sec);
-            trend = { root: root, artists: root.querySelector('[data-tab="artists"]'), tracks: root.querySelector('[data-tab="tracks"]'), sec: sec, head: head, list: list };
-            showTrendTab();
           }
           function renderNewBadges() {
             var seen = 0;
@@ -5063,7 +4982,7 @@ enum FavoritesScript {
               for (var i = 0; i < mutations.length; i++) {
                 var target = mutations[i].target;
                 // Ignore our own elements so updating a heart doesn't trigger another pass.
-                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar, .sr-appbar-side, .sr-trend')) continue;
+                if (target.closest && target.closest('.sr-heart, .sr-fav-root, .sr-grab, .sr-note, .sr-bars, .sr-mini-over, .sr-new, .sr-ready, .sr-appbar, .sr-appbar-side')) continue;
                 return schedule();
               }
             }).observe(document.body, { childList: true, subtree: true, characterData: true });
