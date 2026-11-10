@@ -132,8 +132,9 @@ enum FavoritesScript {
             // iPhone home page: the site's trending lists (its side column, which on a phone sits
             // after the endless list of shows) moved up to the top, artists and tracks side by side.
             '@media (max-width:767px){' +
-              '[data-sr-trend-host="flex"]{display:flex!important;flex-direction:column}' +
-              '[data-sr-trend-side]{order:-1;height:auto!important;min-height:0!important;max-height:none!important;position:static!important;overflow:visible!important}' +
+              '[data-sr-trend-host]{display:flex!important;flex-direction:column!important}' +
+              '[data-sr-trend-host]>*{order:0}' +
+              '[data-sr-trend-host]>[data-sr-trend-side]{order:-1!important;grid-row:auto!important;grid-column:auto!important;width:auto!important;height:auto!important;min-height:0!important;max-height:none!important;position:static!important;overflow:visible!important}' +
               '[data-sr-trend]{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}' +
               '[data-sr-trend]>*{grid-column:1/-1}' +
               '[data-sr-trend]>[data-sr-trend-col]{grid-column:auto;margin-top:0!important}' +
@@ -2987,8 +2988,9 @@ enum FavoritesScript {
             while (host && !host.contains(f)) host = host.parentElement;
             if (!host) return;
             var side = childToward(host, block);
-            var cs = getComputedStyle(host).display;
-            if (!/flex|grid/.test(cs)) host.setAttribute('data-sr-trend-host', 'flex');
+            // Stacked top to bottom (a grid can pin the column to a set spot, which would keep
+            // it at the bottom), with the trending block first.
+            host.setAttribute('data-sr-trend-host', '');
             side.setAttribute('data-sr-trend-side', '');
             var ac = childToward(block, a), tc = t && childToward(block, t);
             if (ac && tc && ac !== tc) {
@@ -3000,8 +3002,10 @@ enum FavoritesScript {
             // since the lists above have the same songs.
             dups.forEach(function (d) {
               if (side.contains(d)) return;
-              var sec = d.parentElement;
-              if (sec && !sec.contains(f) && !/All episodes/.test(sec.textContent || '')) sec.setAttribute('data-sr-trend-dup', '');
+              // The biggest box around it that holds nothing else (so no empty gap is left).
+              var sec = d;
+              while (sec.parentElement && sec.parentElement !== document.body && !sec.parentElement.contains(f) && !/All episodes/.test(sec.parentElement.textContent || '')) sec = sec.parentElement;
+              if (sec !== d || sec.parentElement) sec.setAttribute('data-sr-trend-dup', '');
             });
           }
           function renderNewBadges() {
