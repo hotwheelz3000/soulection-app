@@ -48,7 +48,7 @@ With a free Apple ID the app stops opening after 7 days; install it again the sa
 - **Sleep timer:** 5, 15 or 30 minutes, 1 hour, end of song, end of show or your own time, with **+5 min** while it runs. The music fades out, even with the screen off.
 - **New show notifications,** plus a **NEW** label on new shows until you open them. For alerts while the app is closed, keep Background App Refresh on and don't swipe the app away (iOS decides when it checks).
 - **Welcome player:** "This is Soulection Radio." Its play button starts the newest show.
-- **Top bar** on every page: Back and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name.
+- **Top bar** on every page: Back, Forward and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name.
 
 **Backup**
 - **On this iPhone, always:** `Soulection Radio Backup.json` in Files → **On My iPhone → Soulection**, updated after every change. Nothing to set up; it survives updates but not deleting the app.

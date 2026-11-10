@@ -258,17 +258,22 @@ struct WebView: UIViewRepresentable {
         weak var webView: WKWebView?
         private var offsetWatch: NSKeyValueObservation?
         private var backWatch: NSKeyValueObservation?
+        private var forwardWatch: NSKeyValueObservation?
 
-        /// Tells the page whether there's a page to go back to (the same history the edge
-        /// swipe uses), so the app's Back button only shows when it can do something.
+        /// Tells the page whether there's a page to go back or forward to (the same history
+        /// the edge swipes use), so the app's Back and Forward buttons are dimmed when they
+        /// can't do anything.
         func watchBack(_ webView: WKWebView) {
             backWatch = webView.observe(\.canGoBack, options: [.initial, .new]) { [weak self] view, _ in
+                MainActor.assumeIsolated { self?.sendCanGoBack(view) }
+            }
+            forwardWatch = webView.observe(\.canGoForward, options: [.new]) { [weak self] view, _ in
                 MainActor.assumeIsolated { self?.sendCanGoBack(view) }
             }
         }
         func sendCanGoBack(_ webView: WKWebView) {
             webView.evaluateJavaScript(
-                "window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(webView.canGoBack));",
+                "window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(webView.canGoBack), \(webView.canGoForward));",
                 completionHandler: nil
             )
         }

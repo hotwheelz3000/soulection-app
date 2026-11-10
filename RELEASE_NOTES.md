@@ -2,6 +2,7 @@
 
 A maintenance build: nothing new to learn, just tidier and quicker.
 
+- **Forward button:** next to Back in the top bar; goes forward again after going back (dimmed when there's nowhere to go).
 - **Continue listening is backed up:** it's now in the export file and the automatic backups, and comes back with an import or restore.
 - **Dice while a show from its page plays:** the switch now holds even when the site's own player tries to carry on, and if it doesn't take, you get a message instead of nothing.
 - **Quicker dice:** the first tap no longer waits on extra requests to the site; the full list of shows comes straight from the site's database.

@@ -63,6 +63,7 @@ enum FavoritesScript {
           var EXPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 8 5-5 5 5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
           var IMPORT = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3v12"/><path d="m7 10 5 5 5-5"/><path d="M5 15v4a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-4"/></svg>';
 
+          var FORWARD = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m9 5 7 7-7 7"/></svg>';
           var BACK = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m15 5-7 7 7 7"/></svg>';
           var HOME = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M4 11.5 12 4l8 7.5"/><path d="M6 10v10h4.5v-6h3v6H18V10"/></svg>';
           var SEARCH = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="11" cy="11" r="6.5"/><path d="m16 16 4 4"/></svg>';
@@ -764,7 +765,7 @@ enum FavoritesScript {
               });
             },
             pickSavedFile: function (restored, reason) { pickSavedFileNote(restored, reason); },
-            canGoBack: function (v) { canBack = !!v; setBackState(); },
+            canGoBack: function (v, f) { canBack = !!v; canForward = !!f; setBackState(); },
             sleepFired: function () { sleep = null; saveSleep(); renderMoon(); },
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
@@ -1842,8 +1843,8 @@ enum FavoritesScript {
             return null;
           }
           // The app's own top bar: fixed at the top of every page, so its buttons never move
-          // or go missing (even when the site redraws its own top bar). Left: Back (when there
-          // is a page to go back to) and Home. Right: Likes, Random show, Mixtape, Sleep timer
+          // or go missing (even when the site redraws its own top bar). Left: Back and Forward (dimmed when there
+          // is nowhere to go) and Home. Right: Likes, Random show, Mixtape, Sleep timer
           // and Help. It lines up with the site's search box, which stays in between.
           var appBar = null; // {root, left, right, back, home}
           function buildAppBar() {
@@ -1860,6 +1861,16 @@ enum FavoritesScript {
               if (!canBack) return;
               closeSheet(); closePlayer();
               native({ op: 'goBack' });
+            });
+            var forward = heartButton('sr-appbar-btn sr-forward-top');
+            forward.innerHTML = FORWARD;
+            forward.removeAttribute('aria-pressed');
+            forward.setAttribute('aria-label', 'Forward');
+            forward.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              if (!canForward) return;
+              closeSheet(); closePlayer();
+              native({ op: 'goForward' });
             });
             var home = heartButton('sr-appbar-btn sr-home-top');
             home.innerHTML = HOME;
@@ -1883,25 +1894,29 @@ enum FavoritesScript {
               if (location.pathname !== '/') goTo('/', 'sr-home', '1');
             });
             left.appendChild(back);
+            left.appendChild(forward);
             left.appendChild(home);
             left.appendChild(search);
             root.appendChild(left);
             root.appendChild(right);
             document.body.appendChild(root);
-            appBar = { root: root, left: left, right: right, back: back, home: home, search: search };
+            appBar = { root: root, left: left, right: right, back: back, forward: forward, home: home, search: search };
             attachLabel(back, 'Back');
+            attachLabel(forward, 'Forward');
             attachLabel(home, 'Home');
             attachLabel(search, 'Search');
           }
           // Whether there's a page to go back to: told by the app (its page history, the same
           // one the edge swipe uses).
-          var canBack = false;
+          var canBack = false, canForward = false;
           // Back always keeps its spot (so the search box and buttons never shift); it's dimmed
           // when there's no page to go back to.
           function setBackState() {
             if (!appBar) return;
             var v = canBack ? 'false' : 'true';
             if (appBar.back.getAttribute('aria-disabled') !== v) appBar.back.setAttribute('aria-disabled', v);
+            var fv = canForward ? 'false' : 'true';
+            if (appBar.forward.getAttribute('aria-disabled') !== fv) appBar.forward.setAttribute('aria-disabled', fv);
           }
           // Whenever the page's address changes, ask the app again whether Back works, so Back
           // lights up as soon as there's a page to go back to (also on the home page).
@@ -2077,7 +2092,7 @@ enum FavoritesScript {
           // ---------------------------------------------------------------------------
           function helpItems() {
             return [
-              [HOME, 'Back and Home', 'Top left, on every page: go back a page (when there is one), or straight to the home page.'],
+              [HOME, 'Back, Forward and Home', 'Top left, on every page: go back a page, forward again after going back, or straight to the home page.'],
               [HEART, 'Likes', 'The songs you liked and the songs you played. Play them in a row, search them, or tap a cover to open its show. Under History, Continue listening picks a show back up where you left it.'],
               [DICE, 'Random show', 'Plays a random show from the start.'],
               [CASSETTE, 'Mixtape', 'Plays random songs from random shows, nonstop. Each song goes into your Likes, even if you skip it, and into History once it plays. You can remove any you don’t want.'],

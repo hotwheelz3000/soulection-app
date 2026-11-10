@@ -293,7 +293,7 @@ final class FavoritesStore {
 /// "played" (with `favorite`: a song listened to), "historyRemove" (with `id`) or
 /// "historyClear", "continue" (with `list`: Continue listening), "sleepStart" (with `seconds`), "sleepCancel", "sleepFade" (with
 /// `seconds`), "sleepNow" or
-/// "airplay" (show the AirPlay picker), "goBack" (the app's Back button),
+/// "airplay" (show the AirPlay picker), "goBack" / "goForward" (the app's Back and Forward buttons),
 /// "backupCreate" (turn on auto-backup: save the backup file somewhere), "restoreBackup"
 /// (pick a backup file: restore it and keep backing up to it), "restoreDismissed", "welcomeSeen",
 /// "notifyPermission" (ask once for new-show notifications),
@@ -686,11 +686,15 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
             // The app's Back button: the same page history as swiping from the left edge.
             if let view = message.webView, view.canGoBack { view.goBack() }
             return
+        case "goForward":
+            // The app's Forward button: the same page history as swiping from the right edge.
+            if let view = message.webView, view.canGoForward { view.goForward() }
+            return
         case "backState":
             // The page changed address without a full load (the site moves between its pages
             // in place, and iOS doesn't always report that): tell the page whether Back works.
             if let view = message.webView {
-                view.evaluateJavaScript("window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(view.canGoBack));")
+                view.evaluateJavaScript("window.__soulectionFavorites && window.__soulectionFavorites.canGoBack && window.__soulectionFavorites.canGoBack(\(view.canGoBack), \(view.canGoForward));")
             }
             return
         case "airplay":
