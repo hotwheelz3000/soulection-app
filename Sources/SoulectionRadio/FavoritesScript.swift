@@ -129,6 +129,16 @@ enum FavoritesScript {
             '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
+            // iPhone home page: the site's trending lists (its side column, which on a phone sits
+            // after the endless list of shows) moved up to the top, artists and tracks side by side.
+            '@media (max-width:767px){' +
+              '[data-sr-trend-host="flex"]{display:flex!important;flex-direction:column}' +
+              '[data-sr-trend-side]{order:-1;height:auto!important;min-height:0!important;max-height:none!important;position:static!important;overflow:visible!important}' +
+              '[data-sr-trend]{display:grid!important;grid-template-columns:minmax(0,1fr) minmax(0,1fr);column-gap:16px;align-items:start}' +
+              '[data-sr-trend]>*{grid-column:1/-1}' +
+              '[data-sr-trend]>[data-sr-trend-col]{grid-column:auto;margin-top:0!important}' +
+              '[data-sr-trend-dup]{display:none!important}' +
+            '}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
             '.sr-search-top{display:none}',
             '.sr-appbar-cover .sr-search-top{display:block}',
@@ -2940,6 +2950,60 @@ enum FavoritesScript {
           // "NEW" on the newest show until you've opened it. The first time, the newest show
           // is just remembered (so nothing is marked new right after installing).
           var SEEN_KEY = 'sr-seen-show';
+          // iPhone home page: finds the site's trending lists and its own "Trending tracks"
+          // row, and marks them so the styles above move the lists up and hide the repeat.
+          // Only marks (no moving or copying), so the site's own links and updates keep working.
+          function findText(t) {
+            try {
+              return document.evaluate("//*[normalize-space(text())='" + t + "']", document.body, null, XPathResult.ORDERED_NODE_SNAPSHOT_TYPE, null);
+            } catch (e) { return null; }
+          }
+          function childToward(parent, node) {
+            while (node && node.parentElement !== parent) node = node.parentElement;
+            return node;
+          }
+          function renderTrending() {
+            var marked = document.querySelector('[data-sr-trend]');
+            if (location.pathname !== '/') {
+              if (marked) ['data-sr-trend', 'data-sr-trend-col', 'data-sr-trend-side', 'data-sr-trend-host', 'data-sr-trend-dup'].forEach(function (a) {
+                document.querySelectorAll('[' + a + ']').forEach(function (n) { n.removeAttribute(a); });
+              });
+              return;
+            }
+            if (marked && marked.isConnected && document.querySelector('[data-sr-trend-side]') && document.querySelector('[data-sr-trend-dup]')) return;
+            var artists = findText('Trending artists');
+            var featured = findText('Featured episodes');
+            if (!artists || !artists.snapshotLength || !featured || !featured.snapshotLength) return;
+            var a = artists.snapshotItem(0), f = featured.snapshotItem(0);
+            // The "Trending tracks" heading in the same block as the artists.
+            var tracks = findText('Trending tracks'), t = null, dups = [];
+            for (var i = 0; tracks && i < tracks.snapshotLength; i++) dups.push(tracks.snapshotItem(i));
+            // The block holding both lists, and the side column holding it.
+            var block = a.parentElement;
+            while (block && !dups.some(function (d) { return block.contains(d); })) block = block.parentElement;
+            if (!block || block.contains(f)) return; // not a separate side column: leave it
+            dups.forEach(function (d) { if (block.contains(d)) t = d; });
+            var host = block.parentElement;
+            while (host && !host.contains(f)) host = host.parentElement;
+            if (!host) return;
+            var side = childToward(host, block);
+            var cs = getComputedStyle(host).display;
+            if (!/flex|grid/.test(cs)) host.setAttribute('data-sr-trend-host', 'flex');
+            side.setAttribute('data-sr-trend-side', '');
+            var ac = childToward(block, a), tc = t && childToward(block, t);
+            if (ac && tc && ac !== tc) {
+              block.setAttribute('data-sr-trend', '');
+              ac.setAttribute('data-sr-trend-col', '');
+              tc.setAttribute('data-sr-trend-col', '');
+            } else block.setAttribute('data-sr-trend', '');
+            // The site's own phone row of trending tracks (outside the side column): hidden,
+            // since the lists above have the same songs.
+            dups.forEach(function (d) {
+              if (side.contains(d)) return;
+              var sec = d.parentElement;
+              if (sec && !sec.contains(f) && !/All episodes/.test(sec.textContent || '')) sec.setAttribute('data-sr-trend-dup', '');
+            });
+          }
           function renderNewBadges() {
             var seen = 0;
             try { seen = parseInt(localStorage.getItem(SEEN_KEY) || '0', 10) || 0; } catch (e) {}
@@ -4923,6 +4987,7 @@ enum FavoritesScript {
             renderRowHearts();
             renderPlayingRow();
             renderNewBadges();
+            renderTrending();
             renderMiniPlayer(miniPlayer());
             renderLiveCard();
             announceSong();

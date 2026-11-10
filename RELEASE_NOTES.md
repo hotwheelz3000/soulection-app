@@ -2,6 +2,7 @@
 
 A maintenance build: nothing new to learn, just tidier and quicker.
 
+- **Trending on iPhone:** the home page shows Trending artists and Trending tracks at the top, side by side like on iPad (on the phone they were hidden below the endless list of shows).
 - **Forward button:** next to Back in the top bar; goes forward again after going back (dimmed when there's nowhere to go).
 - **Continue listening is backed up:** it's now in the export file and the automatic backups, and comes back with an import or restore.
 - **Dice while a show from its page plays:** the switch now holds even when the site's own player tries to carry on, and if it doesn't take, you get a message instead of nothing.
