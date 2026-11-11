@@ -131,7 +131,8 @@ enum FavoritesScript {
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
             // iPhone home page: the site's Trending tracks row, hidden.
             '@media (max-width:767px){[data-sr-trend-hide]{display:none!important}}',
-            '[data-sr-bar-row]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important}',
+            '[data-sr-bar-row]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;position:relative!important}',
+            '[data-sr-bar-row]>[data-sr-drop]{position:absolute!important;top:100%!important;left:0!important;right:0!important;width:auto!important;margin:4px 0 0!important;z-index:60!important}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
             '.sr-search-top{display:none}',
             '.sr-appbar-cover .sr-search-top{display:block}',
@@ -1988,6 +1989,10 @@ enum FavoritesScript {
                 if ((c.compareDocumentPosition(box) & Node.DOCUMENT_POSITION_FOLLOWING) && !c.hasAttribute('data-sr-hidden')) {
                   c.setAttribute('data-sr-hidden', '1');
                   c.style.setProperty('display', 'none', 'important');
+                } else if ((box.compareDocumentPosition(c) & Node.DOCUMENT_POSITION_FOLLOWING) && !c.hasAttribute('data-sr-drop')) {
+                  // After the search box: the site's suggestion list. It opens under the bar,
+                  // over the page, not inside the one-line bar.
+                  c.setAttribute('data-sr-drop', '');
                 }
               });
               // One line, always: after a search the site stacks its phone top bar (search box on
