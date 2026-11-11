@@ -6,7 +6,7 @@ An unofficial iPhone and iPad app for [Soulection Radio](https://radio.soulectio
 
 ## Download
 
-**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)**: open the link, then tap the `.ipa` file under **Assets** (named with the version and build, e.g. `SoulectionRadio-5.0-12.ipa`; the first build of a version has no build number).
+**[Download Soulection Radio](https://github.com/hotwheelz3000/soulection-app/releases/latest)**: open the link, then tap the `.ipa` file under **Assets** (named with the version and build, e.g. `SoulectionRadio-5.0-24.ipa`; the first build of a version has no build number).
 
 The link always has the newest build. Each build has its own file name, so downloads never clash.
 
@@ -48,7 +48,8 @@ With a free Apple ID the app stops opening after 7 days; install it again the sa
 - **Sleep timer:** 5, 15 or 30 minutes, 1 hour, end of song, end of show or your own time, with **+5 min** while it runs. The music fades out, even with the screen off.
 - **New show notifications,** plus a **NEW** label on new shows until you open them. For alerts while the app is closed, keep Background App Refresh on and don't swipe the app away (iOS decides when it checks).
 - **Welcome player:** "This is Soulection Radio." Its play button starts the newest show.
-- **Top bar** on every page: Back, Forward and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name.
+- **Top bar** on every page, on one line with the site's search box: Back, Forward and Home on the left; Likes, dice, Mixtape, sleep timer and Help (**?**) on the right. Press and hold an icon for its name. On pages without a search box, a Search button takes you to it.
+- **Tidier iPhone home page:** the Trending tracks row is hidden, so Featured episodes lead straight into All episodes.
 
 **Backup**
 - **On this iPhone, always:** `Soulection Radio Backup.json` in Files → **On My iPhone → Soulection**, updated after every change. Nothing to set up; it survives updates but not deleting the app.
@@ -91,5 +92,5 @@ I'm a beginner developer. I built this by describing what I wanted to Claude Cod
   - `WebView.swift`: the web view and its layout fixes. `NewShows.swift`: new-show notifications. `SoulectionRadioApp.swift`: audio setup. `ContentView.swift` / `PageAppearance.swift`: the screen and background color. `BuildInfo.swift`: the version shown in Help (written by the workflow).
 - **Settings:** `xtool.yml` (name, bundle ID, icon) and `SoulectionRadio-Info.plist` (home screen name, version, background audio, file sharing). Icon: `Resources/AppIcon.png`.
 - **Releases:** the title uses `CFBundleShortVersionString`, and the notes come from `RELEASE_NOTES.md`. Change both for a new version.
-- **Build:** pushes to `main` build automatically, or run `xtool dev build --ipa` locally. `./rename-app.sh <AppName> <bundle.id>` renames the app.
+- **Build:** pushes to `main` build automatically, or run `xtool dev build --ipa` locally.
 - **Claude Code skills** in `.claude/skills/`: xtool notes plus review, CI and documentation-audit helpers.

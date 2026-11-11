@@ -17,7 +17,7 @@ jobs:
           fetch-depth: 0 # the whole history, to count the builds of this version
 
       # The app name comes from `product:` in xtool.yml, so the IPA and the
-      # artifact follow the app automatically after ./rename-app.sh.
+      # artifact are named after the app.
       - name: Read app name
         id: app
         run: |
