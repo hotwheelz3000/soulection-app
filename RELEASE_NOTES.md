@@ -2,6 +2,7 @@
 
 A maintenance build: nothing new to learn, just tidier and quicker.
 
+- **Top bar stays on one line after a search** (the site stacked it into three rows on iPhone).
 - **Cleaner iPhone home page:** the Trending tracks row is hidden; Featured episodes go straight into All episodes.
 - **Forward button:** next to Back in the top bar; goes forward again after going back (dimmed when there's nowhere to go).
 - **Continue listening is backed up:** it's now in the export file and the automatic backups, and comes back with an import or restore.

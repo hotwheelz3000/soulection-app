@@ -131,6 +131,7 @@ enum FavoritesScript {
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
             // iPhone home page: the site's Trending tracks row, hidden.
             '@media (max-width:767px){[data-sr-trend-hide]{display:none!important}}',
+            '[data-sr-bar-row]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important}',
             '.sr-appbar-btn[aria-disabled="true"]{opacity:.3;cursor:default}',
             '.sr-search-top{display:none}',
             '.sr-appbar-cover .sr-search-top{display:block}',
@@ -1989,6 +1990,9 @@ enum FavoritesScript {
                   c.style.setProperty('display', 'none', 'important');
                 }
               });
+              // One line, always: after a search the site stacks its phone top bar (search box on
+              // a line of its own), which would put the app's buttons on lines of their own too.
+              if (!row.hasAttribute('data-sr-bar-row')) row.setAttribute('data-sr-bar-row', '');
               // The search box takes whatever room is left (it can get narrower, never wider).
               if (box.style.minWidth !== '0px') { box.style.minWidth = '0px'; box.style.flex = '1 1 0px'; }
               var input = box.querySelector('input');
