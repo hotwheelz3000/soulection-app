@@ -64,6 +64,37 @@ enum NowPlayingScript {
             var lastSentAt = 0;
             var scheduled = false;
             var lastState = null;
+            // Covers handed to iOS as the picture itself (a small JPEG), not a web address:
+            // with an address, iOS downloads the cover again at every song change, and in
+            // another app that's slow, so the Dynamic Island shows a plain speaker icon
+            // meanwhile. Made once per cover; until it's ready (or if it can't be made), the
+            // address is used as before.
+            var coverData = {}; // address -> data URL, or false if it couldn't be made
+            function coverFor(url) {
+              if (!url || !/^https:\/\//.test(url)) return url;
+              var c = coverData[url];
+              if (c) return c;
+              if (c === undefined) {
+                coverData[url] = false;
+                try {
+                  fetch(url, { mode: 'cors', credentials: 'omit' })
+                    .then(function (r) { if (!r.ok) throw new Error('cover ' + r.status); return r.blob(); })
+                    .then(function (b) { return createImageBitmap(b); })
+                    .then(function (bmp) {
+                      var size = 400, cv = document.createElement('canvas');
+                      cv.width = cv.height = size;
+                      var w = bmp.width, h = bmp.height, side = Math.min(w, h);
+                      cv.getContext('2d').drawImage(bmp, (w - side) / 2, (h - side) / 2, side, side, 0, 0, size, size);
+                      var data = cv.toDataURL('image/jpeg', 0.85);
+                      if (!/^data:image\/jpeg/.test(data)) throw new Error('no jpeg');
+                      coverData[url] = data;
+                      lastSent = ''; schedule(); // send the picture now
+                    })
+                    .catch(function () { coverData[url] = false; });
+                } catch (e) {}
+              }
+              return url;
+            }
             var override = null; // metadata FavoritesScript shows while its playlist plays
             var playlist = null; // {next, previous} handlers while the favorites playlist plays
             // While a playlist plays a show in the app's own (hidden) player, that player is
@@ -194,7 +225,7 @@ enum NowPlayingScript {
                 title: title,
                 artist: artist,
                 album: album,
-                artwork: artwork,
+                artwork: coverFor(artwork),
                 starts: tracks.map(function (x) { return x.start; }),
                 index: index,
                 t: t,
@@ -224,7 +255,7 @@ enum NowPlayingScript {
                   title: state.title,
                   artist: state.artist,
                   album: state.album,
-                  artwork: state.artwork ? [{ src: state.artwork, sizes: '500x500', type: 'image/jpeg' }] : []
+                  artwork: state.artwork ? [{ src: state.artwork, sizes: /^data:/.test(state.artwork) ? '400x400' : '500x500', type: 'image/jpeg' }] : []
                 });
               } catch (e) {}
             }
@@ -367,7 +398,7 @@ enum NowPlayingScript {
                 try {
                   win.postMessage({
                     type: MSG, title: meta.title || '', artist: meta.artist || '', album: meta.album || '',
-                    artwork: abs(meta.artwork), starts: [], index: -1, playlist: !!playlist
+                    artwork: coverFor(abs(meta.artwork)), starts: [], index: -1, playlist: !!playlist
                   }, '*');
                 } catch (e) {}
               },
@@ -545,7 +576,7 @@ enum NowPlayingScript {
                     title: d.title || '',
                     artist: d.artist || '',
                     album: d.album || '',
-                    artwork: d.artwork ? [{ src: d.artwork, sizes: '500x500', type: 'image/jpeg' }] : []
+                    artwork: d.artwork ? [{ src: d.artwork, sizes: /^data:/.test(d.artwork) ? '400x400' : '500x500', type: 'image/jpeg' }] : []
                   }));
                 } catch (err) {}
               }

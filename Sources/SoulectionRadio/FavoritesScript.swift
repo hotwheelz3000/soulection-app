@@ -1532,7 +1532,7 @@ enum FavoritesScript {
                 var tr = currentTrack();
                 last = { kind: 'show', path: path, t: Math.floor(st.t), d: Math.floor(st.duration || 0),
                   show: ((shown && shown.show) || st.show || (st.number ? 'Show #' + st.number : '')).split(' | ')[0],
-                  cover: (shown && shown.cover) || st.cover || st.artwork || '',
+                  cover: (shown && shown.cover) || st.cover || '',
                   song: tr ? tr.song : '', artist: tr ? tr.artist : '' };
               }
               last.at = Date.now();
@@ -2995,7 +2995,7 @@ enum FavoritesScript {
             var show = (cur && cur.show) || (shown && shown.show) || st.show || (st.number ? 'Show #' + st.number : '');
             var song = cur ? cur.song : (t ? t.song : (st.title || ''));
             var artist = cur ? cur.artist : (t ? t.artist : (st.artist || ''));
-            var cover = (cur && cur.cover) || (shown && shown.cover) || st.artwork || '';
+            var cover = (cur && cur.cover) || (shown && shown.cover) || st.cover || '';
             var put = function (sel, v) { var n = liveCard.querySelector(sel); v = v || ''; if (n.textContent !== v) n.textContent = v; };
             put('.sr-ready-show', show);
             put('.sr-ready-song', song);

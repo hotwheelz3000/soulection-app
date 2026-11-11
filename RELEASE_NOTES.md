@@ -10,6 +10,7 @@
 - **New-show alerts more often:** the app asks iOS to check every 15 minutes, checks every 30 minutes while music plays in the background, and checks when you leave the app. Help explains the two settings that make alerts work when the app is closed.
 
 **Fixes**
+- **Dynamic Island keeps the cover:** in other apps it no longer falls back to a plain speaker icon when the song changes (the app now hands iOS the cover itself instead of a link to download).
 - **Dice while a show plays** (also one started from its page): the new show takes over and stays; if it doesn't start, you get a message instead of nothing. The first tap is quicker too.
 - **Timestamps** jump to their song again, and a long tap no longer selects text.
 - **Search:** the top bar stays on one line after a search, with suggestions opening right under it.
