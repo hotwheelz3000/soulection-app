@@ -1,6 +1,7 @@
 ## Soulection Radio 5.0
 
 **New**
+- **Picks up where you left off, like Spotify:** if the app was closed (by iOS or by you), it opens with the song you were on in the mini player, paused, at the same second. Tap play and it carries on: the show, or Likes, History or Mixtape with the same songs coming up.
 - **Forward button** next to Back in the top bar: goes forward again after going back (dimmed when there's nowhere to go).
 - **Backup on the iPhone, always:** Likes, History and Continue listening are saved in Files → On My iPhone → Soulection after every change. Nothing to set up.
 - **Continue listening is backed up:** it's in the export file and the automatic backups, and comes back with an import or restore.

@@ -1500,6 +1500,79 @@ enum FavoritesScript {
             } catch (e) {}
           }
           setInterval(noteListening, 10000);
+
+          // ---------------------------------------------------------------------------
+          // Where you left off, like Spotify: what was playing (a show, or Likes / History /
+          // Mixtape with its songs) and where in it. Saved every 5 seconds while it plays and
+          // when you leave the app. Next time the app opens fresh (iOS ended it, or it was
+          // swiped away), the mini player shows it, paused; play carries on from there.
+          // ---------------------------------------------------------------------------
+          var LAST_KEY = 'sr-last-played';
+          function saveLast() {
+            try {
+              var st = npState();
+              if (!st || st.paused !== false || starting || !(st.t > 0)) return;
+              var cur = playlist && playlist.current;
+              var last;
+              if (cur) {
+                var ids = playlist.ids, pos = playlist.pos, items = null;
+                if (playlist.source === 'mixtape') {
+                  // Mixtape: just the latest songs (it grows forever).
+                  var from = Math.max(0, pos - 20);
+                  items = playlist.items.slice(from, pos + 1);
+                  ids = items.map(function (x) { return x.id; });
+                  pos = ids.length - 1;
+                } else if (ids.length > 2000) return;
+                last = { kind: 'list', source: playlist.source, mode: playlist.mode, ids: ids, pos: pos, items: items,
+                  song: cur, t: Math.floor(st.t), d: Math.floor(st.duration || 0) };
+              } else {
+                var path = playingShowPath(st);
+                if (!path) return;
+                var shown = directShown && activeOurs() ? directShown : null;
+                var tr = currentTrack();
+                last = { kind: 'show', path: path, t: Math.floor(st.t), d: Math.floor(st.duration || 0),
+                  show: ((shown && shown.show) || st.show || (st.number ? 'Show #' + st.number : '')).split(' | ')[0],
+                  cover: (shown && shown.cover) || st.cover || st.artwork || '',
+                  song: tr ? tr.song : '', artist: tr ? tr.artist : '' };
+              }
+              last.at = Date.now();
+              localStorage.setItem(LAST_KEY, JSON.stringify(last));
+            } catch (e) {}
+          }
+          function lastPlayed() {
+            try {
+              var l = JSON.parse(localStorage.getItem(LAST_KEY) || 'null');
+              if (l && (l.kind === 'show' ? l.path : (l.song && l.ids && l.ids.length))) return l;
+            } catch (e) {}
+            return null;
+          }
+          setInterval(saveLast, 5000);
+          document.addEventListener('visibilitychange', function () { if (document.hidden) saveLast(); });
+          window.addEventListener('pagehide', saveLast);
+          // Play on the "where you left off" mini player: the show starts right here (the page
+          // stays), at the second you were at; then Likes / History / Mixtape takes over again.
+          function resumeLast(l, btn) {
+            if (btn && btn.getAttribute('aria-busy') === 'true') return;
+            if (btn) btn.setAttribute('aria-busy', 'true');
+            var path = l.kind === 'show' ? l.path : l.song.episodeURL;
+            if (!path) return;
+            closeSheet();
+            cancelShowSwitch();
+            var mine = ++diceTry;
+            beginStarting();
+            renderPlayButtons();
+            endPlaylist(false, true);
+            switchShowHere(path, Math.max(0, l.t - 2), false, mine, function (ok) {
+              if (btn) btn.removeAttribute('aria-busy');
+              if (!ok) return showToast("Couldn't pick it back up. Try again in a moment.");
+              if (l.kind !== 'list') return;
+              // Back into the playlist, at this song (it seeks to where you were).
+              playlist = { ids: l.ids.slice(), items: l.items ? l.items.slice() : undefined, pos: l.pos, mode: l.mode, source: l.source, current: null, resumeAt: l.t };
+              if (l.source === 'mixtape' && !lookup('mixtape', l.ids[l.pos])) { playlist.items = [l.song]; playlist.ids = [l.song.id]; playlist.pos = 0; }
+              playCurrent();
+              if (l.source === 'mixtape') { renderTape(); prefetchMix(); }
+            });
+          }
           function renderContinue(show) {
             if (!sheet || !sheet.cont) return;
             var nowPath = playingShowPath(npState());
@@ -2571,6 +2644,8 @@ enum FavoritesScript {
             var st = npState();
             if (st && st.paused === false) return; // something is already playing
             ensureStyle();
+            var last = lastPlayed();
+            if (last) return showLastCard(last);
             var card = el('div', 'sr-ready sr-hello',
               '<div class="sr-ready-row">' +
                 '<div class="sr-ready-info"><div class="sr-hello-logo" aria-hidden="true"></div>' +
@@ -2593,6 +2668,38 @@ enum FavoritesScript {
             document.body.appendChild(card);
             readyCard = card;
             warmNewest();
+          }
+          // The welcome mini player as "where you left off": the song (or show), its cover and
+          // how far in you were, paused. Play picks it back up.
+          function showLastCard(l) {
+            var card = el('div', 'sr-ready sr-last', cardMarkup());
+            var song = l.kind === 'list' ? l.song : l;
+            var put = function (sel, v) { card.querySelector(sel).textContent = v || ''; };
+            put('.sr-ready-show', l.kind === 'list' ? (l.source === 'mixtape' ? 'Mixtape · ' : '') + (song.show || '') : l.show);
+            put('.sr-ready-song', song.song || l.show || 'Soulection Radio');
+            put('.sr-ready-artist', song.artist || '');
+            put('.sr-ready-el', clock(l.t || 0));
+            put('.sr-ready-dur', l.d ? clock(l.d) : '');
+            var img = card.querySelector('.sr-ready-img');
+            if (song.cover && /^https:\/\//.test(song.cover)) img.src = song.cover; else img.style.display = 'none';
+            var frac = l.d ? Math.min(1, Math.max(0, l.t / l.d)) : 0;
+            card.querySelector('.sr-ready-fill').style.width = (frac * 100) + '%';
+            card.querySelector('.sr-ready-knob').style.left = 'calc(8px + (100% - 16px) * ' + frac.toFixed(4) + ')';
+            var playBtn = card.querySelector('.sr-ready-play');
+            playBtn.setAttribute('aria-label', 'Play ' + (song.song || l.show || 'where you left off'));
+            playBtn.addEventListener('click', function (e) {
+              e.preventDefault(); e.stopPropagation();
+              resumeLast(l, this);
+            });
+            card.addEventListener('touchend', function (e) {
+              e.preventDefault();
+              e.stopPropagation();
+              if (e.target.closest && e.target.closest('.sr-ready-play')) resumeLast(l, playBtn);
+            }, { passive: false });
+            card.addEventListener('click', function (e) { e.stopPropagation(); });
+            if (!reduceMotion) card.classList.add('sr-rise-in');
+            document.body.appendChild(card);
+            readyCard = card;
           }
           // The newest show from the very beginning, played right here: the page you're on
           // stays, the app's own player plays it and the mini player shows it.
@@ -4357,6 +4464,17 @@ enum FavoritesScript {
               playlist.ids.splice(playlist.pos, 1); // removed since the playlist started
             }
             if (!f) return endPlaylist(true);
+            // Picking up where you left off: this song, from that second.
+            if (playlist.resumeAt != null) {
+              var at = playlist.resumeAt;
+              playlist.resumeAt = null;
+              if (at > f.start && (f.end == null || at < f.end - 2)) {
+                var copy = {};
+                for (var k0 in f) copy[k0] = f[k0];
+                copy.start = at;
+                f = copy;
+              }
+            }
             var previous = playlist.current;
             playlist.current = f;
             beginStarting();
