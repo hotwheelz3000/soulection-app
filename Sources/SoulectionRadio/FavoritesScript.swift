@@ -43,6 +43,82 @@ enum FavoritesScript {
           var SOULECTION_ORIGIN = /^https:\/\/([a-z0-9-]+\.)*soulection\.com$/i;
           if (window !== window.top || !SOULECTION_ORIGIN.test(location.origin)) return;
 
+          // Load ahead: the site loads more shows (and lazy covers) when its marker at the end
+          // of the list comes into view, which a fast scroll reaches before the next batch is
+          // there. Page-wide watchers with no margin of their own now count anything within
+          // about two screens below the view as in view, so the next batch is asked for early.
+          // (Set before the site's code runs; watchers inside a scroll box are left alone.)
+          // The early report can leave the site thinking the end marker is still "in view" when
+          // the next batch lands (so it never asks again). So once a batch has landed (the page
+          // grew) and the marker is still within those two screens, its watcher is told "out of
+          // view, then in view", as a normal scroll would. It's only told after the page grew,
+          // so a batch is never asked for twice; as a fallback, a marker that's actually on
+          // screen with nothing heard for 3 seconds is told too.
+          var aheadWatchers = [];
+          (function () {
+            var IO = window.IntersectionObserver;
+            if (!IO) return;
+            var LEAD = 1600;
+            var Ahead = function (cb, opts) {
+              var o = opts || {};
+              var m = (o.rootMargin || '').trim();
+              if (o.root || (m && !/^0(px|%)?( 0(px|%)?)*$/.test(m))) return new IO(cb, o);
+              var copy = {};
+              for (var k in o) copy[k] = o[k];
+              copy.rootMargin = '0px 0px ' + LEAD + 'px 0px';
+              var w = { cb: null, targets: [], last: 0, nudged: 0, height: 0 };
+              var real = new IO(function (entries, obs) {
+                w.last = Date.now();
+                w.height = document.documentElement.scrollHeight;
+                return cb.call(this, entries, w.self);
+              }, copy);
+              w.self = real;
+              var observe = real.observe, unobserve = real.unobserve, disconnect = real.disconnect;
+              real.observe = function (t) { if (w.targets.indexOf(t) < 0) w.targets.push(t); return observe.call(real, t); };
+              real.unobserve = function (t) { var i = w.targets.indexOf(t); if (i >= 0) w.targets.splice(i, 1); return unobserve.call(real, t); };
+              real.disconnect = function () { w.targets = []; return disconnect.call(real); };
+              w.cb = cb;
+              aheadWatchers.push(w);
+              return real;
+            };
+            Ahead.prototype = IO.prototype;
+            try { window.IntersectionObserver = Ahead; } catch (e) {}
+          })();
+          function fakeEntry(t, on) {
+            var r = t.getBoundingClientRect();
+            return { target: t, isIntersecting: on, intersectionRatio: on ? 1 : 0, boundingClientRect: r,
+              intersectionRect: on ? r : { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, x: 0, y: 0 },
+              rootBounds: null, time: performance.now() };
+          }
+          function nudgeEndMarker() {
+            var vh = window.innerHeight || 800, docH = document.documentElement.scrollHeight, now = Date.now();
+            aheadWatchers.forEach(function (w) {
+              if (now - w.last < 400) return;
+              var grew = docH > w.height + 50;
+              w.targets.forEach(function (t) {
+                if (!t.isConnected) return;
+                var r = t.getBoundingClientRect();
+                // The end-of-list marker: the last thing on the page, within the lead zone.
+                if (r.bottom <= 0 || r.top >= vh + 1600 || r.top + window.scrollY < docH - vh * 1.5) return;
+                var onScreen = r.top < vh;
+                if (!grew && !(onScreen && now - w.last > 3000 && now - w.nudged > 3000)) return;
+                w.nudged = now;
+                w.last = now;
+                w.height = docH;
+                try {
+                  w.cb.call(w.self, [fakeEntry(t, false)], w.self);
+                  w.cb.call(w.self, [fakeEntry(t, true)], w.self);
+                } catch (e) {}
+              });
+            });
+          }
+          var nudgeTimer = 0;
+          window.addEventListener('scroll', function () {
+            clearTimeout(nudgeTimer);
+            nudgeTimer = setTimeout(nudgeEndMarker, 150);
+          }, { passive: true });
+          setInterval(function () { if (!document.hidden) nudgeEndMarker(); }, 700);
+
           // Site styles, read from radio.soulection.com (computed values on an iPhone-sized page),
           // with the text greys raised so all text reads at 4.5:1 or better on the dark
           // background (WCAG 2.2 AA). The site's own greys are raised to match (see CSS).
@@ -129,6 +205,10 @@ enum FavoritesScript {
             '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
+            // A show with no cover: a faint logo in its place.
+            '[data-sr-nocover]{position:relative;background:rgb(34,34,34)}',
+            '[data-sr-nocover]>img{opacity:0}',
+            '[data-sr-nocover]::after{content:"";position:absolute;inset:22%;background:rgb(80,80,80);-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;pointer-events:none}',
             // iPhone home page: the site's Trending tracks row, hidden.
             '@media (max-width:767px){[data-sr-trend-hide]{display:none!important}}',
             '[data-sr-bar-row]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;position:relative!important}',
@@ -3090,6 +3170,35 @@ enum FavoritesScript {
               trendHidden = sec;
             });
           }
+          // Show covers in the list: a cover that's in view (or nearly) but never loaded gets
+          // asked for again; one the site has no picture for (failed to load) shows a faint
+          // Soulection logo instead of an empty box.
+          var coverCheck = 0;
+          function checkCovers() {
+            var vh = window.innerHeight || 800;
+            document.querySelectorAll('a[href*="/episodes/"] img').forEach(function (img) {
+              if (img.closest('.sr-fav-root, .sr-ready, .sr-np')) return;
+              var r = img.getBoundingClientRect();
+              if (r.bottom < -vh || r.top > vh * 3 || !r.width) return;
+              var box = img.parentElement;
+              var failed = img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute('src'));
+              var empty = !img.getAttribute('src') && !img.getAttribute('srcset');
+              if (failed || empty) {
+                if (box && !box.matches('a') && !box.hasAttribute('data-sr-nocover')) box.setAttribute('data-sr-nocover', '');
+                return;
+              }
+              if (box && box.hasAttribute('data-sr-nocover')) box.removeAttribute('data-sr-nocover');
+              if (!img.complete && img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
+            });
+          }
+          function scheduleCoverCheck() {
+            clearTimeout(coverCheck);
+            coverCheck = setTimeout(checkCovers, 500);
+          }
+          window.addEventListener('scroll', scheduleCoverCheck, { passive: true });
+          document.addEventListener('error', function (e) {
+            if (e.target && e.target.tagName === 'IMG') scheduleCoverCheck();
+          }, true);
           function renderNewBadges() {
             var seen = 0;
             try { seen = parseInt(localStorage.getItem(SEEN_KEY) || '0', 10) || 0; } catch (e) {}
@@ -5085,6 +5194,7 @@ enum FavoritesScript {
             renderPlayingRow();
             renderNewBadges();
             renderTrending();
+            scheduleCoverCheck();
             renderMiniPlayer(miniPlayer());
             renderLiveCard();
             announceSong();
