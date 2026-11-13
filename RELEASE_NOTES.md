@@ -10,7 +10,7 @@
 - **New-show alerts more often:** the app asks iOS to check every 15 minutes, checks every 30 minutes while music plays in the background, and checks when you leave the app. Help explains the two settings that make alerts work when the app is closed.
 
 **Fixes**
-- **Smoother long scrolls:** the list of shows loads the next batch about two screens early, so a fast scroll rarely stops on "Loading more episodes…". Covers that never loaded are asked for again; shows with no cover get a faint logo instead of an empty box.
+- **Smoother long scrolls:** the list of shows loads the next batch about two screens early, so a fast scroll rarely stops on "Loading more episodes…". Covers coming up start loading right away, so they show sooner.
 - **Dynamic Island keeps the cover:** in other apps it no longer falls back to a plain speaker icon when the song changes (the app now hands iOS the cover itself instead of a link to download).
 - **Dice while a show plays** (also one started from its page): the new show takes over and stays; if it doesn't start, you get a message instead of nothing. The first tap is quicker too.
 - **Timestamps** jump to their song again, and a long tap no longer selects text.

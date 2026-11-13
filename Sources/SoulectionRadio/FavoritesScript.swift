@@ -205,10 +205,6 @@ enum FavoritesScript {
             '.sr-appbar.sr-appbar-hold{background:none;border:0;padding-top:0;padding-bottom:0;min-height:0;box-sizing:border-box}',
             '.sr-appbar-side{display:flex;align-items:center;flex:none}',
             '.sr-appbar-btn{font-size:24px;padding:7px 6px;margin:0;flex:none}',
-            // A show with no cover: a faint logo in its place.
-            '[data-sr-nocover]{position:relative;background:rgb(34,34,34)}',
-            '[data-sr-nocover]>img{opacity:0}',
-            '[data-sr-nocover]::after{content:"";position:absolute;inset:22%;background:rgb(80,80,80);-webkit-mask:url(/logo.svg) center/contain no-repeat;mask:url(/logo.svg) center/contain no-repeat;pointer-events:none}',
             // iPhone home page: the site's Trending tracks row, hidden.
             '@media (max-width:767px){[data-sr-trend-hide]{display:none!important}}',
             '[data-sr-bar-row]{display:flex!important;flex-direction:row!important;flex-wrap:nowrap!important;align-items:center!important;position:relative!important}',
@@ -3170,9 +3166,8 @@ enum FavoritesScript {
               trendHidden = sec;
             });
           }
-          // Show covers in the list: a cover that's in view (or nearly) but never loaded gets
-          // asked for again; one the site has no picture for (failed to load) shows a faint
-          // Soulection logo instead of an empty box.
+          // Show covers in the list: covers in view or coming up (up to two screens below)
+          // start loading now instead of waiting their turn.
           var coverCheck = 0;
           function checkCovers() {
             var vh = window.innerHeight || 800;
@@ -3180,14 +3175,6 @@ enum FavoritesScript {
               if (img.closest('.sr-fav-root, .sr-ready, .sr-np')) return;
               var r = img.getBoundingClientRect();
               if (r.bottom < -vh || r.top > vh * 3 || !r.width) return;
-              var box = img.parentElement;
-              var failed = img.complete && !img.naturalWidth && (img.currentSrc || img.getAttribute('src'));
-              var empty = !img.getAttribute('src') && !img.getAttribute('srcset');
-              if (failed || empty) {
-                if (box && !box.matches('a') && !box.hasAttribute('data-sr-nocover')) box.setAttribute('data-sr-nocover', '');
-                return;
-              }
-              if (box && box.hasAttribute('data-sr-nocover')) box.removeAttribute('data-sr-nocover');
               if (!img.complete && img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
             });
           }
