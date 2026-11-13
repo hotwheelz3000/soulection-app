@@ -45,8 +45,9 @@ enum FavoritesScript {
 
           // Load ahead: the site loads more shows (and lazy covers) when its marker at the end
           // of the list comes into view, which a fast scroll reaches before the next batch is
-          // there. Page-wide watchers with no margin of their own now count anything within
-          // about two screens below the view as in view, so the next batch is asked for early.
+          // there. Page-wide watchers (whatever margin the site gives them) now count anything
+          // within about two screens below the view as in view, so the next batch is asked for
+          // early.
           // (Set before the site's code runs; watchers inside a scroll box are left alone.)
           // The early report can leave the site thinking the end marker is still "in view" when
           // the next batch lands (so it never asks again). So once a batch has landed (the page
@@ -61,11 +62,18 @@ enum FavoritesScript {
             var LEAD = 1600;
             var Ahead = function (cb, opts) {
               var o = opts || {};
-              var m = (o.rootMargin || '').trim();
-              if (o.root || (m && !/^0(px|%)?( 0(px|%)?)*$/.test(m))) return new IO(cb, o);
+              if (o.root) return new IO(cb, o);
+              // Its own margin (CSS order: top right bottom left), with the bottom at least LEAD.
+              var parts = (o.rootMargin || '0px').trim().split(/\s+/);
+              var four = [parts[0], parts[1] || parts[0], parts[2] || parts[0], parts[3] || parts[1] || parts[0]];
+              if (/%$/.test(four[2])) return new IO(cb, o);
+              var bottom = parseFloat(four[2]) || 0;
+              if (bottom >= LEAD) return new IO(cb, o);
+              four[2] = LEAD + 'px';
+              four = four.map(function (v) { return /^-?[\d.]+$/.test(v) ? v + 'px' : v; });
               var copy = {};
               for (var k in o) copy[k] = o[k];
-              copy.rootMargin = '0px 0px ' + LEAD + 'px 0px';
+              copy.rootMargin = four.join(' ');
               var w = { cb: null, targets: [], last: 0, nudged: 0, height: 0 };
               var real = new IO(function (entries, obs) {
                 w.last = Date.now();
@@ -3145,19 +3153,23 @@ enum FavoritesScript {
             } catch (e) { return []; }
           }
           var trendHidden = null;
+          var trendHiddenSide = [];
           function renderTrending() {
             if (location.pathname !== '/') return;
-            if (trendHidden && trendHidden.isConnected) return;
+            var sideDone = trendHiddenSide.length && trendHiddenSide.every(function (n) { return n.isConnected; });
+            if (trendHidden && trendHidden.isConnected && sideDone) return;
             var featured = findText('Featured episodes')[0];
             if (!featured) return;
             var artistsHead = findText('Trending artists')[0];
+            var heads = [];
             findText('Trending tracks').forEach(function (d) {
-              // Skip the one in the side column, next to "Trending artists" (on iPad it shows).
+              // The one in the side column, next to "Trending artists".
               if (artistsHead) {
                 var p = d.parentElement;
                 while (p && !p.contains(artistsHead)) p = p.parentElement;
-                if (p && !p.contains(featured)) return;
+                if (p && !p.contains(featured)) { heads.push(d); return; }
               }
+              if (trendHidden && trendHidden.isConnected) return;
               // The biggest box around the row that holds nothing else.
               var sec = d;
               while (sec.parentElement && sec.parentElement !== document.body && !sec.parentElement.contains(featured) && !/All episodes/.test(sec.parentElement.textContent || '')) sec = sec.parentElement;
@@ -3165,8 +3177,25 @@ enum FavoritesScript {
               sec.setAttribute('data-sr-trend-hide', '');
               trendHidden = sec;
             });
+            // The side column's lists (on a phone at the very bottom, under the shows): each
+            // list's biggest box that holds neither the other list nor the "Explore the latest
+            // episodes" line, which stays.
+            if (sideDone || !artistsHead) return;
+            heads.unshift(artistsHead);
+            trendHiddenSide = [];
+            heads.forEach(function (h) {
+              var others = heads.filter(function (o) { return o !== h; });
+              var box = h;
+              while (box.parentElement && box.parentElement !== document.body) {
+                var up = box.parentElement;
+                if (up.contains(featured) || others.some(function (o) { return up.contains(o); }) || /Explore the latest/.test(up.textContent || '')) break;
+                box = up;
+              }
+              box.setAttribute('data-sr-trend-hide', '');
+              trendHiddenSide.push(box);
+            });
           }
-          // Show covers in the list: covers in view or coming up (up to two screens below)
+          // Show covers in the list: covers in view or within about three screens (either way)
           // start loading now instead of waiting their turn.
           var coverCheck = 0;
           function checkCovers() {
@@ -3174,7 +3203,7 @@ enum FavoritesScript {
             document.querySelectorAll('a[href*="/episodes/"] img').forEach(function (img) {
               if (img.closest('.sr-fav-root, .sr-ready, .sr-np')) return;
               var r = img.getBoundingClientRect();
-              if (r.bottom < -vh || r.top > vh * 3 || !r.width) return;
+              if (r.bottom < -vh * 3 || r.top > vh * 4 || !r.width) return;
               if (!img.complete && img.getAttribute('loading') === 'lazy') img.setAttribute('loading', 'eager');
             });
           }
