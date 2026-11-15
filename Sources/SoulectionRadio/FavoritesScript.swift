@@ -272,7 +272,8 @@ enum FavoritesScript {
             '.sr-np.sr-np-songs-open .sr-np-songs{transform:translate3d(0,0,0);visibility:visible;transition:transform .32s cubic-bezier(.2,.8,.2,1)}',
             '.sr-np-songs-head{flex:none;display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;padding:12px 16px 4px 20px}',
             // The arrow back to the cover sits on its own line, centred under the show name.
-            '.sr-np-songs-head .sr-np-songs-close{flex:none;margin:0 auto}',
+            // Centred on the screen (the head has 20px on the left, 16px on the right).
+            '.sr-np-songs-head .sr-np-songs-close{flex:none;margin:0 auto;position:relative;left:-2px}',
             '.sr-np-songs-head img{width:48px;height:48px;border-radius:4px;object-fit:cover;flex:none;background:' + TRACK + '}',
             '.sr-np-songs-title{flex:1 1 calc(100% - 60px);min-width:0;font-size:15px;line-height:20px;font-weight:600;color:#fff;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}',
             '.sr-np-songs-title small{display:block;font-size:12px;line-height:16px;font-weight:400;color:' + MUTED + '}',
