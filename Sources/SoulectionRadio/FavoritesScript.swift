@@ -2173,7 +2173,10 @@ enum FavoritesScript {
                   setTimeout(function () { box.focus(); }, 150);
                 }
               } catch (err) {}
-              if (lr.height && lr.top >= 0 && lr.top < 200) {
+              // Measured only with the page at the very top and the bar below the status bar
+              // (mid-scroll or mid-swap it can sit higher, and holding that spot made the
+              // buttons jump up under the clock while pages swapped).
+              if (lr.height && window.scrollY <= 1 && lr.top >= safeTop() - 1 && lr.top < 200) {
                 lastRow = { top: lr.top, height: lr.height, left: lr.left, right: window.innerWidth - gr.right, bottom: row.getBoundingClientRect().bottom };
               }
             } else {
@@ -2189,7 +2192,7 @@ enum FavoritesScript {
                 appBar.root.classList.remove('sr-appbar-cover');
                 appBar.root.style.paddingTop = '';
                 appBar.root.classList.add('sr-appbar-hold');
-                st.top = lastRow.top + 'px'; st.height = lastRow.height + 'px';
+                st.top = Math.max(lastRow.top, safeTop()) + 'px'; st.height = lastRow.height + 'px';
                 st.paddingLeft = lastRow.left + 'px'; st.paddingRight = lastRow.right + 'px';
                 clearTimeout(holdTimer);
                 holdTimer = setTimeout(fitAppBar, 4100 - (Date.now() - rowGoneAt));
@@ -2212,6 +2215,19 @@ enum FavoritesScript {
             }
           }
           var lastRow = null, rowGoneAt = 0, holdTimer = null, FOCUS_SEARCH_KEY = 'sr-focus-search';
+          // The height of the status bar area (the screen's top safe area), measured once.
+          var safeTopPx = null;
+          function safeTop() {
+            if (safeTopPx !== null) return safeTopPx;
+            try {
+              var probe = document.createElement('div');
+              probe.style.cssText = 'position:fixed;top:0;left:0;width:0;height:0;visibility:hidden;padding-top:env(safe-area-inset-top)';
+              document.documentElement.appendChild(probe);
+              safeTopPx = probe.offsetHeight || 0;
+              probe.remove();
+            } catch (e) { return 0; }
+            return safeTopPx;
+          }
 
 
           // ---------------------------------------------------------------------------
