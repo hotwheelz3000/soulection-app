@@ -13,11 +13,15 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
 
     /// Must match BGTaskSchedulerPermittedIdentifiers in SoulectionRadio-Info.plist.
     static let taskID = "com.hotwheelz3000.SoulectionRadio.newshow"
+    /// A second check iOS runs while the device is charging and idle (often overnight).
+    static let chargingTaskID = "com.hotwheelz3000.SoulectionRadio.newshow.charging"
     /// Posted with userInfo ["path": "/episodes/..."] when a notification is tapped.
     static let openEpisode = Notification.Name("SoulectionRadioOpenEpisode")
 
     private static let lastNumberKey = "NewShows.lastNumber"
     private static let askedKey = "NewShows.askedPermission"
+    /// The last check that reached the site: {"at": seconds since 1970, "how": trigger, "number": newest show}.
+    private static let lastCheckKey = "NewShows.lastCheck"
     private static let home = URL(string: "https://radio.soulection.com/")!
 
     /// A show tapped in a notification before the web view existed (cold launch).
@@ -39,23 +43,31 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
             MainActor.assumeIsolated {
                 NewShows.shared.schedule() // keep the checks going
                 box.task.expirationHandler = { box.task.setTaskCompleted(success: false) }
-                NewShows.shared.check { box.task.setTaskCompleted(success: true) }
+                NewShows.shared.check(how: "background") { box.task.setTaskCompleted(success: true) }
+            }
+        }
+        BGTaskScheduler.shared.register(forTaskWithIdentifier: Self.chargingTaskID, using: .main) { task in
+            let box = TaskBox(task: task)
+            MainActor.assumeIsolated {
+                NewShows.shared.schedule()
+                box.task.expirationHandler = { box.task.setTaskCompleted(success: false) }
+                NewShows.shared.check(how: "charging") { box.task.setTaskCompleted(success: true) }
             }
         }
         let center = NotificationCenter.default
         center.addObserver(forName: UIApplication.didEnterBackgroundNotification, object: nil, queue: .main) { _ in
             MainActor.assumeIsolated {
                 NewShows.shared.schedule()
-                NewShows.shared.check()
+                NewShows.shared.check(how: "leaving the app")
             }
         }
         // While music plays (also with the screen off) the app stays awake: check every 30
         // minutes then too. When the app is asleep this timer simply doesn't run.
         Timer.scheduledTimer(withTimeInterval: 30 * 60, repeats: true) { _ in
-            MainActor.assumeIsolated { NewShows.shared.check() }
+            MainActor.assumeIsolated { NewShows.shared.check(how: "while playing") }
         }
         center.addObserver(forName: UIApplication.didBecomeActiveNotification, object: nil, queue: .main) { _ in
-            MainActor.assumeIsolated { NewShows.shared.check() }
+            MainActor.assumeIsolated { NewShows.shared.check(how: "opening the app") }
         }
     }
 
@@ -76,13 +88,20 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
         let request = BGAppRefreshTaskRequest(identifier: Self.taskID)
         request.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
         try? BGTaskScheduler.shared.submit(request)
+        // Also a check while charging and idle (with a connection): iOS runs these when the
+        // device is plugged in and not in use, usually overnight.
+        let charging = BGProcessingTaskRequest(identifier: Self.chargingTaskID)
+        charging.requiresNetworkConnectivity = true
+        charging.requiresExternalPower = true
+        charging.earliestBeginDate = Date(timeIntervalSinceNow: 15 * 60)
+        try? BGTaskScheduler.shared.submit(charging)
     }
 
     // MARK: Checking
 
     /// Looks for a newer show. The first check only remembers the newest show (no
     /// notification for shows that were already out when the app was installed).
-    func check(completion: (@MainActor () -> Void)? = nil) {
+    func check(how: String, completion: (@MainActor () -> Void)? = nil) {
         guard !checking else { completion?(); return }
         checking = true
         Task { @MainActor in
@@ -99,6 +118,7 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
             let defaults = UserDefaults.standard
             let last = defaults.integer(forKey: Self.lastNumberKey)
             defaults.set(max(last, newest.number), forKey: Self.lastNumberKey)
+            defaults.set(["at": Date().timeIntervalSince1970, "how": how, "number": newest.number] as [String: Any], forKey: Self.lastCheckKey)
             guard last > 0, newest.number > last else { return }
             Self.notify(newest)
         }
@@ -137,6 +157,15 @@ final class NewShows: NSObject, UNUserNotificationCenterDelegate {
             let request = UNNotificationRequest(identifier: "newshow-\(episode.number)", content: content, trigger: nil)
             UNUserNotificationCenter.current().add(request)
         }
+    }
+
+    /// The last check that reached the site, for Help: {"at": ms since 1970, "how": ..., "number": ...}.
+    static func lastCheckJSON() -> String {
+        guard let d = UserDefaults.standard.dictionary(forKey: lastCheckKey),
+              let at = d["at"] as? Double, let how = d["how"] as? String, let number = d["number"] as? Int,
+              let data = try? JSONSerialization.data(withJSONObject: ["at": at * 1000, "how": how, "number": number])
+        else { return "null" }
+        return String(decoding: data, as: UTF8.self)
     }
 
     // MARK: Tapping a notification

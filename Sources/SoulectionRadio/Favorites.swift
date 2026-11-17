@@ -981,7 +981,7 @@ final class FavoritesBridge: NSObject, WKScriptMessageHandler, UIDocumentPickerD
         let welcome = UserDefaults.standard.bool(forKey: Self.welcomeSeenKey) ? "false" : "true"
         let build = (try? JSONEncoder().encode(BuildInfo.label)).map { String(decoding: $0, as: UTF8.self) } ?? "\"\""
         webView?.evaluateJavaScript(
-            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), continueListening: \(store.continueJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build)});",
+            "window.__soulectionFavorites && window.__soulectionFavorites.receive(\(store.json()), {backupDue: \(due), history: \(store.historyJSON()), continueListening: \(store.continueJSON()), autoBackup: \(autoBackupStatusJSON()), welcome: \(welcome), build: \(build), newShowCheck: \(NewShows.lastCheckJSON())});",
             completionHandler: nil
         )
     }

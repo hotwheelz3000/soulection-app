@@ -12,10 +12,12 @@
     <array>
         <string>audio</string>
         <string>fetch</string>
+        <string>processing</string>
     </array>
     <key>BGTaskSchedulerPermittedIdentifiers</key>
     <array>
         <string>com.hotwheelz3000.SoulectionRadio.newshow</string>
+        <string>com.hotwheelz3000.SoulectionRadio.newshow.charging</string>
     </array>
     <key>UIUserInterfaceStyle</key>
     <string>Dark</string>

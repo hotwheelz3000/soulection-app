@@ -343,7 +343,7 @@ enum FavoritesScript {
             '.sr-mini-direct .sr-heart-mini{position:relative;z-index:4}',
             '.sr-note-why{font-size:12px;line-height:16px;color:' + MUTED + '}',
             '.sr-btn.sr-help-welcome{display:flex;margin:14px auto 0;padding:10px 16px;font-size:14px;line-height:20px}',
-            '.sr-help-build{padding:14px 0 6px;font-size:11px;line-height:16px;color:' + MUTED + ';text-align:center}',
+            '.sr-help-build{padding:14px 0 6px;font-size:11px;line-height:16px;color:' + MUTED + ';text-align:center;white-space:pre-line}',
             '.sr-mini-direct .sr-grab{z-index:4}',
             '.sr-player-frame{position:fixed;left:-10px;bottom:0;width:1px;height:1px;opacity:0;pointer-events:none;border:0}',
             '.sr-song-cell > .sr-bars{margin:5px 0 0 auto}',
@@ -859,6 +859,7 @@ enum FavoritesScript {
             receive: function (list, opts) {
               favorites = Array.isArray(list) ? list : [];
               if (opts && typeof opts.build === 'string') buildLabel = opts.build;
+              if (opts && 'newShowCheck' in opts) newShowCheck = opts.newShowCheck;
               if (opts && Array.isArray(opts.history)) history = opts.history;
               if (opts && Array.isArray(opts.continueListening)) mergeContinue(opts.continueListening);
               if (opts && opts.autoBackup) {
@@ -2300,6 +2301,16 @@ enum FavoritesScript {
           var helpPanel = null;
           var askedNotify = false; // the app itself only ever shows iOS's prompt once
           var buildLabel = '';
+          // The last new-show check (from the app): {at, how, number}, or null.
+          var newShowCheck = null;
+          function newShowCheckLine() {
+            var c = newShowCheck;
+            if (!c || !c.at) return 'Last checked for new shows: not yet';
+            var d = new Date(c.at);
+            var when = d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' +
+              d.toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
+            return 'Last checked for new shows: ' + when + ' (' + c.how + '), newest #' + c.number;
+          }
           function openHelp() {
             if (!helpPanel) {
               var root = el('div', 'sr-fav-root sr-help');
@@ -2334,7 +2345,7 @@ enum FavoritesScript {
               attachPanelDrag(helpPanel, closeHelp);
             }
             var buildEl = helpPanel.root.querySelector('.sr-help-build');
-            if (buildEl) buildEl.textContent = buildLabel;
+            if (buildEl) buildEl.textContent = buildLabel + '\n' + newShowCheckLine();
             closeSheet();
             openPanel(helpPanel, closeHelp);
           }
