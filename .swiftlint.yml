@@ -11,6 +11,14 @@ disabled_rules:
   - type_name
   - trailing_comma
   - todo
+  # Size and complexity limits: big files (like injected JS) are fine here.
+  - file_length
+  - type_body_length
+  - function_body_length
+  - cyclomatic_complexity
+  - large_tuple
+  - function_parameter_count
+  - nesting
 opt_in_rules:
   - force_unwrapping
   - unused_optional_binding
