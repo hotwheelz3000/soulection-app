@@ -5,6 +5,10 @@ import SwiftUI
 struct SoulectionRadioApp: App {
     @UIApplicationDelegateAdaptor(AppDelegate.self) private var appDelegate
 
+    init() {
+        AppLog.installCrashHandlers()
+    }
+
     var body: some Scene {
         WindowGroup {
             ContentView()

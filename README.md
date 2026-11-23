@@ -95,3 +95,12 @@ I'm a beginner developer. I built this by describing what I wanted to Claude Cod
 - **Releases:** the title uses `CFBundleShortVersionString`, and the notes come from `RELEASE_NOTES.md`. Change both for a new version.
 - **Build:** pushes to `main` build automatically, or run `xtool dev build --ipa` locally.
 - **Claude Code skills** in `.claude/skills/`: xtool notes plus review, CI and documentation-audit helpers.
+
+## Logs and updates
+
+- **Share logs:** shake the phone anywhere in the app to share `app.log`, which includes crashes. Send it along with bug reports.
+- **Update feed:** each release also has `source.json`, an AltStore-format source. Add this URL in a sideloading app that supports sources to see new builds as updates:
+
+```
+https://github.com/hotwheelz3000/soulection-app/releases/download/latest/source.json
+```

@@ -1,0 +1,20 @@
+# SwiftLint settings for the Build IPA workflow. Warnings show up as notes on
+# the run page; errors stop the build before it starts.
+included:
+  - Sources
+excluded:
+  - .build
+  - xtool
+disabled_rules:
+  - line_length
+  - identifier_name
+  - type_name
+  - trailing_comma
+  - todo
+opt_in_rules:
+  - force_unwrapping
+  - unused_optional_binding
+  - empty_count
+force_unwrapping: warning
+force_cast: error
+force_try: error
