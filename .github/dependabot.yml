@@ -1,0 +1,9 @@
+# Dependabot opens pull requests when the GitHub Actions used by the build
+# (and Swift packages, if any) have new versions. Merge one to update; merging
+# to main starts a new build like any other push.
+version: 2
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly

@@ -108,6 +108,12 @@ jobs:
             done
           fi
 
+      # Syntax-checks the JavaScript held in Swift multi-line strings (the scripts
+      # injected into the web view), so a broken script stops the build here instead
+      # of shipping. Errors point at the Swift file and line.
+      - name: Check injected JavaScript
+        run: python3 scripts/check-js.py Sources
+
       - name: Install xtool
         run: |
           brew install xtool-org/tap/xtool
